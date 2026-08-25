@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anti — Explore The World Your Way</title>
+    <meta name="description" content="Book flights, hotels and unforgettable experiences all in one place.">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Dancing+Script:wght@600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { DEFAULT: '#14B8A6', dark: '#0F766E', navy: '#0F172A', deep: '#062E33' }
+                    },
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        script: ['"Dancing Script"', 'cursive']
+                    },
+                    boxShadow: {
+                        card: '0 10px 30px -12px rgb(2 6 23 / 0.15)',
+                        lift: '0 20px 40px -16px rgb(2 6 23 / 0.25)'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+    <style>
+        /* ---------- Base ---------- */
+        html {
+            -webkit-text-size-adjust: 100%;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+        }
+
+        ::selection {
+            background: #14B8A6;
+            color: #fff;
+        }
+
+        /* ---------- Header states ---------- */
+        #site-header {
+            transition: background .35s ease, box-shadow .35s ease;
+            background: transparent;
+        }
+
+        #site-header .nav-link {
+            color: #E2E8F0;
+        }
+
+        #site-header .nav-link:hover {
+            color: #5EEAD4;
+        }
+
+        #site-header .brand-text {
+            color: #fff;
+        }
+
+        #site-header.scrolled {
+            background: #fff;
+            box-shadow: 0 6px 24px -12px rgb(2 6 23 / .18);
+        }
+
+        #site-header.scrolled .nav-link {
+            color: #334155;
+        }
+
+        #site-header.scrolled .nav-link:hover {
+            color: #0F766E;
+        }
+
+        #site-header.scrolled .brand-text {
+            color: #0F172A;
+        }
+
+        .nav-link.active {
+            color: #2DD4BF !important;
+        }
+
+        .nav-link.active::after {
+            content: '';
+            display: block;
+            height: 2px;
+            border-radius: 2px;
+            background: #2DD4BF;
+            margin-top: 2px;
+        }
+
+        #site-header.scrolled .nav-link.active {
+            color: #0F766E !important;
+        }
+
+        /* ---------- Booking tabs ---------- */
+        .tab-btn {
+            color: #94A3B8;
+        }
+
+        .tab-btn.tab-active {
+            color: #fff;
+            background: rgb(255 255 255 / .08);
+        }
+
+        .tab-btn.tab-active .tab-ico {
+            color: #2DD4BF;
+        }
+
+        /* ---------- Scroll reveal ---------- */
+        [data-reveal] {
+            opacity: 0;
+            transform: translateY(28px);
+            transition: opacity .8s cubic-bezier(.22, 1, .36, 1), transform .8s cubic-bezier(.22, 1, .36, 1);
+            will-change: opacity, transform;
+        }
+
+        [data-reveal="left"] {
+            transform: translateX(-40px);
+        }
+
+        [data-reveal="right"] {
+            transform: translateX(40px);
+        }
+
+        [data-reveal="zoom"] {
+            transform: scale(.92);
+        }
+
+        [data-reveal].revealed {
+            opacity: 1;
+            transform: none;
+        }
+
+        /* ---------- Keyframe animations ---------- */
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-12px);
+            }
+        }
+
+        .animate-float {
+            animation: float 5s ease-in-out infinite;
+        }
+
+        @keyframes spinSlow {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .animate-spin-slow {
+            animation: spinSlow 16s linear infinite;
+        }
+
+        @keyframes shake {
+
+            0%,
+            100% {
+                transform: translateX(0)
+            }
+
+            20% {
+                transform: translateX(-8px)
+            }
+
+            40% {
+                transform: translateX(8px)
+            }
+
+            60% {
+                transform: translateX(-5px)
+            }
+
+            80% {
+                transform: translateX(5px)
+            }
+        }
+
+        .shake {
+            animation: shake .45s ease;
+        }
+
+        /* ---------- Toast ---------- */
+        #toast {
+            transform: translate(-50%, 16px);
+            opacity: 0;
+            pointer-events: none;
+            transition: all .35s ease;
+        }
+
+        #toast.show {
+            transform: translate(-50%, 0);
+            opacity: 1;
+        }
+
+        /* ---------- Reduced motion ---------- */
+        @media (prefers-reduced-motion: reduce) {
+
+            *,
+            *::before,
+            *::after {
+                animation: none !important;
+                transition: none !important;
+            }
+
+            [data-reveal] {
+                opacity: 1 !important;
+                transform: none !important;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-white text-slate-800 antialiased">
+
+    <a href="#main"
+        class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg">Skip
+        to content</a>
+
+    <!-- ============================================================ HEADER -->
+    <header id="site-header" class="fixed inset-x-0 top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16 lg:h-20">
+
+                <!-- Logo -->
+                <a href="#home" class="flex items-center gap-2" aria-label="Anti home">
+                    <svg class="w-8 h-8 text-brand" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path
+                            d="M12 2a10 10 0 1 0 10 10c0-1.1-.9-2-2-2h-3a2 2 0 0 0-2 2c0 .6.2 1.1.6 1.4.3.3.4.7.4 1.1 0 1.1-.9 2-2 2a10 10 0 0 1-4-19.2V7a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2z"
+                            opacity=".9" />
+                        <path d="M21.5 8.5 14 11l5.5 3c1-1.6 2-3.6 2-5.5z" />
+                    </svg>
+                    <span class="brand-text text-xl font-extrabold tracking-tight">Anti</span>
+                </a>
+
+                <!-- Desktop nav -->
+                <nav class="hidden lg:flex items-center gap-7 text-sm font-semibold" aria-label="Primary">
+                    <a href="#home" class="nav-link active">Home</a>
+
+                    <div class="relative group">
+                        <button type="button" class="nav-link flex items-center gap-1" aria-haspopup="true">
+                            Destinations
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                                aria-hidden="true">
+                                <path d="M6 9l6 6 6-6" />
+                            </svg>
+                        </button>
+                        <div class="absolute left-0 top-full pt-3 hidden group-hover:block group-focus-within:block">
+                            <ul class="w-48 bg-white rounded-xl shadow-lift border border-slate-100 p-2 text-slate-700">
+                                <li><a class="block px-3 py-2 rounded-lg hover:bg-teal-50 hover:text-brand-dark"
+                                        href="#destinations">Bali, Indonesia</a></li>
+                                <li><a class="block px-3 py-2 rounded-lg hover:bg-teal-50 hover:text-brand-dark"
+                                        href="#destinations">Santorini, Greece</a></li>
+                                <li><a class="block px-3 py-2 rounded-lg hover:bg-teal-50 hover:text-brand-dark"
+                                        href="#destinations">Dubai, UAE</a></li>
+                                <li><a class="block px-3 py-2 rounded-lg hover:bg-teal-50 hover:text-brand-dark"
+                                        href="#destinations">Maldives</a></li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <a href="#offers" class="nav-link">Tours</a>
+                    <a href="#booking" class="nav-link">Flights</a>
+                    <a href="#booking" class="nav-link">Hotels</a>
+                    <a href="#blog" class="nav-link">Blog</a>
+                    <a href="#contact" class="nav-link">Contact</a>
+                </nav>
+
+                <div class="hidden lg:flex items-center gap-4">
+                    <a href="#contact" class="nav-link flex items-center gap-1.5 text-sm font-semibold">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                            aria-hidden="true">
+                            <circle cx="12" cy="12" r="9" />
+                            <path d="M9.6 9a2.5 2.5 0 1 1 3.4 2.3c-.8.34-1 1-1 1.7m0 3h.01" />
+                        </svg>
+                        Help
+                    </a>
+                    <a href="#contact"
+                        class="bg-brand hover:bg-brand-dark transition-colors text-white text-sm font-bold px-5 py-2.5 rounded-lg shadow-card">Sign
+                        In</a>
+                </div>
+
+                <!-- Mobile burger -->
+                <button id="menuBtn" class="lg:hidden p-2 rounded-lg text-white" aria-label="Open menu"
+                    aria-expanded="false" aria-controls="mobileMenu">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                        aria-hidden="true">
+                        <path d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile menu -->
+        <div id="mobileMenu"
+            class="hidden lg:hidden bg-white shadow-lift border-t border-slate-100 px-4 py-4 text-slate-700">
+            <nav class="grid gap-1 text-sm font-semibold" aria-label="Mobile">
+                <a href="#home" class="px-3 py-2.5 rounded-lg hover:bg-teal-50 hover:text-brand-dark">Home</a>
+                <a href="#destinations"
+                    class="px-3 py-2.5 rounded-lg hover:bg-teal-50 hover:text-brand-dark">Destinations</a>
+                <a href="#offers" class="px-3 py-2.5 rounded-lg hover:bg-teal-50 hover:text-brand-dark">Tours</a>
+                <a href="#booking" class="px-3 py-2.5 rounded-lg hover:bg-teal-50 hover:text-brand-dark">Flights</a>
+                <a href="#booking" class="px-3 py-2.5 rounded-lg hover:bg-teal-50 hover:text-brand-dark">Hotels</a>
+                <a href="#blog" class="px-3 py-2.5 rounded-lg hover:bg-teal-50 hover:text-brand-dark">Blog</a>
+                <a href="#contact" class="px-3 py-2.5 rounded-lg hover:bg-teal-50 hover:text-brand-dark">Contact</a>
+                <a href="#contact" class="mt-2 bg-brand text-white text-center px-5 py-3 rounded-lg font-bold">Sign
+                    In</a>
+            </nav>
+        </div>
+    </header>
+
+    <main id="main">
+
+        <!-- ============================================================ HERO -->
+        <section id="home" class="relative bg-brand-navy overflow-hidden">
+            <img src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80"
+                alt="Turquoise coastline with rocky cliffs" class="absolute inset-0 w-full h-full object-cover"
+                fetchpriority="high">
+            <div class="absolute inset-0 bg-brand-navy/70" aria-hidden="true"></div>
+
+            <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 lg:pt-40 pb-14">
+
+                <div class="max-w-2xl" data-reveal>
+                    <h1 class="text-white font-extrabold leading-tight text-4xl sm:text-5xl lg:text-6xl">
+                        Explore The World
+                        <span class="block font-script text-teal-300 text-5xl sm:text-6xl lg:text-7xl mt-1">Your
+                            Way</span>
+                    </h1>
+                    <p class="text-slate-200 mt-6 max-w-md text-sm sm:text-base">
+                        Discover amazing places at exclusive deals. Book flights, hotels and unforgettable experiences
+                        all in one place.
+                    </p>
+                    <div class="flex flex-wrap items-center gap-5 mt-8">
+                        <a href="#offers"
+                            class="bg-brand hover:bg-brand-dark hover:-translate-y-0.5 transition-all text-white text-sm font-bold px-6 py-3 rounded-lg shadow-lift">Explore
+                            Tours</a>
+                        <button id="watchVideo" type="button"
+                            class="flex items-center gap-3 text-white text-sm font-semibold group">
+                            <span
+                                class="grid place-items-center w-10 h-10 rounded-full border border-white/40 group-hover:bg-white group-hover:text-brand-navy transition-colors">
+                                <svg class="w-4 h-4 ml-0.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M8 5v14l11-7z" />
+                                </svg>
+                            </span>
+                            Watch Video
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Best price badge -->
+                <div class="hidden lg:block absolute right-16 top-44 animate-float" data-reveal="zoom" data-delay="300"
+                    aria-hidden="true">
+                    <div
+                        class="relative w-36 h-36 rounded-full border border-teal-300/40 grid place-items-center text-center">
+                        <div
+                            class="absolute inset-2 rounded-full border-2 border-dashed border-teal-300/60 animate-spin-slow">
+                        </div>
+                        <div class="text-teal-200">
+                            <p class="text-[10px] font-bold uppercase tracking-widest">Best Price</p>
+                            <svg class="w-8 h-8 mx-auto my-1" fill="none" stroke="currentColor" stroke-width="1.8"
+                                viewBox="0 0 24 24">
+                                <path d="M12 2l8 4v6c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10V6l8-4z" />
+                                <path d="M9 12l2 2 4-4" />
+                            </svg>
+                            <p class="text-[10px] font-bold uppercase tracking-widest">Guarantee</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= BOOKING WIDGET -->
+                <div id="booking" class="mt-14 lg:mt-20" data-reveal data-delay="150">
+                    <!-- Tabs -->
+                    <div class="flex gap-1 bg-slate-900/70 backdrop-blur rounded-t-2xl p-1.5 w-fit" role="tablist"
+                        aria-label="Booking type">
+                        <button
+                            class="tab-btn tab-active flex items-center gap-2 text-xs font-bold px-4 sm:px-6 py-3 rounded-xl transition-colors"
+                            data-tab="flights" role="tab" aria-selected="true">
+                            <svg class="tab-ico w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path
+                                    d="M2.5 19h19v2h-19v-2zm19.57-9.36c-.21-.8-1.04-1.28-1.84-1.06L14.9 9.98 8.03 3.1 6.1 3.61l3.44 6.1-4.6 1.23-2.12-1.72-1.44.39 2.7 4.68 14.9-4.01c.8-.22 1.28-1.05 1.09-1.64z" />
+                            </svg>
+                            Flights
+                        </button>
+                        <button
+                            class="tab-btn flex items-center gap-2 text-xs font-bold px-4 sm:px-6 py-3 rounded-xl transition-colors"
+                            data-tab="hotels" role="tab" aria-selected="false">
+                            <svg class="tab-ico w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path
+                                    d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9c0-2.21-1.79-4-4-4z" />
+                            </svg>
+                            Hotels
+                        </button>
+                        <button
+                            class="tab-btn flex items-center gap-2 text-xs font-bold px-4 sm:px-6 py-3 rounded-xl transition-colors"
+                            data-tab="tours" role="tab" aria-selected="false">
+                            <svg class="tab-ico w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M12 2 2 7l10 5 10-5-10-5zm-10 9 10 5 10-5M2 15l10 5 10-5" opacity=".9" />
+                            </svg>
+                            Tours
+                        </button>
+                        <button
+                            class="tab-btn flex items-center gap-2 text-xs font-bold px-4 sm:px-6 py-3 rounded-xl transition-colors"
+                            data-tab="cars" role="tab" aria-selected="false">
+                            <svg class="tab-ico w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path
+                                    d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z" />
+                            </svg>
+                            Cars
+                        </button>
+                    </div>
+
+                    <!-- Panels -->
+                    <div id="bookingCard" class="bg-white rounded-b-2xl rounded-tr-2xl shadow-lift p-2">
+
+                        <!-- Flights -->
+                        <form
+                            class="tab-panel grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1.1fr_auto_1.1fr_.9fr_.9fr_1.1fr_auto] divide-y divide-slate-100 lg:divide-y-0"
+                            data-panel="flights" novalidate>
+                            <label class="block px-5 py-3.5">
+                                <span
+                                    class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">From</span>
+                                <input id="fromInput" type="text" value="New York, USA" required
+                                    class="mt-1 w-full text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-200 rounded"
+                                    aria-label="From">
+                            </label>
+                            <div class="hidden lg:grid place-items-center px-1">
+                                <button id="swapBtn" type="button" aria-label="Swap origin and destination"
+                                    class="grid place-items-center w-9 h-9 rounded-full border border-slate-200 text-slate-500 hover:text-brand hover:border-brand transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                                        viewBox="0 0 24 24">
+                                        <path d="M7 8h10m0 0-3-3m3 3-3 3M17 16H7m0 0 3-3m-3 3 3 3" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <label class="block px-5 py-3.5 lg:border-l lg:border-slate-100">
+                                <span
+                                    class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">To</span>
+                                <input id="toInput" type="text" value="Paris, France" required
+                                    class="mt-1 w-full text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-200 rounded"
+                                    aria-label="To">
+                            </label>
+                            <label class="block px-5 py-3.5 lg:border-l lg:border-slate-100">
+                                <span
+                                    class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Depart</span>
+                                <input type="text" value="12 Aug, 2025" required
+                                    class="mt-1 w-full text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-200 rounded"
+                                    aria-label="Departure date">
+                            </label>
+                            <label class="block px-5 py-3.5 lg:border-l lg:border-slate-100">
+                                <span
+                                    class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Return</span>
+                                <input type="text" value="19 Aug, 2025" required
+                                    class="mt-1 w-full text-sm font-semibold text-slate-800 focus:outline-none focus:ring-teal-200 focus:ring-2 rounded"
+                                    aria-label="Return date">
+                            </label>
+                            <label class="block px-5 py-3.5 lg:border-l lg:border-slate-100">
+                                <span
+                                    class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Travelers</span>
+                                <input type="text" value="2 Adults, 1 Child" required
+                                    class="mt-1 w-full text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-200 rounded"
+                                    aria-label="Travelers">
+                            </label>
+                            <div class="px-4 py-3.5 lg:pl-0">
+                                <button id="searchBtn" type="submit"
+                                    class="w-full lg:w-auto bg-brand hover:bg-brand-dark transition-colors text-white text-sm font-bold px-7 py-3 rounded-lg h-full">
+                                    <span>Search</span>
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Hotels -->
+                        <form
+                            class="tab-panel hidden grid-cols-1 md:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1.2fr_auto] divide-y divide-slate-100 lg:divide-y-0"
+                            data-panel="hotels" novalidate>
+                            <label class="block px-5 py-3.5"><span
+                                    class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Destination</span><input
+                                    type="text" placeholder="Where to?" required
+                                    class="mt-1 w-full text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-200 rounded"></label>
+                            <label class="block px-5 py-3.5 lg:border-l lg:border-slate-100"><span
+                                    class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Check-in</span><input
+                                    type="text" placeholder="Add date" required
+                                    class="mt-1 w-full text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-200 rounded"></label>
+                            <label class="block px-5 py-3.5 lg:border-l lg:border-slate-100"><span
+                                    class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Check-out</span><input
+                                    type="text" placeholder="Add date" required
+                                    class="mt-1 w-full text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-200 rounded"></label>
+                            <label class="block px-5 py-3.5 lg:border-l lg:border-slate-100"><span
+                                    class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Guests</span><input
+                                    type="text" placeholder="2 Guests, 1 Room" required
+                                    class="mt-1 w-full text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-200 rounded"></label>
+                            <div class="px-4 py-3.5 lg:pl-0"><button type="submit"
+                                    class="search-alt w-full lg:w-auto bg-brand hover:bg-brand-dark transition-colors text-white text-sm font-bold px-7 py-3 rounded-lg"><span>Search</span></button>
+                            </div>
+                        </form>
+
+                        <!-- Tours -->
+                        <form
+                            class="tab-panel hidden grid-cols-1 md:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1.2fr_auto] divide-y divide-slate-100 lg:divide-y-0"
+                            data-panel="tours" novalidate>
+                            <label class="block px-5 py-3.5"><span
+                                    class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Destination</span><input
+                                    type="text" placeholder="Where to?" required
+                                    class="mt-1 w-full text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-200 rounded"></label>
+                            <label class="block px-5 py-3.5 lg:border-l lg:border-slate-100"><span
+                                    class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Tour
+                                    Date</span><input type="text" placeholder="Add date" required
+                                    class="mt-1 w-full text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-200 rounded"></label>
+                            <label class="block px-5 py-3.5 lg:border-l lg:border-slate-100"><span
+                                    class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Travelers</span><input
+                                    type="text" placeholder="2 Adults" required
+                                    class="mt-1 w-full text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-200 rounded"></label>
+                            <div class="px-4 py-3.5 lg:pl-0"><button type="submit"
+                                    class="search-alt w-full lg:w-auto bg-brand hover:bg-brand-dark transition-colors text-white text-sm font-bold px-7 py-3 rounded-lg"><span>Search</span></button>
+                            </div>
+                        </form>
+
+                        <!-- Cars -->
+                        <form
+                            class="tab-panel hidden grid-cols-1 md:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr_auto] divide-y divide-slate-100 lg:divide-y-0"
+                            data-panel="cars" novalidate>
+                            <label class="block px-5 py-3.5"><span
+                                    class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Pick-up
+                                    Location</span><input type="text" placeholder="City or airport" required
+                                    class="mt-1 w-full text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-200 rounded"></label>
+                            <label class="block px-5 py-3.5 lg:border-l lg:border-slate-100"><span
+                                    class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Pick-up
+                                    Date</span><input type="text" placeholder="Add date" required
+                                    class="mt-1 w-full text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-200 rounded"></label>
+                            <label class="block px-5 py-3.5 lg:border-l lg:border-slate-100"><span
+                                    class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Drop-off
+                                    Date</span><input type="text" placeholder="Add date" required
+                                    class="mt-1 w-full text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-200 rounded"></label>
+                            <label class="block px-5 py-3.5 lg:border-l lg:border-slate-100"><span
+                                    class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Car
+                                    Type</span><input type="text" placeholder="Any" required
+                                    class="mt-1 w-full text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-200 rounded"></label>
+                            <div class="px-4 py-3.5 lg:pl-0"><button type="submit"
+                                    class="search-alt w-full lg:w-auto bg-brand hover:bg-brand-dark transition-colors text-white text-sm font-bold px-7 py-3 rounded-lg"><span>Search</span></button>
+                            </div>
+                        </form>
+
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ CATEGORIES -->
+        <section class="py-16 lg:py-20 bg-slate-50">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center" data-reveal>
+                    <h2 class="text-2xl lg:text-3xl font-extrabold text-slate-900">What are you looking for?</h2>
+                    <p class="text-sm text-slate-500 mt-2">Find the best deals on flights, hotels and holiday packages
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mt-10">
+                    <a href="#booking"
+                        class="group bg-white rounded-xl border border-slate-100 shadow-card p-5 text-center hover:-translate-y-1 hover:shadow-lift transition-all"
+                        data-reveal>
+                        <span
+                            class="grid place-items-center w-14 h-14 mx-auto rounded-xl bg-sky-50 text-2xl group-hover:scale-110 transition-transform">✈️</span>
+                        <p class="text-xs font-bold text-slate-700 mt-3">Flights</p>
+                    </a>
+                    <a href="#booking"
+                        class="group bg-white rounded-xl border border-slate-100 shadow-card p-5 text-center hover:-translate-y-1 hover:shadow-lift transition-all"
+                        data-reveal data-delay="80">
+                        <span
+                            class="grid place-items-center w-14 h-14 mx-auto rounded-xl bg-indigo-50 text-2xl group-hover:scale-110 transition-transform">🏨</span>
+                        <p class="text-xs font-bold text-slate-700 mt-3">Hotels</p>
+                    </a>
+                    <a href="#offers"
+                        class="group bg-white rounded-xl border border-slate-100 shadow-card p-5 text-center hover:-translate-y-1 hover:shadow-lift transition-all"
+                        data-reveal data-delay="160">
+                        <span
+                            class="grid place-items-center w-14 h-14 mx-auto rounded-xl bg-amber-50 text-2xl group-hover:scale-110 transition-transform">🎁</span>
+                        <p class="text-xs font-bold text-slate-700 mt-3">Holiday Packages</p>
+                    </a>
+                    <a href="#destinations"
+                        class="group bg-white rounded-xl border border-slate-100 shadow-card p-5 text-center hover:-translate-y-1 hover:shadow-lift transition-all"
+                        data-reveal data-delay="240">
+                        <span
+                            class="grid place-items-center w-14 h-14 mx-auto rounded-xl bg-teal-50 text-2xl group-hover:scale-110 transition-transform">🗺️</span>
+                        <p class="text-xs font-bold text-slate-700 mt-3">City Tours</p>
+                    </a>
+                    <a href="#offers"
+                        class="group bg-white rounded-xl border border-slate-100 shadow-card p-5 text-center hover:-translate-y-1 hover:shadow-lift transition-all"
+                        data-reveal data-delay="320">
+                        <span
+                            class="grid place-items-center w-14 h-14 mx-auto rounded-xl bg-cyan-50 text-2xl group-hover:scale-110 transition-transform">🛳️</span>
+                        <p class="text-xs font-bold text-slate-700 mt-3">Cruises</p>
+                    </a>
+                    <a href="#booking"
+                        class="group bg-white rounded-xl border border-slate-100 shadow-card p-5 text-center hover:-translate-y-1 hover:shadow-lift transition-all"
+                        data-reveal data-delay="400">
+                        <span
+                            class="grid place-items-center w-14 h-14 mx-auto rounded-xl bg-orange-50 text-2xl group-hover:scale-110 transition-transform">🚗</span>
+                        <p class="text-xs font-bold text-slate-700 mt-3">Car Rentals</p>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ DESTINATIONS -->
+        <section id="destinations" class="py-16 lg:py-20">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-end justify-between gap-4" data-reveal>
+                    <h2 class="text-2xl lg:text-3xl font-extrabold text-slate-900">Popular Destinations</h2>
+                    <a href="#offers"
+                        class="shrink-0 text-xs font-bold border border-slate-200 rounded-lg px-4 py-2 hover:border-brand hover:text-brand-dark transition-colors">View
+                        All</a>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-8">
+                    <a href="#offers" class="group relative rounded-2xl overflow-hidden h-72 shadow-card" data-reveal>
+                        <img src="https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=800&q=80"
+                            alt="Temple gate in Bali, Indonesia" loading="lazy"
+                            class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
+                        <div class="absolute inset-0 bg-slate-900/30" aria-hidden="true"></div>
+                        <div class="absolute bottom-0 inset-x-0 p-4 text-white">
+                            <h3 class="font-bold">Bali, Indonesia</h3>
+                            <p class="text-xs text-teal-200 font-semibold mt-0.5">From $499</p>
+                        </div>
+                    </a>
+                    <a href="#offers" class="group relative rounded-2xl overflow-hidden h-72 shadow-card" data-reveal
+                        data-delay="100">
+                        <img src="https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?auto=format&fit=crop&w=800&q=80"
+                            alt="Blue domed churches of Santorini, Greece" loading="lazy"
+                            class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
+                        <div class="absolute inset-0 bg-slate-900/30" aria-hidden="true"></div>
+                        <div class="absolute bottom-0 inset-x-0 p-4 text-white">
+                            <h3 class="font-bold">Santorini, Greece</h3>
+                            <p class="text-xs text-teal-200 font-semibold mt-0.5">From $699</p>
+                        </div>
+                    </a>
+                    <a href="#offers" class="group relative rounded-2xl overflow-hidden h-72 shadow-card" data-reveal
+                        data-delay="200">
+                        <img src="https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=800&q=80"
+                            alt="Dubai skyline at dusk, UAE" loading="lazy"
+                            class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
+                        <div class="absolute inset-0 bg-slate-900/30" aria-hidden="true"></div>
+                        <div class="absolute bottom-0 inset-x-0 p-4 text-white">
+                            <h3 class="font-bold">Dubai, UAE</h3>
+                            <p class="text-xs text-teal-200 font-semibold mt-0.5">From $399</p>
+                        </div>
+                    </a>
+                    <a href="#offers" class="group relative rounded-2xl overflow-hidden h-72 shadow-card" data-reveal
+                        data-delay="300">
+                        <img src="https://images.unsplash.com/photo-1514282401047-d79a71a590e8?auto=format&fit=crop&w=800&q=80"
+                            alt="Overwater villas in the Maldives" loading="lazy"
+                            class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
+                        <div class="absolute inset-0 bg-slate-900/30" aria-hidden="true"></div>
+                        <div class="absolute bottom-0 inset-x-0 p-4 text-white">
+                            <h3 class="font-bold">Maldives</h3>
+                            <p class="text-xs text-teal-200 font-semibold mt-0.5">From $799</p>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ SUMMER SALE -->
+        <section class="pb-16 lg:pb-20">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="relative overflow-hidden rounded-2xl bg-brand shadow-lift" data-reveal="zoom">
+                    <img src="https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=1200&q=80"
+                        alt="" loading="lazy" aria-hidden="true"
+                        class="absolute right-0 top-0 h-full w-3/5 object-cover [mask-image:linear-gradient(to_right,transparent,black_45%)]">
+                    <div class="relative p-8 lg:p-12 max-w-md text-white">
+                        <h2 class="text-2xl lg:text-3xl font-extrabold">Summer Super Sale</h2>
+                        <p class="text-sm text-teal-50 mt-3">Get up to 40% off on flights to top destinations</p>
+                        <a href="#booking"
+                            class="inline-block mt-6 bg-white text-brand-dark text-sm font-bold px-6 py-3 rounded-lg hover:-translate-y-0.5 hover:shadow-lift transition-all">Book
+                            Now</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ WHY CHOOSE -->
+        <section class="py-16 lg:py-20 bg-slate-50">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <h2 class="text-2xl lg:text-3xl font-extrabold text-slate-900 text-center" data-reveal>Why Choose Anti?
+                </h2>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mt-12">
+                    <div class="flex gap-4" data-reveal>
+                        <span
+                            class="shrink-0 grid place-items-center w-12 h-12 rounded-full border-2 border-teal-200 bg-white text-brand">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path d="M12 2l8 4v6c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10V6l8-4z" />
+                                <path d="M9 12l2 2 4-4" />
+                            </svg>
+                        </span>
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-900">Best Price Guarantee</h3>
+                            <p class="text-xs text-slate-500 mt-1.5">We ensure you get the deals every time.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-4" data-reveal data-delay="100">
+                        <span
+                            class="shrink-0 grid place-items-center w-12 h-12 rounded-full border-2 border-rose-200 bg-white text-rose-500">
+                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7c0-4.97-4.03-9-9-9z" />
+                            </svg>
+                        </span>
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-900">24/7 Customer Support</h3>
+                            <p class="text-xs text-slate-500 mt-1.5">Our support team is always here to help you.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-4" data-reveal data-delay="200">
+                        <span
+                            class="shrink-0 grid place-items-center w-12 h-12 rounded-full border-2 border-amber-200 bg-white text-amber-500">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <rect x="5" y="11" width="14" height="10" rx="2" />
+                                <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+                            </svg>
+                        </span>
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-900">Secure Booking</h3>
+                            <p class="text-xs text-slate-500 mt-1.5">Book with confidence using our secure system.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-4" data-reveal data-delay="300">
+                        <span
+                            class="shrink-0 grid place-items-center w-12 h-12 rounded-full border-2 border-sky-200 bg-white text-sky-500">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path d="M12 3l2.7 5.8 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 3 1.2-6.1L3 9.6l6.3-.8L12 3z" />
+                            </svg>
+                        </span>
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-900">Trusted by Travelers</h3>
+                            <p class="text-xs text-slate-500 mt-1.5">Thousands of happy customers worldwide.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- How it works -->
+                <div class="mt-16 bg-white rounded-2xl border border-slate-100 shadow-card p-8 lg:p-10" data-reveal>
+                    <h2 class="text-xl lg:text-2xl font-extrabold text-slate-900 text-center">How It Works</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_1fr] gap-6 items-center mt-8">
+                        <div class="flex items-center gap-4 justify-center">
+                            <span class="grid place-items-center w-12 h-12 rounded-full bg-teal-50 text-brand">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
+                                    viewBox="0 0 24 24">
+                                    <circle cx="11" cy="11" r="7" />
+                                    <path d="M21 21l-4.35-4.35" />
+                                </svg>
+                            </span>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-900">Search</h3>
+                                <p class="text-xs text-slate-500 mt-0.5">Find your perfect trip</p>
+                            </div>
+                        </div>
+                        <svg class="hidden md:block w-5 h-5 text-slate-300" fill="none" stroke="currentColor"
+                            stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M5 12h14m-6-6l6 6-6 6" />
+                        </svg>
+                        <div class="flex items-center gap-4 justify-center">
+                            <span class="grid place-items-center w-12 h-12 rounded-full bg-amber-50 text-amber-500">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
+                                    viewBox="0 0 24 24">
+                                    <rect x="3" y="5" width="18" height="16" rx="2" />
+                                    <path d="M3 10h18M8 3v4M16 3v4" />
+                                </svg>
+                            </span>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-900">Book</h3>
+                                <p class="text-xs text-slate-500 mt-0.5">Secure your booking</p>
+                            </div>
+                        </div>
+                        <svg class="hidden md:block w-5 h-5 text-slate-300" fill="none" stroke="currentColor"
+                            stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M5 12h14m-6-6l6 6-6 6" />
+                        </svg>
+                        <div class="flex items-center gap-4 justify-center">
+                            <span class="grid place-items-center w-12 h-12 rounded-full bg-rose-50 text-rose-500">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
+                                    viewBox="0 0 24 24">
+                                    <rect x="3" y="8" width="18" height="12" rx="2" />
+                                    <path d="M9 8V6a3 3 0 0 1 6 0v2M3 13h18" />
+                                </svg>
+                            </span>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-900">Travel</h3>
+                                <p class="text-xs text-slate-500 mt-0.5">Enjoy your journey</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ TOP OFFERS -->
+        <section id="offers" class="py-16 lg:py-20">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-end justify-between gap-4" data-reveal>
+                    <h2 class="text-2xl lg:text-3xl font-extrabold text-slate-900">Top Offers For You</h2>
+                    <a href="#destinations"
+                        class="shrink-0 text-xs font-bold border border-slate-200 rounded-lg px-4 py-2 hover:border-brand hover:text-brand-dark transition-colors">View
+                        All</a>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+                    <article
+                        class="group bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden hover:-translate-y-1 hover:shadow-lift transition-all"
+                        data-reveal>
+                        <div class="relative h-44 overflow-hidden">
+                            <img src="https://images.unsplash.com/photo-1528181304800-259b08848526?auto=format&fit=crop&w=900&q=80"
+                                alt="Longtail boats and temples in Thailand" loading="lazy"
+                                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
+                            <span
+                                class="absolute top-3 right-3 bg-brand text-white text-[10px] font-extrabold px-2.5 py-1 rounded">10%
+                                OFF</span>
+                        </div>
+                        <div class="p-5">
+                            <h3 class="text-sm font-bold text-slate-900">Thailand Getaway<br><span
+                                    class="font-semibold text-slate-500">Bangkok &amp; Pattaya</span></h3>
+                            <p class="text-xs text-slate-400 mt-2">5 Days / 4 Nights</p>
+                            <p class="mt-3 text-lg font-extrabold text-brand-dark">$399 <del
+                                    class="text-xs font-medium text-slate-400">$699</del></p>
+                        </div>
+                    </article>
+
+                    <article
+                        class="group bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden hover:-translate-y-1 hover:shadow-lift transition-all"
+                        data-reveal data-delay="100">
+                        <div class="relative h-44 overflow-hidden">
+                            <img src="https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=900&q=80"
+                                alt="Eiffel Tower in Paris, Europe" loading="lazy"
+                                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
+                            <span
+                                class="absolute top-3 right-3 bg-yellow-400 text-slate-900 text-[10px] font-extrabold px-2.5 py-1 rounded">21%
+                                OFF</span>
+                        </div>
+                        <div class="p-5">
+                            <h3 class="text-sm font-bold text-slate-900">Europe Explorer<br><span
+                                    class="font-semibold text-slate-500">Paris, Rome &amp; Venice</span></h3>
+                            <p class="text-xs text-slate-400 mt-2">8 Days / 7 Nights</p>
+                            <p class="mt-3 text-lg font-extrabold text-brand-dark">$899 <del
+                                    class="text-xs font-medium text-slate-400">$1299</del></p>
+                        </div>
+                    </article>
+
+                    <article
+                        class="group bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden hover:-translate-y-1 hover:shadow-lift transition-all sm:col-span-2 lg:col-span-1"
+                        data-reveal data-delay="200">
+                        <div class="relative h-44 overflow-hidden">
+                            <img src="https://images.unsplash.com/photo-1518684079-3c830dce0902?auto=format&fit=crop&w=900&q=80"
+                                alt="Dubai skyline with Burj Khalifa" loading="lazy"
+                                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
+                            <span
+                                class="absolute top-3 right-3 bg-yellow-400 text-slate-900 text-[10px] font-extrabold px-2.5 py-1 rounded">37%
+                                OFF</span>
+                        </div>
+                        <div class="p-5">
+                            <h3 class="text-sm font-bold text-slate-900">Dubai Luxury Experience</h3>
+                            <p class="text-xs text-slate-400 mt-2">4 Days / 3 Nights</p>
+                            <p class="mt-3 text-lg font-extrabold text-brand-dark">$499 <del
+                                    class="text-xs font-medium text-slate-400">$799</del></p>
+                        </div>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ NEWSLETTER BANNER -->
+        <section class="pb-16 lg:pb-20">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="relative overflow-hidden rounded-2xl bg-blue-600 shadow-lift" data-reveal="zoom">
+                    <img src="https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=1200&q=80"
+                        alt="" loading="lazy" aria-hidden="true"
+                        class="absolute right-0 top-0 h-full w-3/5 object-cover [mask-image:linear-gradient(to_right,transparent,black_45%)]">
+                    <div class="relative p-8 lg:p-10 max-w-lg text-white">
+                        <h2 class="text-xl lg:text-2xl font-extrabold">Get Exclusive Travel Deals</h2>
+                        <p class="text-sm text-blue-100 mt-2">Subscribe now and get exclusive offers &amp; travel
+                            inspiration</p>
+                        <form class="js-news flex mt-5 max-w-md" novalidate>
+                            <label class="sr-only" for="nl1">Email address</label>
+                            <input id="nl1" type="email" placeholder="Enter your email address"
+                                class="flex-1 min-w-0 rounded-l-lg px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-300">
+                            <button type="submit"
+                                class="bg-brand hover:bg-brand-dark transition-colors text-white text-sm font-bold px-5 py-3 rounded-r-lg">Subscribe</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ STATS -->
+        <section class="py-12 border-y border-slate-100 bg-white">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
+                <div data-reveal>
+                    <span class="inline-grid place-items-center w-10 h-10 rounded-lg bg-teal-50 text-brand mb-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <circle cx="9" cy="8" r="3.5" />
+                            <path d="M2.5 19c.8-3 3.4-5 6.5-5s5.7 2 6.5 5" />
+                            <circle cx="17" cy="9" r="3" />
+                            <path d="M17.5 14c2.4.2 4.2 1.8 4.9 4.4" />
+                        </svg>
+                    </span>
+                    <p class="text-2xl lg:text-3xl font-extrabold text-slate-900" data-counter="10" data-suffix="K+">0K+
+                    </p>
+                    <p class="text-xs text-slate-500 mt-1">Happy Travelers</p>
+                </div>
+                <div data-reveal data-delay="100">
+                    <span class="inline-grid place-items-center w-10 h-10 rounded-lg bg-sky-50 text-sky-500 mb-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="9" />
+                            <path d="M3 12h18M12 3c2.5 2.6 4 5.6 4 9s-1.5 6.4-4 9c-2.5-2.6-4-5.6-4-9s1.5-6.4 4-9z" />
+                        </svg>
+                    </span>
+                    <p class="text-2xl lg:text-3xl font-extrabold text-slate-900" data-counter="200" data-suffix="+">0+
+                    </p>
+                    <p class="text-xs text-slate-500 mt-1">Destinations</p>
+                </div>
+                <div data-reveal data-delay="200">
+                    <span class="inline-grid place-items-center w-10 h-10 rounded-lg bg-amber-50 text-amber-500 mb-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <circle cx="11" cy="11" r="7" />
+                            <path d="M21 21l-4.35-4.35" />
+                        </svg>
+                    </span>
+                    <p class="text-2xl lg:text-3xl font-extrabold text-slate-900" data-counter="15" data-suffix="+">0+
+                    </p>
+                    <p class="text-xs text-slate-500 mt-1">Years Experience</p>
+                </div>
+                <div data-reveal data-delay="300">
+                    <span class="inline-grid place-items-center w-10 h-10 rounded-lg bg-rose-50 text-rose-500 mb-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path
+                                d="M12 21s-7.5-4.7-9.5-9C1 8.5 3 5.5 6.5 5.5c2 0 3.6 1.1 4.5 2.7.9-1.6 2.5-2.7 4.5-2.7 3.5 0 5.5 3 4 6.5-2 4.3-9.5 9-9.5 9z" />
+                        </svg>
+                    </span>
+                    <p class="text-2xl lg:text-3xl font-extrabold text-slate-900" data-counter="98" data-suffix="%">0%
+                    </p>
+                    <p class="text-xs text-slate-500 mt-1">Positive Reviews</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ TESTIMONIALS -->
+        <section class="py-16 lg:py-20 bg-slate-50">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-end justify-between gap-4" data-reveal>
+                    <h2 class="text-2xl lg:text-3xl font-extrabold text-slate-900">What Our Travelers Say</h2>
+                    <a href="#blog"
+                        class="shrink-0 text-xs font-bold border border-slate-200 rounded-lg px-4 py-2 bg-white hover:border-brand hover:text-brand-dark transition-colors">View
+                        All</a>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+                    <figure class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" data-reveal>
+                        <div class="flex gap-1 text-amber-400" aria-label="Rated 5 out of 5 stars">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3l2.7 5.8 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 3 1.2-6.1L3 9.6l6.3-.8L12 3z" />
+                            </svg><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3l2.7 5.8 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 3 1.2-6.1L3 9.6l6.3-.8L12 3z" />
+                            </svg><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3l2.7 5.8 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 3 1.2-6.1L3 9.6l6.3-.8L12 3z" />
+                            </svg><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3l2.7 5.8 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 3 1.2-6.1L3 9.6l6.3-.8L12 3z" />
+                            </svg><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3l2.7 5.8 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 3 1.2-6.1L3 9.6l6.3-.8L12 3z" />
+                            </svg>
+                        </div>
+                        <blockquote class="text-sm text-slate-600 mt-4">"Anti made our vacation absolutely perfect!
+                            Everything was well organized and hassle-free."</blockquote>
+                        <figcaption class="flex items-center gap-3 mt-5">
+                            <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=96&q=80"
+                                alt="Portrait of Sarah M." loading="lazy" class="w-10 h-10 rounded-full object-cover">
+                            <div>
+                                <p class="text-xs font-bold text-slate-900">Sarah M.</p>
+                                <p class="text-[11px] text-slate-400">New York, USA</p>
+                            </div>
+                        </figcaption>
+                    </figure>
+
+                    <figure class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" data-reveal
+                        data-delay="100">
+                        <div class="flex gap-1 text-amber-400" aria-label="Rated 5 out of 5 stars">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3l2.7 5.8 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 3 1.2-6.1L3 9.6l6.3-.8L12 3z" />
+                            </svg><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3l2.7 5.8 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 3 1.2-6.1L3 9.6l6.3-.8L12 3z" />
+                            </svg><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3l2.7 5.8 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 3 1.2-6.1L3 9.6l6.3-.8L12 3z" />
+                            </svg><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3l2.7 5.8 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 3 1.2-6.1L3 9.6l6.3-.8L12 3z" />
+                            </svg><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3l2.7 5.8 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 3 1.2-6.1L3 9.6l6.3-.8L12 3z" />
+                            </svg>
+                        </div>
+                        <blockquote class="text-sm text-slate-600 mt-4">"Best travel experience ever! Great support and
+                            amazing deals."</blockquote>
+                        <figcaption class="flex items-center gap-3 mt-5">
+                            <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=96&q=80"
+                                alt="Portrait of James T." loading="lazy" class="w-10 h-10 rounded-full object-cover">
+                            <div>
+                                <p class="text-xs font-bold text-slate-900">James T.</p>
+                                <p class="text-[11px] text-slate-400">London, UK</p>
+                            </div>
+                        </figcaption>
+                    </figure>
+
+                    <figure class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" data-reveal
+                        data-delay="200">
+                        <div class="flex gap-1 text-amber-400" aria-label="Rated 5 out of 5 stars">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3l2.7 5.8 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 3 1.2-6.1L3 9.6l6.3-.8L12 3z" />
+                            </svg><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3l2.7 5.8 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 3 1.2-6.1L3 9.6l6.3-.8L12 3z" />
+                            </svg><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3l2.7 5.8 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 3 1.2-6.1L3 9.6l6.3-.8L12 3z" />
+                            </svg><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3l2.7 5.8 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 3 1.2-6.1L3 9.6l6.3-.8L12 3z" />
+                            </svg><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3l2.7 5.8 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 3 1.2-6.1L3 9.6l6.3-.8L12 3z" />
+                            </svg>
+                        </div>
+                        <blockquote class="text-sm text-slate-600 mt-4">"Highly recommend Anti for anyone who loves to
+                            travel."</blockquote>
+                        <figcaption class="flex items-center gap-3 mt-5">
+                            <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=96&q=80"
+                                alt="Portrait of Priya K." loading="lazy" class="w-10 h-10 rounded-full object-cover">
+                            <div>
+                                <p class="text-xs font-bold text-slate-900">Priya K.</p>
+                                <p class="text-[11px] text-slate-400">Dubai, UAE</p>
+                            </div>
+                        </figcaption>
+                    </figure>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ BLOG -->
+        <section id="blog" class="py-16 lg:py-20">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-end justify-between gap-4" data-reveal>
+                    <h2 class="text-2xl lg:text-3xl font-extrabold text-slate-900">Travel Inspiration</h2>
+                    <a href="#contact"
+                        class="shrink-0 text-xs font-bold border border-slate-200 rounded-lg px-4 py-2 hover:border-brand hover:text-brand-dark transition-colors">View
+                        All</a>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+                    <article
+                        class="group bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden hover:-translate-y-1 hover:shadow-lift transition-all"
+                        data-reveal>
+                        <div class="relative h-44 overflow-hidden">
+                            <img src="https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=900&q=80"
+                                alt="Traveler with car on a scenic road" loading="lazy"
+                                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
+                            <span
+                                class="absolute bottom-3 left-3 bg-teal-100 text-brand-dark text-[10px] font-extrabold px-2.5 py-1 rounded">Tips</span>
+                        </div>
+                        <div class="p-5">
+                            <h3 class="text-sm font-bold text-slate-900 group-hover:text-brand-dark transition-colors">
+                                10 Tips For Stress-Free Traveling</h3>
+                            <p class="flex items-center gap-1.5 text-[11px] text-slate-400 mt-3">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"
+                                    viewBox="0 0 24 24">
+                                    <rect x="3" y="5" width="18" height="16" rx="2" />
+                                    <path d="M3 10h18M8 3v4M16 3v4" />
+                                </svg>
+                                July 25, 2025
+                            </p>
+                        </div>
+                    </article>
+
+                    <article
+                        class="group bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden hover:-translate-y-1 hover:shadow-lift transition-all"
+                        data-reveal data-delay="100">
+                        <div class="relative h-44 overflow-hidden">
+                            <img src="https://images.unsplash.com/photo-1505228395891-9a51e7e86bf6?auto=format&fit=crop&w=900&q=80"
+                                alt="Secluded tropical beach with clear water" loading="lazy"
+                                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
+                            <span
+                                class="absolute bottom-3 left-3 bg-teal-100 text-brand-dark text-[10px] font-extrabold px-2.5 py-1 rounded">Guides</span>
+                        </div>
+                        <div class="p-5">
+                            <h3 class="text-sm font-bold text-slate-900 group-hover:text-brand-dark transition-colors">
+                                Top 5 Hidden Beaches You Must Visit</h3>
+                            <p class="flex items-center gap-1.5 text-[11px] text-slate-400 mt-3">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"
+                                    viewBox="0 0 24 24">
+                                    <rect x="3" y="5" width="18" height="16" rx="2" />
+                                    <path d="M3 10h18M8 3v4M16 3v4" />
+                                </svg>
+                                July 22, 2025
+                            </p>
+                        </div>
+                    </article>
+
+                    <article
+                        class="group bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden hover:-translate-y-1 hover:shadow-lift transition-all"
+                        data-reveal data-delay="200">
+                        <div class="relative h-44 overflow-hidden">
+                            <img src="https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=900&q=80"
+                                alt="Coastal city nestled between mountains and sea" loading="lazy"
+                                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
+                            <span
+                                class="absolute bottom-3 left-3 bg-blue-100 text-blue-700 text-[10px] font-extrabold px-2.5 py-1 rounded">News</span>
+                        </div>
+                        <div class="p-5">
+                            <h3 class="text-sm font-bold text-slate-900 group-hover:text-brand-dark transition-colors">
+                                New Travel Rules You Should Know</h3>
+                            <p class="flex items-center gap-1.5 text-[11px] text-slate-400 mt-3">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"
+                                    viewBox="0 0 24 24">
+                                    <rect x="3" y="5" width="18" height="16" rx="2" />
+                                    <path d="M3 10h18M8 3v4M16 3v4" />
+                                </svg>
+                                July 20, 2025
+                            </p>
+                        </div>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ APP BANNER -->
+        <section class="pb-16 lg:pb-20">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="relative overflow-hidden rounded-2xl bg-brand-deep shadow-lift" data-reveal="zoom">
+                    <div class="absolute -right-24 -top-24 w-72 h-72 rounded-full bg-teal-500/10" aria-hidden="true">
+                    </div>
+                    <div class="relative grid lg:grid-cols-2 gap-8 items-center p-8 lg:p-12">
+                        <div class="text-white">
+                            <h2 class="text-2xl lg:text-3xl font-extrabold">Travel On The Go</h2>
+                            <p class="text-sm text-teal-100/80 mt-3 max-w-sm">Download our app and get exclusive mobile
+                                deals</p>
+                            <div class="flex flex-wrap gap-3 mt-6">
+                                <a href="#home"
+                                    class="flex items-center gap-2.5 bg-slate-950 hover:bg-black transition-colors rounded-lg px-4 py-2.5"
+                                    aria-label="Download on the App Store">
+                                    <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                        <path
+                                            d="M16.36 12.79c-.02-2.02 1.65-2.99 1.72-3.04-.94-1.37-2.4-1.56-2.92-1.58-1.24-.13-2.42.73-3.05.73-.63 0-1.6-.71-2.63-.69-1.35.02-2.6.79-3.3 2-1.41 2.44-.36 6.05 1.01 8.03.67.97 1.47 2.06 2.52 2.02 1.01-.04 1.39-.65 2.61-.65s1.56.65 2.63.63c1.09-.02 1.78-.99 2.44-1.96.77-1.12 1.09-2.21 1.11-2.27-.02-.01-2.12-.81-2.14-3.22zM14.35 6.35c.56-.68.94-1.62.83-2.56-.81.03-1.79.54-2.37 1.22-.52.6-.97 1.56-.85 2.48.9.07 1.83-.46 2.39-1.14z" />
+                                    </svg>
+                                    <span class="text-left leading-tight"><span
+                                            class="block text-[9px] text-slate-300">Download on the</span><span
+                                            class="block text-sm font-bold">App Store</span></span>
+                                </a>
+                                <a href="#home"
+                                    class="flex items-center gap-2.5 bg-slate-950 hover:bg-black transition-colors rounded-lg px-4 py-2.5"
+                                    aria-label="Get it on Google Play">
+                                    <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                        <path
+                                            d="M3 20.5V3.5c0-.6.7-1 1.2-.7l14.9 8.5c.5.3.5 1 0 1.3L4.2 21.2c-.5.3-1.2-.1-1.2-.7z" />
+                                    </svg>
+                                    <span class="text-left leading-tight"><span
+                                            class="block text-[9px] text-slate-300">GET IT ON</span><span
+                                            class="block text-sm font-bold">Google Play</span></span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- CSS phone mockups -->
+                        <div class="relative h-64 hidden sm:block" aria-hidden="true">
+                            <div
+                                class="absolute left-1/2 top-1/2 -translate-x-[85%] -translate-y-1/2 -rotate-6 w-28 h-56 rounded-[1.4rem] border-4 border-slate-700 bg-slate-800 shadow-lift overflow-hidden">
+                                <div class="h-20 bg-teal-600"></div>
+                                <div class="p-2 space-y-2">
+                                    <div class="h-2 w-3/4 bg-slate-600 rounded"></div>
+                                    <div class="h-2 w-1/2 bg-slate-600 rounded"></div>
+                                    <div class="h-10 bg-slate-700 rounded"></div>
+                                </div>
+                            </div>
+                            <div
+                                class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 w-32 h-64 rounded-[1.6rem] border-4 border-slate-600 bg-slate-900 shadow-lift overflow-hidden">
+                                <div class="h-24 bg-brand relative">
+                                    <div class="absolute inset-x-0 -bottom-0 h-4 bg-slate-900 rounded-t-xl"></div>
+                                    <div
+                                        class="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1.5 bg-slate-950/60 rounded-full">
+                                    </div>
+                                </div>
+                                <div class="p-2.5 space-y-2">
+                                    <div class="h-2 w-2/3 bg-slate-600 rounded mx-auto"></div>
+                                    <div class="grid grid-cols-2 gap-1.5">
+                                        <div class="h-12 bg-slate-800 rounded"></div>
+                                        <div class="h-12 bg-slate-800 rounded"></div>
+                                    </div>
+                                    <div class="h-2 w-1/2 bg-slate-700 rounded mx-auto"></div>
+                                </div>
+                            </div>
+                            <div
+                                class="absolute left-1/2 top-1/2 translate-x-[10%] -translate-y-1/2 rotate-6 w-28 h-56 rounded-[1.4rem] border-4 border-slate-700 bg-slate-800 shadow-lift overflow-hidden">
+                                <div class="h-20 bg-teal-700"></div>
+                                <div class="p-2 space-y-2">
+                                    <div class="h-2 w-3/4 bg-slate-600 rounded"></div>
+                                    <div class="h-10 bg-slate-700 rounded"></div>
+                                    <div class="h-2 w-1/2 bg-slate-600 rounded"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ============================================================ FOOTER -->
+    <footer id="contact" class="bg-white border-t border-slate-100 pt-14 pb-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-10">
+                <div class="lg:col-span-2">
+                    <a href="#home" class="flex items-center gap-2" aria-label="Anti home">
+                        <svg class="w-8 h-8 text-brand" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path
+                                d="M12 2a10 10 0 1 0 10 10c0-1.1-.9-2-2-2h-3a2 2 0 0 0-2 2c0 .6.2 1.1.6 1.4.3.3.4.7.4 1.1 0 1.1-.9 2-2 2a10 10 0 0 1-4-19.2V7a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2z"
+                                opacity=".9" />
+                            <path d="M21.5 8.5 14 11l5.5 3c1-1.6 2-3.6 2-5.5z" />
+                        </svg>
+                        <span class="text-xl font-extrabold text-slate-900 tracking-tight">Anti</span>
+                    </a>
+                    <p class="text-xs text-slate-500 mt-4 max-w-xs leading-relaxed">Your trusted travel partner for
+                        unforgettable adventures worldwide.</p>
+                    <div class="flex gap-2.5 mt-5">
+                        <a href="#home" aria-label="Facebook"
+                            class="grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-brand hover:text-white transition-colors"><svg
+                                class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    d="M13 10h3l-.5 3H13v9h-3v-9H7v-3h3V8.5C10 5.5 11.8 4 14.6 4H17v3h-2c-1 0-2 .3-2 1.5V10z" />
+                            </svg></a>
+                        <a href="#home" aria-label="Twitter"
+                            class="grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-brand hover:text-white transition-colors"><svg
+                                class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    d="M22 5.8c-.7.3-1.5.6-2.3.7.8-.5 1.4-1.3 1.7-2.2-.8.5-1.6.8-2.5 1A3.9 3.9 0 0 0 12 8.1c0 .3 0 .6.1.9-3.2-.2-6.1-1.7-8-4.1-.3.6-.5 1.3-.5 2 0 1.4.7 2.6 1.7 3.3-.6 0-1.2-.2-1.7-.5v.1c0 1.9 1.3 3.5 3.1 3.8-.3.1-.7.1-1 .1-.2 0-.5 0-.7-.1.5 1.6 1.9 2.7 3.6 2.7A7.9 7.9 0 0 1 2 18.6a11.2 11.2 0 0 0 6.1 1.8c7.3 0 11.3-6 11.3-11.3v-.5c.8-.6 1.5-1.3 2-2.1z" />
+                            </svg></a>
+                        <a href="#home" aria-label="Instagram"
+                            class="grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-brand hover:text-white transition-colors"><svg
+                                class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"
+                                viewBox="0 0 24 24">
+                                <rect x="3" y="3" width="18" height="18" rx="5" />
+                                <circle cx="12" cy="12" r="4" />
+                                <circle cx="17.2" cy="6.8" r=".8" fill="currentColor" stroke="none" />
+                            </svg></a>
+                        <a href="#home" aria-label="YouTube"
+                            class="grid place-items-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-brand hover:text-white transition-colors"><svg
+                                class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    d="M22 8.2s-.2-1.5-.8-2.1c-.8-.8-1.7-.8-2.1-.9C16.2 5 12 5 12 5s-4.2 0-7.1.2c-.4.1-1.3.1-2.1.9-.6.6-.8 2.1-.8 2.1S2 9.9 2 11.6v1.6c0 1.7.2 3.4.2 3.4s.2 1.5.8 2.1c.8.8 1.8.8 2.3.9 1.7.2 6.7.2 6.7.2s4.2 0 7.1-.2c.4-.1 1.3-.1 2.1-.9.6-.6.8-2.1.8-2.1s.2-1.7.2-3.4v-1.6c0-1.7-.2-3.4-.2-3.4zM10 14.6V9.4l5.2 2.6-5.2 2.6z" />
+                            </svg></a>
+                    </div>
+                </div>
+
+                <nav aria-label="Company">
+                    <h3 class="text-sm font-extrabold text-slate-900">Company</h3>
+                    <ul class="mt-4 space-y-2.5 text-xs text-slate-500">
+                        <li><a href="#home" class="hover:text-brand-dark transition-colors">About Us</a></li>
+                        <li><a href="#home" class="hover:text-brand-dark transition-colors">Careers</a></li>
+                        <li><a href="#home" class="hover:text-brand-dark transition-colors">Press</a></li>
+                        <li><a href="#home" class="hover:text-brand-dark transition-colors">Contact Us</a></li>
+                    </ul>
+                </nav>
+
+                <nav aria-label="Support">
+                    <h3 class="text-sm font-extrabold text-slate-900">Support</h3>
+                    <ul class="mt-4 space-y-2.5 text-xs text-slate-500">
+                        <li><a href="#home" class="hover:text-brand-dark transition-colors">Help Center</a></li>
+                        <li><a href="#home" class="hover:text-brand-dark transition-colors">FAQs</a></li>
+                        <li><a href="#home" class="hover:text-brand-dark transition-colors">Terms &amp; Conditions</a>
+                        </li>
+                        <li><a href="#home" class="hover:text-brand-dark transition-colors">Privacy Policy</a></li>
+                    </ul>
+                </nav>
+
+                <nav aria-label="Services">
+                    <h3 class="text-sm font-extrabold text-slate-900">Services</h3>
+                    <ul class="mt-4 space-y-2.5 text-xs text-slate-500">
+                        <li><a href="#booking" class="hover:text-brand-dark transition-colors">Flights</a></li>
+                        <li><a href="#booking" class="hover:text-brand-dark transition-colors">Hotels</a></li>
+                        <li><a href="#offers" class="hover:text-brand-dark transition-colors">Tours</a></li>
+                        <li><a href="#booking" class="hover:text-brand-dark transition-colors">Car Rentals</a></li>
+                    </ul>
+                </nav>
+
+                <div>
+                    <h3 class="text-sm font-extrabold text-slate-900">Newsletter</h3>
+                    <p class="text-xs text-slate-500 mt-4">Subscribe to get the best travel deals and updates.</p>
+                    <form class="js-news flex mt-4" novalidate>
+                        <label class="sr-only" for="nl2">Your email</label>
+                        <input id="nl2" type="email" placeholder="Your email"
+                            class="flex-1 min-w-0 border border-slate-200 rounded-l-lg px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-200">
+                        <button type="submit" aria-label="Subscribe"
+                            class="bg-brand hover:bg-brand-dark transition-colors text-white px-3.5 rounded-r-lg">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div
+                class="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100 mt-12 pt-6">
+                <p class="text-[11px] text-slate-400">© 2025 Anti. All Rights Reserved.</p>
+                <div class="flex items-center gap-4" aria-label="Accepted payment methods">
+                    <span class="text-sm font-extrabold italic text-blue-800 tracking-tighter">VISA</span>
+                    <svg class="w-8 h-5" viewBox="0 0 36 22" aria-label="Mastercard">
+                        <circle cx="13" cy="11" r="9" fill="#EB001B" />
+                        <circle cx="23" cy="11" r="9" fill="#F79E1B" fill-opacity=".9" />
+                    </svg>
+                    <span class="text-sm font-extrabold italic"><span class="text-blue-800">Pay</span><span
+                            class="text-sky-500">Pal</span></span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Back to top -->
+    <button id="toTop" aria-label="Back to top"
+        class="fixed bottom-6 right-6 z-40 grid place-items-center w-11 h-11 rounded-full bg-brand text-white shadow-lift opacity-0 pointer-events-none transition-all hover:bg-brand-dark">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path d="M12 19V5m-6 6l6-6 6 6" />
+        </svg>
+    </button>
+
+    <!-- Toast -->
+    <div id="toast" role="status" aria-live="polite"
+        class="fixed z-[70] left-1/2 bottom-8 bg-slate-900 text-white text-sm font-semibold px-5 py-3 rounded-full shadow-lift">
+    </div>
+
+    <!-- Video modal -->
+    <div id="videoModal" class="hidden fixed inset-0 z-[80] bg-slate-950/80 p-4" role="dialog" aria-modal="true"
+        aria-label="Promotional video">
+        <div class="relative max-w-3xl mx-auto mt-[8vh]">
+            <button id="closeVideo" aria-label="Close video"
+                class="absolute -top-12 right-0 text-white/80 hover:text-white text-sm font-bold flex items-center gap-2">
+                Close <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+            </button>
+            <div class="aspect-video rounded-2xl overflow-hidden shadow-lift bg-slate-900">
+                <iframe id="videoFrame" class="w-full h-full" src="" title="Anti travel video" frameborder="0"
+                    allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ SCRIPT -->
+    <script>
+        $(function () {
+            var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            var DUR = reduced ? 0 : 650;
+
+            /* ---------- Header on scroll + back-to-top visibility ---------- */
+            var $header = $('#site-header'), $toTop = $('#toTop');
+            function onScroll() {
+                $header.toggleClass('scrolled', $(window).scrollTop() > 40);
+                var show = $(window).scrollTop() > 600;
+                $toTop.toggleClass('opacity-0 pointer-events-none', !show)
+                    .toggleClass('opacity-100', show);
+            }
+            $(window).on('scroll', onScroll); onScroll();
+
+            /* ---------- Mobile menu ---------- */
+            $('#menuBtn').on('click', function () {
+                var open = $('#mobileMenu').is(':visible');
+                $('#mobileMenu').stop(true, true).slideToggle(reduced ? 0 : 200);
+                $(this).attr('aria-expanded', String(!open));
+                $header.addClass('scrolled'); // keep readable while menu open
+                if (!open === false) onScroll();
+            });
+            $('#mobileMenu a').on('click', function () {
+                $('#mobileMenu').stop(true, true).slideUp(reduced ? 0 : 200);
+                $('#menuBtn').attr('aria-expanded', 'false');
+            });
+
+            /* ---------- Smooth anchor scrolling (header offset) ---------- */
+            $('a[href^="#"]').on('click', function (e) {
+                var href = $(this).attr('href');
+                if (href === '#') { e.preventDefault(); return; }
+                var $t = $(href);
+                if ($t.length) {
+                    e.preventDefault();
+                    $('html, body').animate({ scrollTop: $t.offset().top - 76 }, DUR);
+                }
+            });
+
+            /* ---------- Booking tabs ---------- */
+            $('.tab-btn').on('click', function () {
+                var tab = $(this).data('tab');
+                $('.tab-btn').removeClass('tab-active').attr('aria-selected', 'false');
+                $(this).addClass('tab-active').attr('aria-selected', 'true');
+                $('.tab-panel').addClass('hidden');
+                $('[data-panel="' + tab + '"]').removeClass('hidden').hide().fadeIn(reduced ? 0 : 250);
+            });
+
+            /* ---------- Swap origin/destination ---------- */
+            $('#swapBtn').on('click', function () {
+                var $f = $('#fromInput'), $t = $('#toInput'), tmp = $f.val();
+                $f.val($t.val()); $t.val(tmp);
+                $(this).addClass('rotate-180 transition-transform duration-300');
+            });
+
+            /* ---------- Toast helper ---------- */
+            var toastTimer;
+            function toast(msg) {
+                $('#toast').text(msg).addClass('show');
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(function () { $('#toast').removeClass('show'); }, 2600);
+            }
+
+            /* ---------- Booking search validation ---------- */
+            function handleSearch($form) {
+                var ok = true;
+                $form.find('input[required]').each(function () {
+                    if (!$(this).val().trim()) {
+                        ok = false;
+                        $(this).addClass('ring-2 ring-red-400');
+                        setTimeout(function () { $(this).removeClass('ring-2 ring-red-400'); }.bind(this), 1200);
+                    }
+                });
+                if (!ok) {
+                    $('#bookingCard').addClass('shake');
+                    setTimeout(function () { $('#bookingCard').removeClass('shake'); }, 500);
+                    toast('Please fill in all fields');
+                    return;
+                }
+                var $b = $form.find('button[type="submit"]');
+                $b.prop('disabled', true).find('span').text('Searching…');
+                setTimeout(function () {
+                    $b.prop('disabled', false).find('span').text('Search');
+                    toast('🎉 Great deals found for your trip!');
+                }, reduced ? 0 : 1200);
+            }
+            $('#bookingCard form').on('submit', function (e) { e.preventDefault(); handleSearch($(this)); });
+
+            /* ---------- Newsletter validation ---------- */
+            $('.js-news').on('submit', function (e) {
+                e.preventDefault();
+                var $i = $(this).find('input'), v = $i.val().trim();
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+                    $i.addClass('ring-2 ring-red-400');
+                    setTimeout(function () { $i.removeClass('ring-2 ring-red-400'); }, 1200);
+                    toast('Please enter a valid email');
+                    return;
+                }
+                $i.val('');
+                toast('Subscribed! Check your inbox ✈️');
+            });
+
+            /* ---------- Scroll reveal (staggered) ---------- */
+            if ('IntersectionObserver' in window && !reduced) {
+                var io = new IntersectionObserver(function (entries) {
+                    entries.forEach(function (en) {
+                        if (en.isIntersecting) { en.target.classList.add('revealed'); io.unobserve(en.target); }
+                    });
+                }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+                $('[data-reveal]').each(function () {
+                    var d = $(this).data('delay');
+                    if (d) this.style.transitionDelay = d + 'ms';
+                    io.observe(this);
+                });
+            } else {
+                $('[data-reveal]').addClass('revealed');
+            }
+
+            /* ---------- Animated counters ---------- */
+            function runCounter($el) {
+                var target = parseInt($el.data('counter'), 10), suffix = $el.data('suffix') || '';
+                if (reduced) { $el.text(target + suffix); return; }
+                $({ v: 0 }).animate({ v: target }, {
+                    duration: 1600,
+                    easing: 'swing',
+                    step: function (now) { $el.text(Math.floor(now) + suffix); },
+                    complete: function () { $el.text(target + suffix); }
+                });
+            }
+            if ('IntersectionObserver' in window) {
+                var cio = new IntersectionObserver(function (entries) {
+                    entries.forEach(function (en) {
+                        if (en.isIntersecting) { runCounter($(en.target)); cio.unobserve(en.target); }
+                    });
+                }, { threshold: 0.6 });
+                $('[data-counter]').each(function () { cio.observe(this); });
+            } else {
+                $('[data-counter]').each(function () { runCounter($(this)); });
+            }
+
+            /* ---------- Video modal ---------- */
+            var VIDEO_SRC = 'https://www.youtube.com/embed/LXb3EKWsInQ?rel=0&autoplay=1';
+            function openModal() {
+                $('#videoFrame').attr('src', VIDEO_SRC);
+                $('#videoModal').stop(true, true).fadeIn(reduced ? 0 : 200);
+                $('body').css('overflow', 'hidden');
+            }
+            function closeModal() {
+                $('#videoModal').stop(true, true).fadeOut(reduced ? 0 : 200);
+                $('#videoFrame').attr('src', '');
+                $('body').css('overflow', '');
+            }
+            $('#watchVideo').on('click', openModal);
+            $('#closeVideo').on('click', closeModal);
+            $('#videoModal').on('click', function (e) { if (e.target === this) closeModal(); });
+            $(document).on('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+
+            /* ---------- Back to top ---------- */
+            $toTop.on('click', function () { $('html, body').animate({ scrollTop: 0 }, DUR + 100); });
+        });
+    </script>
+</body>
+
+</html>
