@@ -1,11 +1,16 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Calendar as CalendarIcon, Users } from 'lucide-react';
-import Link from 'next/link';
+import { ChevronDown, Calendar as CalendarIcon, Users, Check, Minus, Plus, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { createBooking } from '@/actions/bookings';
 
 export default function TourBookingCard({ tour }: { tour: any }) {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [seats, setSeats] = useState(1);
+  const [isBooking, setIsBooking] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   
   // Filter active schedules
   const activeSchedules = tour.schedules
@@ -26,9 +31,42 @@ export default function TourBookingCard({ tour }: { tour: any }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Update seats if it exceeds capacity of newly selected schedule
+  useEffect(() => {
+    if (selectedSchedule) {
+      const remaining = selectedSchedule.capacity - (selectedSchedule.booked_count || 0);
+      if (seats > remaining) {
+        setSeats(remaining > 0 ? remaining : 1);
+      }
+    }
+  }, [selectedSchedule]);
+
   // Determine current price to display
   const displayPrice = selectedSchedule?.price_per_person || tour.price_per_person;
   const originalPrice = selectedSchedule?.original_price;
+  
+  const remainingSlots = selectedSchedule ? (selectedSchedule.capacity - (selectedSchedule.booked_count || 0)) : 0;
+  const totalPrice = displayPrice * seats;
+
+  const handleBook = async () => {
+    if (!selectedSchedule) return;
+    
+    setIsBooking(true);
+    setErrorMsg('');
+    
+    const result = await createBooking(selectedSchedule.id, seats);
+    
+    if (result.success) {
+      router.push(`/tours/${tour.slug}/booking/${result.bookingId}`);
+    } else {
+      setIsBooking(false);
+      if (result.code === 'unauthorized') {
+        router.push('/login');
+      } else {
+        setErrorMsg(result.error || 'Failed to book the tour.');
+      }
+    }
+  };
 
   return (
     <div className="sticky top-24 bg-white p-6 lg:p-8 rounded-3xl border border-slate-100 shadow-2xl shadow-slate-200/50">
@@ -67,7 +105,7 @@ export default function TourBookingCard({ tour }: { tour: any }) {
                 </span>
                 <span className="text-sm text-emerald-600 font-medium flex items-center gap-1 mt-1">
                   <Users className="w-3.5 h-3.5" />
-                  {selectedSchedule.capacity - (selectedSchedule.booked_count || 0)} slots remaining
+                  {remainingSlots} slots remaining
                 </span>
               </div>
             ) : (
@@ -118,17 +156,73 @@ export default function TourBookingCard({ tour }: { tour: any }) {
             </div>
           )}
         </div>
+
+        {/* Seats Selector */}
+        {selectedSchedule && remainingSlots > 0 && (
+          <div>
+            <label className="block text-sm font-bold text-slate-900 mb-2">Number of Seats</label>
+            <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border-2 border-slate-200">
+              <button 
+                type="button"
+                onClick={() => setSeats(Math.max(1, seats - 1))}
+                disabled={seats <= 1}
+                className="p-3 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-50 transition-colors"
+              >
+                <Minus className="w-5 h-5 text-slate-600" />
+              </button>
+              
+              <div className="flex flex-col items-center">
+                <span className="text-xl font-bold text-slate-900">{seats}</span>
+                <span className="text-xs text-slate-500 font-medium">Guest{seats > 1 ? 's' : ''}</span>
+              </div>
+              
+              <button 
+                type="button"
+                onClick={() => setSeats(Math.min(remainingSlots, seats + 1))}
+                disabled={seats >= remainingSlots}
+                className="p-3 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-50 transition-colors"
+              >
+                <Plus className="w-5 h-5 text-slate-600" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
+      {/* Total & Action */}
+      {selectedSchedule && remainingSlots > 0 && (
+        <div className="flex items-center justify-between mb-6 pb-6 border-b border-slate-100">
+          <span className="text-slate-900 font-bold text-lg">Total</span>
+          <span className="text-2xl font-extrabold text-slate-900">₱{totalPrice.toLocaleString()}</span>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm font-medium border border-red-100">
+          {errorMsg}
+        </div>
+      )}
+
       <button 
-        disabled={!selectedSchedule || (selectedSchedule.capacity - (selectedSchedule.booked_count || 0)) <= 0}
-        className="w-full py-4 px-6 bg-coral hover:bg-coral-dark text-white text-center font-extrabold text-lg rounded-xl transition-all shadow-lg shadow-coral/30 hover:shadow-xl hover:shadow-coral/40 disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-0.5"
+        onClick={handleBook}
+        disabled={!selectedSchedule || remainingSlots <= 0 || isBooking}
+        className="w-full py-4 px-6 bg-coral hover:bg-coral-dark text-white text-center font-extrabold text-lg rounded-xl transition-all duration-300 shadow-lg shadow-coral/30 hover:shadow-xl hover:shadow-coral/40 disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-1 hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 group relative overflow-hidden"
       >
-        {!selectedSchedule 
-          ? 'Select a date' 
-          : (selectedSchedule.capacity - (selectedSchedule.booked_count || 0)) <= 0 
-            ? 'Sold Out' 
-            : 'Book This Tour'}
+        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-1000 ease-in-out"></div>
+        <span className="relative flex items-center gap-2">
+        {isBooking ? (
+          <>
+            <Loader2 className="w-5 h-5 animate-spin" />
+            Processing...
+          </>
+        ) : !selectedSchedule ? (
+          'Select a date' 
+        ) : remainingSlots <= 0 ? (
+          'Sold Out' 
+        ) : (
+          'Book This Tour'
+        )}
+        </span>
       </button>
       <p className="text-center text-xs text-slate-400 mt-4 font-medium flex items-center justify-center gap-1">
         🔒 You won't be charged yet
@@ -136,6 +230,3 @@ export default function TourBookingCard({ tour }: { tour: any }) {
     </div>
   );
 }
-
-// Ensure Check is imported for the checkmark
-import { Check } from 'lucide-react';

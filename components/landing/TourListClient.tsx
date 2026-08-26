@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { getPublicTours } from '@/actions/public';
 
 interface TourListClientProps {
@@ -48,10 +49,12 @@ export default function TourListClient({ initialTours, initialHasMore }: TourLis
                 <div className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar h-full w-full">
                   {images.map((img: string, idx: number) => (
                     <div key={idx} className="shrink-0 w-full h-full snap-center relative">
-                      <img 
+                      <Image 
                         src={img} 
                         alt={`${tour.title} - Image ${idx + 1}`} 
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                        fill
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        className="object-cover transition-transform duration-700 group-hover:scale-105" 
                       />
                     </div>
                   ))}
@@ -103,8 +106,8 @@ export default function TourListClient({ initialTours, initialHasMore }: TourLis
                       )}
                     </div>
                   </div>
-                  <Link href={`/tours/${tour.slug}`} className="bg-coral/10 hover:bg-coral text-coral hover:text-white transition-colors text-xs font-bold px-4 py-2 rounded-lg">
-                    View Details
+                  <Link href={`/tours/${tour.slug}`} className="bg-coral/10 hover:bg-coral text-coral hover:text-white transition-all duration-300 text-xs font-extrabold px-5 py-2.5 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5">
+                    View & Book
                   </Link>
                 </div>
               </div>

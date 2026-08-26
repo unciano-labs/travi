@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { Search, Calendar, MapPin, Plus, Minus } from "lucide-react";
 
 export default function HeroSection() {
@@ -18,7 +19,13 @@ export default function HeroSection() {
 
   return (
     <section id="home" className="relative bg-brand-navy overflow-hidden min-h-screen flex items-center">
-      <img src="https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?auto=format&fit=crop&w=2000&q=80" alt="El Nido Palawan" className="absolute inset-0 w-full h-full object-cover" fetchPriority="high" />
+      <Image 
+        src="https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?auto=format&fit=crop&w=2000&q=80" 
+        alt="El Nido Palawan" 
+        fill
+        priority
+        className="object-cover" 
+      />
       <div className="absolute inset-0 bg-gradient-to-b from-brand-navy/75 via-brand-navy/60 to-brand-navy/85" />
       
       <div className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 lg:pt-32 pb-16">
@@ -72,8 +79,9 @@ export default function HeroSection() {
                       <button type="button" onClick={() => setPax(pax + 1)} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center transition-colors"><Plus size={14}/></button>
                     </div>
                   </div>
-                  <button type="submit" className="shrink-0 bg-brand hover:bg-brand-dark active:scale-95 transition-all text-white text-sm font-bold px-5 py-3.5 rounded-xl shadow-card flex items-center gap-2">
-                    <Search size={16} /> Search
+                  <button type="submit" className="shrink-0 bg-brand hover:bg-brand-dark hover:-translate-y-0.5 active:scale-95 transition-all text-white text-sm font-extrabold px-6 py-3.5 rounded-xl shadow-lg shadow-brand/20 flex items-center gap-2 group relative overflow-hidden">
+                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+                    <span className="relative flex items-center gap-2"><Search size={16} /> Find My Adventure</span>
                   </button>
                 </div>
 

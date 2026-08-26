@@ -6,82 +6,37 @@ import { MapPin, Clock, Users, Car, Check, Calendar, PhilippinePeso, Star } from
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import TourBookingCard from '@/components/landing/TourBookingCard';
+import TourReviewsCarousel from '@/components/landing/TourReviewsCarousel';
+import Image from 'next/image';
 
-// TEMP: Mock reviews — hardcoded for demo until real review data is wired up.
-// Each entry matches the shape returned by the `reviews` Supabase query above
-// (rating, comment, created_at, nested user_profiles.full_name/avatar_url).
-const MOCK_REVIEWS = [
-  {
-    id: 'mock-1',
-    rating: 5,
-    comment: 'The rolling green hills of Batanes are unreal. Sunrise at Marlboro Hills was the highlight of my whole trip — our guide knew exactly where to stop for photos.',
-    created_at: '2026-07-18T09:30:00Z',
-    user_profiles: { full_name: 'Maria Santos', avatar_url: 'https://ui-avatars.com/api/?name=Maria+Santos&background=0EA5E9&color=fff' },
-  },
-  {
-    id: 'mock-2',
-    rating: 5,
-    comment: 'Breathtaking is an understatement! The coastline views at Alapads Point and the honesty coffee shops in Basco made this a once-in-a-lifetime experience.',
-    created_at: '2026-07-02T14:12:00Z',
-    user_profiles: { full_name: 'John Carlo Reyes', avatar_url: 'https://ui-avatars.com/api/?name=John+Carlo+Reyes&background=10B981&color=fff' },
-  },
-  {
-    id: 'mock-3',
-    rating: 4,
-    comment: 'Really scenic tour and very organized. Only wish we had more time at the Honesty Coffee Shop and the lighthouse. Still a great 3 days in Batanes.',
-    created_at: '2026-06-21T11:05:00Z',
-    user_profiles: { full_name: 'Angela Lim', avatar_url: 'https://ui-avatars.com/api/?name=Angela+Lim&background=F59E0B&color=fff' },
-  },
-  {
-    id: 'mock-4',
-    rating: 5,
-    comment: 'Our driver and guide were fantastic and the landscapes went beyond the pictures. The overnight stay in Sabtang was cozy and the local food was amazing.',
-    created_at: '2026-06-09T08:45:00Z',
-    user_profiles: { full_name: 'Mark Dela Cruz', avatar_url: 'https://ui-avatars.com/api/?name=Mark+Dela+Cruz&background=8B5CF6&color=fff' },
-  },
-  {
-    id: 'mock-5',
-    rating: 3,
-    comment: 'Nice sceneries but the van was a bit cramped and we hit heavy fog on the hills. Worth it overall, just set expectations on the weather.',
-    created_at: '2026-05-27T16:20:00Z',
-    user_profiles: { full_name: 'Rica Mendoza', avatar_url: 'https://ui-avatars.com/api/?name=Rica+Mendoza&background=EC4899&color=fff' },
-  },
-  {
-    id: 'mock-6',
-    rating: 5,
-    comment: 'The Paverial Hills and the long coastline stayed with me long after the trip. Excellent value and the accommodation right by the cliffs was idyllic.',
-    created_at: '2026-05-14T13:00:00Z',
-    user_profiles: { full_name: 'Dante Villanueva', avatar_url: 'https://ui-avatars.com/api/?name=Dante+Villanueva&background=0EA5E9&color=fff' },
-  },
-  {
-    id: 'mock-7',
-    rating: 4,
-    comment: 'Beautiful landscapes and a thoughtful itinerary. The day-trip seafood barbecue by the ravine was unforgettable — bring a good camera and layers.',
-    created_at: '2026-04-28T10:40:00Z',
-    user_profiles: { full_name: 'Liza Fernandez', avatar_url: 'https://ui-avatars.com/api/?name=Liza+Fernandez&background=10B981&color=fff' },
-  },
-  {
-    id: 'mock-8',
-    rating: 2,
-    comment: 'Great place but our pickup was delayed and one itinerary stop was skipped due to "road closures." Lucky the scenery forgave the logistics issues.',
-    created_at: '2026-04-11T17:55:00Z',
-    user_profiles: { full_name: 'Paolo Mercado', avatar_url: 'https://ui-avatars.com/api/?name=Paolo+Mercado&background=8B5CF6&color=fff' },
-  },
-  {
-    id: 'mock-9',
-    rating: 5,
-    comment: 'From the cliffs to the stony coves, everything was pristine. Our organizer handled the travel_bookings with a local carrier who was wonderful. 10/10.',
-    created_at: '2026-03-22T09:15:00Z',
-    user_profiles: { full_name: 'Katrina Aquino', avatar_url: 'https://ui-avatars.com/api/?name=Katrina+Aquino&background=F59E0B&color=fff' },
-  },
-  {
-    id: 'mock-10',
-    rating: 4,
-    comment: 'Stunning, peaceful, and quiet — exactly as advertised. A little expensive for the budget traveler, but for the scenery it was worth every peso.',
-    created_at: '2026-03-05T12:25:00Z',
-    user_profiles: { full_name: 'Miguel Torres', avatar_url: 'https://ui-avatars.com/api/?name=Miguel+Torres&background=EC4899&color=fff' },
-  },
-];
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const supabase = await createClient();
+  const { data: tour } = await supabase.from('tours').select('title, description, location, cover_image_url').eq('slug', slug).single();
+
+  if (!tour) {
+    return { title: 'Tour Not Found - Travi' };
+  }
+
+  return {
+    title: `${tour.title} | Travi`,
+    description: tour.description.substring(0, 160) + '...',
+    openGraph: {
+      title: `${tour.title} - Tour in ${tour.location}`,
+      description: tour.description.substring(0, 160) + '...',
+      images: tour.cover_image_url ? [tour.cover_image_url] : [],
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${tour.title} | Travi`,
+      description: tour.description.substring(0, 160) + '...',
+      images: tour.cover_image_url ? [tour.cover_image_url] : [],
+    },
+  };
+}
+
+
 export default async function TourPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   
@@ -129,10 +84,12 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
         {/* Hero Section */}
         <section className="relative h-[60vh] min-h-[500px] w-full bg-slate-900">
           <div className="absolute inset-0 overflow-hidden">
-            <img 
+            <Image 
               src={tour.cover_image_url || defaultImage} 
               alt={tour.title}
-              className="w-full h-full object-cover opacity-60"
+              fill
+              priority
+              className="object-cover opacity-60"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"></div>
           </div>
@@ -230,8 +187,14 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
                   <h2 className="text-2xl font-bold text-slate-900 mb-6">Gallery</h2>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {tour.image_urls.map((url: string, i: number) => (
-                      <div key={i} className="aspect-[4/3] rounded-xl overflow-hidden shadow-sm">
-                        <img src={url} alt={`${tour.title} image ${i+1}`} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
+                      <div key={i} className="aspect-[4/3] rounded-xl overflow-hidden shadow-sm relative group">
+                        <Image 
+                           src={url} 
+                           alt={`${tour.title} image ${i+1}`} 
+                           fill
+                           sizes="(max-width: 768px) 50vw, 33vw"
+                           className="object-cover group-hover:scale-105 transition-transform duration-500" 
+                        />
                       </div>
                     ))}
                   </div>
@@ -257,42 +220,9 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
               )}
 
               {/* Reviews */}
-              <div className="pt-8 border-t border-slate-100 mt-12">
-                <div className="flex items-center justify-between mb-8">
-                  <h2 className="text-2xl font-bold text-slate-900">Reviews</h2>
-                  <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-xl">
-                    <Star className="w-5 h-5 fill-coral text-coral" />
-                    <span className="font-bold text-slate-900 text-lg">
-                      {(MOCK_REVIEWS.reduce((acc: number, r: any) => acc + r.rating, 0) / MOCK_REVIEWS.length).toFixed(1)}
-                    </span>
-                    <span className="text-slate-500">({MOCK_REVIEWS.length} review{MOCK_REVIEWS.length === 1 ? '' : 's'})</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {MOCK_REVIEWS.map((review: any) => (
-                    <div key={review.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-                      <div className="flex items-center gap-4 mb-4">
-                        <img 
-                          src={review.user_profiles?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent((review.user_profiles?.full_name || 'User'))}&background=0EA5E9&color=fff`} 
-                          alt="Reviewer" 
-                          className="w-12 h-12 rounded-full object-cover ring-2 ring-slate-50"
-                        />
-                        <div>
-                          <div className="font-bold text-slate-900">{review.user_profiles?.full_name || 'Anonymous User'}</div>
-                          <div className="text-xs font-medium text-slate-400">{new Date(review.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</div>
-                        </div>
-                      </div>
-                      <div className="flex gap-1 mb-3">
-                        {[...Array(5)].map((_, i) => (
-                          <Star key={i} className={`w-4 h-4 ${i < review.rating ? 'fill-coral text-coral' : 'fill-slate-100 text-slate-200'}`} />
-                        ))}
-                      </div>
-                      <p className="text-slate-600 leading-relaxed text-sm">"{review.comment}"</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {tour.reviews && tour.reviews.length > 0 && (
+                <TourReviewsCarousel reviews={tour.reviews} />
+              )}
             </div>
 
             {/* Booking Card (Right) */}
