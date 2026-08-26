@@ -45,7 +45,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       `}>
         <div className="flex items-center justify-between h-16 px-6 bg-brand-navy border-b border-white/10">
           <span className="font-display font-bold text-xl text-white">
-            ORGY <span className="text-coral">Admin</span>
+            TRAVI <span className="text-coral">Admin</span>
           </span>
           <button className="lg:hidden text-white/70 hover:text-white" onClick={() => setSidebarOpen(false)}>
             <X className="w-5 h-5" />

@@ -1,5 +1,5 @@
 # Organizer App Features
-# Orgy SaaS - Organizer Account
+# Travi SaaS - Organizer Account
 
 This document outlines the user interface menus and corresponding features for the **Organizer** role.
 

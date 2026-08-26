@@ -10,7 +10,7 @@ export default function Footer() {
                 <circle cx="16" cy="16" r="15" fill="#0EA5E9" opacity=".2"/>
                 <path d="M16 4C10 4 6 8.5 6 14c0 6 5 11 10 14 5-3 10-8 10-14C26 8.5 22 4 16 4z" fill="#0EA5E9"/>
               </svg>
-              <span className="text-lg font-extrabold text-white tracking-tight">Orgy</span>
+              <span className="text-lg font-extrabold text-white tracking-tight">Travi</span>
             </a>
             <p className="text-xs mb-6 max-w-xs leading-relaxed">The premier marketplace for local tours and transport in the Philippines. Discover your next adventure.</p>
             <div className="flex items-center gap-3">
@@ -53,7 +53,7 @@ export default function Footer() {
         </div>
         
         <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4 text-xs">
-          <p>&copy; {new Date().getFullYear()} Orgy Philippines. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Travi Philippines. All rights reserved.</p>
           <div className="flex items-center gap-4">
             <span>Made in PH 🇵🇭</span>
           </div>

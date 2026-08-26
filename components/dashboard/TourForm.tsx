@@ -1,41 +1,146 @@
 'use client';
 
-import { useState } from 'react';
-import { createTour } from '@/actions/tours';
+import { useState, useEffect } from 'react';
+import { createTour, updateTour } from '@/actions/tours';
+import { getAvailableVehicles } from '@/actions/vehicles';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Image as ImageIcon, MapPin } from 'lucide-react';
 import Link from 'next/link';
+import { ItineraryBuilder, ItineraryDay } from './ItineraryBuilder';
+import { createClient } from '@/lib/supabase/client';
+import dynamic from 'next/dynamic';
+const LocationPicker = dynamic(() => import('./LocationPicker'), { ssr: false });
 
-export default function TourForm() {
+export interface TourFormData {
+  id?: string;
+  title?: string;
+  description?: string;
+  location?: string;
+  price_per_person?: number;
+  duration_days?: number;
+  accommodation_details?: string;
+  travel_time_info?: string;
+  transport_type?: string;
+  cover_image_url?: string;
+  image_urls?: string[];
+  latitude?: number;
+  longitude?: number;
+  status?: string;
+  tour_itineraries?: ItineraryDay[];
+  transport_booking?: {
+    vehicle_id: string;
+    pickup_location: string;
+    dropoff_location: string;
+    pickup_datetime: string;
+  };
+}
+
+export default function TourForm({ initialData }: { initialData?: TourFormData }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  
+  const [imageUrls, setImageUrls] = useState<string[]>(
+    initialData?.image_urls && initialData.image_urls.length > 0 
+      ? initialData.image_urls 
+      : (initialData?.cover_image_url ? [initialData.cover_image_url] : [])
+  );
+  const [coverImageUrl, setCoverImageUrl] = useState<string>(initialData?.cover_image_url || '');
+  const [latitude, setLatitude] = useState<number | null>(initialData?.latitude || null);
+  const [longitude, setLongitude] = useState<number | null>(initialData?.longitude || null);
+  const [status, setStatus] = useState<string>(initialData?.status || 'draft');
+  
+  const [transportType, setTransportType] = useState(initialData?.transport_type || 'none');
+  const [availableVehicles, setAvailableVehicles] = useState<any[]>([]);
+  
   const router = useRouter();
+  const supabase = createClient();
+
+  const isEdit = !!initialData?.id;
+
+  useEffect(() => {
+    // With schedules removed from this form, transport availability booking
+    // needs to move to the schedule creation form.
+    setAvailableVehicles([]);
+  }, [transportType]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    
+    const uploadedUrls: string[] = [];
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('tour-images')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        setError("Error uploading image: " + uploadError.message);
+      } else {
+        const { data } = supabase.storage.from('tour-images').getPublicUrl(filePath);
+        uploadedUrls.push(data.publicUrl);
+      }
+    }
+    
+    if (uploadedUrls.length > 0) {
+      setImageUrls(prev => [...prev, ...uploadedUrls]);
+    }
+    
+    // Clear the input value so the same file(s) can be selected again if needed
+    e.target.value = '';
+    setUploading(false);
+  };
+
+  const removeImage = (indexToRemove: number) => {
+    const urlToRemove = imageUrls[indexToRemove];
+    setImageUrls(prev => prev.filter((_, idx) => idx !== indexToRemove));
+    if (urlToRemove === coverImageUrl) {
+      setCoverImageUrl('');
+    }
+  };
+
 
   async function handleSubmit(formData: FormData) {
     setError(null);
     setLoading(true);
     
-    const res = await createTour(formData);
+    let res;
+    if (isEdit) {
+      res = await updateTour(initialData.id!, formData);
+    } else {
+      res = await createTour(formData);
+    }
     
     setLoading(false);
     
     if (res?.error) {
       setError(res.error);
     }
-    // if successful, createTour will redirect
+    // if successful, server action will redirect
   }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/dashboard/organizer/tours" className="p-2 text-slate-400 hover:text-slate-900 transition-colors bg-white rounded-lg border border-slate-200">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Create New Tour</h1>
-          <p className="text-slate-600">Draft a new tour package for travelers to book.</p>
+      {!isEdit && (
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard/organizer/tours" className="p-2 text-slate-400 hover:text-slate-900 transition-colors bg-white rounded-lg border border-slate-200">
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Create New Tour</h1>
+            <p className="text-slate-600">Draft a new tour package for travelers to book.</p>
+          </div>
         </div>
-      </div>
+      )}
+
 
       <form action={handleSubmit} className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-sm space-y-8">
         {error && (
@@ -49,77 +154,147 @@ export default function TourForm() {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-2">Tour Images</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {imageUrls.map((url, idx) => (
+                  <div key={idx} className="aspect-[4/3] bg-slate-100 rounded-lg border border-slate-200 overflow-hidden relative group">
+                    <img src={url} alt={`Tour Image ${idx + 1}`} className="w-full h-full object-cover" />
+                    {url === (coverImageUrl || imageUrls[0]) ? (
+                      <div className="absolute top-2 left-2 bg-coral text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm">
+                        COVER
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setCoverImageUrl(url)}
+                        className="absolute top-2 left-2 bg-slate-900/70 hover:bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        SET COVER
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeImage(idx)}
+                      className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      &times;
+                    </button>
+                    <input type="hidden" name="imageUrls" value={url} />
+                  </div>
+                ))}
+                <div className="aspect-[4/3] bg-slate-50 rounded-lg border-2 border-dashed border-slate-300 flex flex-col items-center justify-center overflow-hidden relative hover:bg-slate-100 transition-colors">
+                  <ImageIcon className="w-6 h-6 text-slate-400 mb-2" />
+                  <span className="text-xs text-slate-500 font-medium">Add Image</span>
+                  {uploading && <div className="absolute inset-0 bg-white/70 flex items-center justify-center text-sm font-medium">Uploading...</div>}
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    multiple
+                    onChange={handleImageUpload} 
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-slate-500 mt-2">Recommended: 4:3 or 16:9 ratio, max 2MB. Hover an image to set it as cover.</p>
+              <input type="hidden" name="coverImageUrl" value={coverImageUrl || (imageUrls.length > 0 ? imageUrls[0] : '')} />
+            </div>
+
+            <div className="md:col-span-1">
               <label className="block text-sm font-medium text-slate-700 mb-1">Tour Title</label>
-              <input type="text" name="title" required className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="e.g. Ultimate El Nido Island Hopping" />
+              <input type="text" name="title" defaultValue={initialData?.title} required className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="e.g. Ultimate El Nido Island Hopping" />
+            </div>
+
+            <div className="md:col-span-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+              <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                <input type="hidden" name="status" value={status} />
+                <button
+                  type="button"
+                  onClick={() => setStatus('draft')}
+                  className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${status === 'draft' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  Draft
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatus('published')}
+                  className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${status === 'published' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  Published
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatus('archived')}
+                  className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${status === 'archived' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  Archived
+                </button>
+              </div>
             </div>
             
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
-              <input type="text" name="location" required className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="e.g. El Nido, Palawan" />
+              <input type="text" name="location" defaultValue={initialData?.location} required className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none mb-3" placeholder="e.g. El Nido, Palawan" />
+              <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2"><MapPin className="w-4 h-4"/> Pinpoint on Map (Optional)</label>
+              <LocationPicker 
+                initialLatitude={latitude} 
+                initialLongitude={longitude} 
+                onChange={(lat, lng) => { setLatitude(lat); setLongitude(lng); }} 
+              />
+              <input type="hidden" name="latitude" value={latitude || ''} />
+              <input type="hidden" name="longitude" value={longitude || ''} />
             </div>
 
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-              <textarea name="description" required rows={4} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="Describe what makes this tour special..." />
+              <textarea name="description" defaultValue={initialData?.description} required rows={4} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="Describe what makes this tour special..." />
             </div>
           </div>
         </div>
 
         <div className="space-y-4">
-          <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2">2. Pricing & Capacity</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Price per Person (₱)</label>
-              <input type="number" name="pricePerPerson" required min="1" step="0.01" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="1500" />
+              <input type="number" name="pricePerPerson" defaultValue={initialData?.price_per_person} required min="1" step="0.01" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="1500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Duration (Days)</label>
-              <input type="number" name="durationDays" required min="1" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="1" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Max Capacity (Pax)</label>
-              <input type="number" name="capacity" required min="1" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="12" />
+              <input type="number" name="durationDays" defaultValue={initialData?.duration_days} required min="1" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="1" />
             </div>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2">3. Schedule</h2>
+
+        <div className="space-y-4 pt-4">
+          <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2">4. Itinerary</h2>
+          <ItineraryBuilder initialDays={initialData?.tour_itineraries || []} />
+        </div>
+
+        <div className="space-y-4 pt-4">
+          <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2">5. Accommodation & Transport</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
-              <input type="date" name="startDate" required className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">End Date</label>
-              <input type="date" name="endDate" required className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" />
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2">4. Logistics</h2>
-          
-          <div className="grid grid-cols-1 gap-4">
-            <div>
+            <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-700 mb-1">Transport Requirement</label>
-              <select name="transportType" required className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none bg-white">
-                <option value="none">No transport needed (Meet at location)</option>
-                <option value="self_provided">I will provide the transport</option>
-                <option value="external_transporter">I need an external Transporter</option>
+              <select name="transportType" value={transportType} onChange={e => setTransportType(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none bg-white">
+                <option value="none">None (Travelers meet at location)</option>
+                <option value="self_provided">Self-provided (We will provide the transport)</option>
+                <option value="external_transporter">External Transporter (Need to book a vehicle)</option>
               </select>
             </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Accommodation Details (Optional)</label>
-              <input type="text" name="accommodationDetails" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="e.g. 3-star hotel included" />
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Travel Time Info (Optional)</label>
-              <input type="text" name="travelTimeInfo" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="e.g. 2 hours boat ride" />
+                <div className="md:col-span-2 bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-4 text-sm text-slate-600">
+                  <p>You can book an external vehicle when creating a specific schedule for this tour.</p>
+                </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Travel Time Info</label>
+              <input type="text" name="travelTimeInfo" defaultValue={initialData?.travel_time_info} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="e.g. 2 hours boat ride from town proper" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Accommodation Details (Optional)</label>
+              <textarea name="accommodationDetails" defaultValue={initialData?.accommodation_details || ''} rows={3} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none resize-none"></textarea>
             </div>
           </div>
         </div>
@@ -129,7 +304,7 @@ export default function TourForm() {
             Cancel
           </Link>
           <button type="submit" disabled={loading} className="bg-coral hover:bg-coral/90 text-white px-8 py-3 rounded-lg font-medium transition-colors disabled:opacity-50">
-            {loading ? 'Saving...' : 'Save as Draft'}
+            {loading ? 'Saving...' : 'Save Tour'}
           </button>
         </div>
       </form>

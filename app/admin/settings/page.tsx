@@ -14,7 +14,7 @@ export default function SettingsPage() {
             <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
             <input 
               type="email" 
-              defaultValue="admin@orgy.ph"
+              defaultValue="admin@travi.ph"
               disabled
               className="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-500"
             />

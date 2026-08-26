@@ -23,7 +23,7 @@ export default function HowItWorksSection() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="text-center max-w-2xl mx-auto mb-16">
           <p className="text-xs font-bold uppercase tracking-widest text-sky-400 mb-2">Simple Process</p>
-          <h2 className="text-2xl lg:text-4xl font-extrabold mb-4">How Orgy Works</h2>
+          <h2 className="text-2xl lg:text-4xl font-extrabold mb-4">How Travi Works</h2>
           <p className="text-slate-400 text-sm">Booking your local adventure is fast, secure, and hassle-free.</p>
         </div>
 

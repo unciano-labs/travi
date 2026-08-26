@@ -28,7 +28,7 @@ export default function AdminLogin() {
             <Lock className="text-white w-6 h-6" />
           </div>
           <h1 className="text-2xl font-display font-bold text-white">Admin Login</h1>
-          <p className="text-sky-300 text-sm mt-1">Orgy SaaS Platform</p>
+          <p className="text-sky-300 text-sm mt-1">Travi SaaS Platform</p>
         </div>
         
         <div className="p-8">
@@ -44,7 +44,7 @@ export default function AdminLogin() {
               <input 
                 type="email" 
                 name="email"
-                defaultValue="admin@orgy.ph"
+                defaultValue="admin@travi.ph"
                 required
                 className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-navy/20 focus:border-brand-navy transition-all"
               />
@@ -71,7 +71,7 @@ export default function AdminLogin() {
           </form>
           
           <div className="mt-6 text-center text-xs text-slate-400">
-            Hint: Use admin@orgy.ph / password
+            Hint: Use admin@travi.ph / password
           </div>
         </div>
       </div>

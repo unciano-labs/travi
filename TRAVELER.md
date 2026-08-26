@@ -1,5 +1,5 @@
 # Traveler App Features
-# Orgy SaaS - Traveler Account
+# Travi SaaS - Traveler Account
 
 This document outlines the user interface menus and corresponding features for the **Traveler** role.
 

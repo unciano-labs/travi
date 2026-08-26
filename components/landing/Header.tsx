@@ -37,7 +37,7 @@ export default function Header() {
                 <path d="M16 4C10 4 6 8.5 6 14c0 6 5 11 10 14 5-3 10-8 10-14C26 8.5 22 4 16 4z" fill="#0EA5E9"/>
                 <path d="M16 10c-3 0-5 2-5 5s2 5 5 5 5-2 5-5-2-5-5-5z" fill="white" opacity=".9"/>
               </svg>
-              <span className={`text-xl font-extrabold tracking-tight ${scrolled ? 'text-brand-navy' : 'text-white'}`}>Orgy</span>
+              <span className={`text-xl font-extrabold tracking-tight ${scrolled ? 'text-brand-navy' : 'text-white'}`}>Travi</span>
             </a>
             
             <nav className="hidden lg:flex items-center gap-8 text-sm font-semibold">

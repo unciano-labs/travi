@@ -1,4 +1,4 @@
-# DATABASE.md — Orgy SaaS
+# DATABASE.md — Travi SaaS
 # Database Schema, Status Definitions & Business Rules
 
 > Stack: Supabase (PostgreSQL) + Row Level Security
@@ -139,22 +139,36 @@ Links a user's profile to a specific role on a website.
 | location | text | Yes | |
 | price_per_person | decimal | Yes | Must be > 0 |
 | duration_days | integer | Yes | |
-| capacity | integer | Yes | Must be > 0 |
-| booked_count | integer | Yes | Default 0 |
-| start_date | date | Yes | |
-| end_date | date | Yes | |
 | accommodation_details | text | No | |
 | travel_time_info | text | No | |
 | transport_type | enum | Yes | none, self_provided, external_transporter |
 | transport_status | enum | Yes | not_required, self_provided, pending, confirmed, unresolved |
 | status | enum | Yes | draft, published, archived |
-| cover_image_url | text | No | |
+| cover_image_url | text | No | First image uploaded |
+| image_urls | text[] | No | Array of all uploaded images |
 | created_at | timestamptz | Yes | |
 | updated_at | timestamptz | Yes | |
 
 ---
 
-### 2.5 tour_itineraries
+### 2.5 tour_schedules
+
+| Field | Type | Required | Notes |
+|---|---|---:|---|
+| id | UUID | Yes | PK |
+| `tour_id` | uuid | Yes | Foreign key to `tours` |
+| `start_date` | date | Yes | Start date of the schedule |
+| `end_date` | date | Yes | End date of the schedule |
+| `capacity` | integer | Yes | Total available seats for this specific schedule |
+| `price_per_person`| numeric(10,2)| No | Custom price for this schedule |
+| `original_price`  | numeric(10,2)| No | Optional "compare-at" price |
+| `status` | enum | Yes | Schedule status: `open`, `full`, `cancelled`, `completed` |
+| `created_at` | timestamptz | Yes | |
+| `updated_at` | timestamptz | Yes | |
+
+---
+
+### 2.6 tour_itineraries
 
 | Field | Type | Required | Notes |
 |---|---|---:|---|
@@ -167,12 +181,12 @@ Links a user's profile to a specific role on a website.
 
 ---
 
-### 2.6 bookings
+### 2.7 bookings
 
 | Field | Type | Required | Notes |
 |---|---|---:|---|
 | id | UUID | Yes | PK |
-| tour_id | UUID | Yes | FK → tours |
+| tour_schedule_id | UUID | Yes | FK → tour_schedules |
 | traveler_id | UUID | Yes | FK → user_profiles |
 | seats | integer | Yes | Min 1 |
 | total_amount | decimal | Yes | price × seats |
@@ -236,7 +250,7 @@ Links a user's profile to a specific role on a website.
 | Field | Type | Required | Notes |
 |---|---|---:|---|
 | id | UUID | Yes | PK |
-| tour_id | UUID | Yes | FK → tours |
+| tour_schedule_id | UUID | Yes | FK → tour_schedules |
 | organizer_id | UUID | Yes | FK → organizer_profiles |
 | transporter_id | UUID | Yes | FK → transporter_profiles |
 | vehicle_id | UUID | Yes | FK → vehicles |

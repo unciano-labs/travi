@@ -8,7 +8,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
-# AGENTS.md — Orgy SaaS
+# AGENTS.md — Travi SaaS
 # Travel Tour & Transportation Marketplace
 
 > **Stack:** Next.js 14 (App Router) · React 18 · Tailwind CSS v4 · Node.js API Routes · Supabase · Vercel
@@ -28,7 +28,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## 1. Product Summary
 
-Orgy is a travel marketplace where:
+Travi is a travel marketplace where:
 - **Travelers** browse and book tour packages
 - **Organizers** create and manage tours (individuals or companies)
 - **Transporters** offer vehicles and manage availability (individuals or companies)

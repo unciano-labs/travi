@@ -1,4 +1,4 @@
-﻿# API.md — Orgy SaaS
+﻿# API.md — Travi SaaS
 # Functional Requirements & API Specification
 
 > Stack: Next.js API Routes (Node.js) + Supabase

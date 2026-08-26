@@ -13,7 +13,7 @@ const playfairDisplay = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Orgy — Discover the Philippines Your Way",
+  title: "Travi — Discover the Philippines Your Way",
   description: "Book local Philippine tour packages online. Find the best organizers and trusted transport for your next adventure.",
 };
 

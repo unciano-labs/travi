@@ -59,7 +59,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       `}>
         <div className="flex items-center justify-between h-16 px-6 border-b border-slate-200">
           <Link href="/" className="font-display font-bold text-xl text-brand-navy">
-            ORGY <span className="text-coral">Panel</span>
+            TRAVI <span className="text-coral">Panel</span>
           </Link>
           <button className="lg:hidden text-slate-500 hover:text-slate-900" onClick={() => setSidebarOpen(false)}>
             <X className="w-5 h-5" />
