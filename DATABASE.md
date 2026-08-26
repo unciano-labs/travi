@@ -372,7 +372,14 @@ Links a user's profile to a specific role on a website.
 | BR-ORG-001 | Cannot publish tours until approved |
 | BR-ORG-002 | Can only edit their own tours |
 | BR-ORG-003 | Can only view bookings for their own tours |
-| BR-ORG-004 | Archive tours instead of deleting if bookings exist |
+| BR-ORG-004 | Soft delete (archive) tours and schedules by setting `deleted_at = now()` instead of hard deleting to preserve historical bookings and payments. |
+
+### Soft Delete & Data Retention Rules
+| ID | Rule |
+|---|---|
+| BR-DEL-001 | All primary tables (`user_profiles`, `organizer_profiles`, `transporter_profiles`, `tours`, `tour_schedules`, `tour_itineraries`, `bookings`, `reviews`, `vehicles`, `vehicle_availability`, `transport_bookings`) use soft deletion with a `deleted_at timestamptz DEFAULT NULL` column. |
+| BR-DEL-002 | Default public and authenticated user read queries must filter rows where `deleted_at IS NULL`. |
+| BR-DEL-003 | Soft deletion is performed via `UPDATE ... SET deleted_at = NOW()` and does not cascade-purge foreign keys. |
 
 ### Transporter Rules
 | ID | Rule |

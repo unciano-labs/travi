@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
   Map, CreditCard, User, LogOut, Menu, X, 
-  MapPin, Users, Bus, CalendarCheck
+  MapPin, Users, Bus, CalendarCheck, Calendar, Inbox, Star
 } from 'lucide-react';
 import { logoutUser } from '@/actions/auth';
 
@@ -26,7 +26,9 @@ const ROLE_NAV = {
   transporter: [
     { name: 'Dashboard', href: '/dashboard/transporter', icon: Map },
     { name: 'My Vehicles', href: '/dashboard/transporter/vehicles', icon: Bus },
-    { name: 'Requests', href: '/dashboard/transporter/requests', icon: CalendarCheck },
+    { name: 'Availability', href: '/dashboard/transporter/availability', icon: Calendar },
+    { name: 'Requests', href: '/dashboard/transporter/requests', icon: Inbox },
+    { name: 'Reviews', href: '/dashboard/transporter/reviews', icon: Star },
     { name: 'Profile', href: '/dashboard/transporter/profile', icon: User },
   ]
 };

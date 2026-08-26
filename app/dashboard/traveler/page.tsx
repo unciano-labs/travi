@@ -115,6 +115,7 @@ export default async function TravelerDashboard() {
                    src={nextAdventure.tour_schedules.tours.cover_image_url} 
                    alt={nextAdventure.tour_schedules.tours.title}
                    fill
+                   sizes="(max-width: 640px) 100vw, 256px"
                    className="object-cover"
                  />
                ) : (

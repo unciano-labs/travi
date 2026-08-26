@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react';
 import 'leaflet/dist/leaflet.css';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
 
 // Fix Leaflet's default icon issue with Next.js/Webpack
 const fixLeafletIcon = () => {
   if (typeof window !== 'undefined') {
-    const L = require('leaflet');
-    delete L.Icon.Default.prototype._getIconUrl;
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
     L.Icon.Default.mergeOptions({
       iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
       iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -18,7 +18,6 @@ const fixLeafletIcon = () => {
 };
 
 function LocationMarker({ position, setPosition }: { position: [number, number] | null, setPosition: (pos: [number, number]) => void }) {
-  // @ts-ignore
   useMapEvents({
     click(e: any) {
       setPosition([e.latlng.lat, e.latlng.lng]);

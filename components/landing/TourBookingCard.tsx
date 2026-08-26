@@ -31,16 +31,6 @@ export default function TourBookingCard({ tour }: { tour: any }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Update seats if it exceeds capacity of newly selected schedule
-  useEffect(() => {
-    if (selectedSchedule) {
-      const remaining = selectedSchedule.capacity - (selectedSchedule.booked_count || 0);
-      if (seats > remaining) {
-        setSeats(remaining > 0 ? remaining : 1);
-      }
-    }
-  }, [selectedSchedule]);
-
   // Determine current price to display
   const displayPrice = selectedSchedule?.price_per_person || tour.price_per_person;
   const originalPrice = selectedSchedule?.original_price;
@@ -129,6 +119,10 @@ export default function TourBookingCard({ tour }: { tour: any }) {
                         key={schedule.id}
                         type="button"
                         onClick={() => {
+                          const rem = schedule.capacity - (schedule.booked_count || 0);
+                          if (seats > rem) {
+                            setSeats(rem > 0 ? rem : 1);
+                          }
                           setSelectedSchedule(schedule);
                           setIsOpen(false);
                         }}

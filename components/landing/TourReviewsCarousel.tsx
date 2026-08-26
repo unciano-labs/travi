@@ -2,16 +2,26 @@
 
 import { Star, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRef, useState, useEffect } from 'react';
+import Image from 'next/image';
 
 type Review = {
   id: string;
   rating: number;
   comment: string;
   created_at: string;
-  user_profiles: {
-    full_name: string;
-    avatar_url: string;
-  };
+  reviewer?: {
+    id?: string;
+    full_name?: string | null;
+    avatar_url?: string | null;
+  } | {
+    id?: string;
+    full_name?: string | null;
+    avatar_url?: string | null;
+  }[];
+  user_profiles?: {
+    full_name?: string | null;
+    avatar_url?: string | null;
+  } | null;
 };
 
 interface TourReviewsCarouselProps {
@@ -93,34 +103,36 @@ export default function TourReviewsCarousel({ reviews }: TourReviewsCarouselProp
           className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar gap-6 pb-6 px-4 sm:px-0"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-          {reviews.map((review) => (
-            <div
-              key={review.id}
-              className="flex-none w-[85vw] sm:w-[calc(50%-12px)] snap-center sm:snap-start bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-center gap-4 mb-4">
-                <img
-                  src={
-                    review.user_profiles?.avatar_url ||
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                      review.user_profiles?.full_name || 'User'
-                    )}&background=0EA5E9&color=fff`
-                  }
-                  alt="Reviewer"
-                  className="w-12 h-12 rounded-full object-cover ring-2 ring-slate-50"
-                />
-                <div>
-                  <div className="font-bold text-slate-900">
-                    {review.user_profiles?.full_name || 'Anonymous User'}
-                  </div>
-                  <div className="text-xs font-medium text-slate-400">
-                    {new Date(review.created_at).toLocaleDateString('en-US', {
-                      month: 'long',
-                      year: 'numeric',
-                    })}
+          {reviews.map((review) => {
+            const reviewerObj = Array.isArray(review.reviewer) ? review.reviewer[0] : review.reviewer;
+            const fullName = reviewerObj?.full_name || review.user_profiles?.full_name || 'Anonymous User';
+            const avatarUrl = reviewerObj?.avatar_url || review.user_profiles?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=0EA5E9&color=fff`;
+
+            return (
+              <div
+                key={review.id}
+                className="flex-none w-[85vw] sm:w-[calc(50%-12px)] snap-center sm:snap-start bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-center gap-4 mb-4">
+                  <Image
+                    src={avatarUrl}
+                    alt={fullName}
+                    width={48}
+                    height={48}
+                    className="w-12 h-12 rounded-full object-cover ring-2 ring-slate-50"
+                  />
+                  <div>
+                    <div className="font-bold text-slate-900">
+                      {fullName}
+                    </div>
+                    <div className="text-xs font-medium text-slate-400">
+                      {new Date(review.created_at).toLocaleDateString('en-US', {
+                        month: 'long',
+                        year: 'numeric',
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
               <div className="flex gap-1 mb-3">
                 {[...Array(5)].map((_, i) => (
                   <Star
@@ -132,10 +144,11 @@ export default function TourReviewsCarousel({ reviews }: TourReviewsCarouselProp
                 ))}
               </div>
               <p className="text-slate-600 leading-relaxed text-sm whitespace-pre-wrap">
-                "{review.comment}"
+                &ldquo;{review.comment}&rdquo;
               </p>
             </div>
-          ))}
+          );
+        })}
         </div>
       </div>
       <style dangerouslySetInnerHTML={{ __html: `

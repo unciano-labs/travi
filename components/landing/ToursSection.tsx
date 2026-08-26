@@ -1,9 +1,14 @@
+import { Suspense } from 'react';
 import { getPublicTours } from '@/actions/public';
 import TourListClient from './TourListClient';
+import { TourCardsGridSkeleton } from './TourCardSkeleton';
 
-export default async function ToursSection() {
+async function TourListLoader() {
   const { tours, hasMore } = await getPublicTours(0, 6);
+  return <TourListClient initialTours={tours} initialHasMore={hasMore} />;
+}
 
+export default function ToursSection() {
   return (
     <section id="tours" className="py-16 lg:py-24 bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -13,7 +18,9 @@ export default async function ToursSection() {
           <p className="text-slate-600 text-sm">Experience the best of the Philippines with packages curated by our top-rated local organizers.</p>
         </div>
 
-        <TourListClient initialTours={tours} initialHasMore={hasMore} />
+        <Suspense fallback={<TourCardsGridSkeleton count={6} />}>
+          <TourListLoader />
+        </Suspense>
       </div>
     </section>
   );

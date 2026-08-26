@@ -1,6 +1,7 @@
 import { loginUser } from '../../../actions/auth';
 import { cookies } from 'next/headers';
 import { createClient } from '../../../lib/supabase/server';
+import { env } from '../../../lib/env';
 
 export async function GET() {
   const formData = new FormData();
@@ -16,7 +17,7 @@ export async function GET() {
     
     if (data.user) {
       const domain = 'localhost';
-      const websiteId = process.env.WEBSITE_ID;
+      const websiteId = env.WEBSITE_ID;
       
       let query = supabase
         .from('user_roles')

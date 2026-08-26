@@ -1,36 +1,38 @@
-import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import Header from '@/components/landing/Header';
 import Footer from '@/components/landing/Footer';
-import { MapPin, Clock, Users, Car, Check, Calendar, PhilippinePeso, Star } from 'lucide-react';
-import Link from 'next/link';
+import { MapPin, Clock, Users, Car, Check, Calendar } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import TourBookingCard from '@/components/landing/TourBookingCard';
 import TourReviewsCarousel from '@/components/landing/TourReviewsCarousel';
 import Image from 'next/image';
+import { TourJsonLd } from '@/components/seo/TourJsonLd';
+import { getCachedTourBySlug } from '@/lib/data/tours';
+import { getCachedTourReviews } from '@/lib/data/reviews';
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const supabase = await createClient();
-  const { data: tour } = await supabase.from('tours').select('title, description, location, cover_image_url').eq('slug', slug).single();
+  const tour = await getCachedTourBySlug(slug);
 
   if (!tour) {
     return { title: 'Tour Not Found - Travi' };
   }
 
+  const description = (tour.description || 'Discover incredible local tour packages on Travi.').substring(0, 160) + '...';
+
   return {
-    title: `${tour.title} | Travi`,
-    description: tour.description.substring(0, 160) + '...',
+    title: `${tour.title || 'Tour'} | Travi`,
+    description,
     openGraph: {
-      title: `${tour.title} - Tour in ${tour.location}`,
-      description: tour.description.substring(0, 160) + '...',
+      title: `${tour.title || 'Tour'} - Tour in ${tour.location || 'Philippines'}`,
+      description,
       images: tour.cover_image_url ? [tour.cover_image_url] : [],
       type: 'website',
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${tour.title} | Travi`,
-      description: tour.description.substring(0, 160) + '...',
+      title: `${tour.title || 'Tour'} | Travi`,
+      description,
       images: tour.cover_image_url ? [tour.cover_image_url] : [],
     },
   };
@@ -40,44 +42,19 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function TourPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   
-  const supabase = await createClient();
-  
-  // Fetch tour details
-  const { data: tour, error } = await supabase
-    .from('tours')
-    .select(`
-      *,
-      organizer:organizer_profiles (
-        id,
-        company_name,
-        display_name,
-        user_profiles (email)
-      ),
-      itineraries:tour_itineraries (*),
-      schedules:tour_schedules (*),
-      reviews (
-        id,
-        rating,
-        comment,
-        created_at,
-        user_profiles (
-          full_name,
-          avatar_url
-        )
-      )
-    `)
-    .eq('slug', slug)
-    .single();
+  const tour = await getCachedTourBySlug(slug);
 
-  if (error || !tour) {
-    console.error("Tour fetch error:", error);
+  if (!tour) {
     notFound();
   }
+
+  const reviews = await getCachedTourReviews(tour.id);
 
   const defaultImage = "https://images.unsplash.com/photo-1544413155-44282362b7ff?auto=format&fit=crop&w=1200&q=80";
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
+      <TourJsonLd tour={tour} />
       <Header />
       
       <main className="flex-grow">
@@ -89,6 +66,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
               alt={tour.title}
               fill
               priority
+              sizes="100vw"
               className="object-cover opacity-60"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"></div>
@@ -106,15 +84,15 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
               <div className="flex flex-wrap items-center gap-6 text-white/90">
                 <div className="flex items-center gap-2">
                   <Clock className="w-5 h-5 opacity-70" />
-                  <span>{tour.duration_days} Day{tour.duration_days > 1 ? 's' : ''}</span>
+                  <span>{tour.duration_days || 1} Day{(tour.duration_days || 1) > 1 ? 's' : ''}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Users className="w-5 h-5 opacity-70" />
-                  <span>Max {tour.capacity} guests</span>
+                  <span>Max {tour.capacity || 10} guests</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Car className="w-5 h-5 opacity-70" />
-                  <span className="capitalize">{tour.transport_type.replace('_', ' ')}</span>
+                  <span className="capitalize">{(tour.transport_type || 'van').replace('_', ' ')}</span>
                 </div>
               </div>
             </div>
@@ -132,7 +110,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
               <div>
                 <h2 className="text-2xl font-bold text-slate-900 mb-4">Overview</h2>
                 <div className="prose prose-slate prose-lg max-w-none text-slate-600 leading-relaxed">
-                  <ReactMarkdown>{tour.description}</ReactMarkdown>
+                  <ReactMarkdown>{tour.description || ''}</ReactMarkdown>
                 </div>
               </div>
 
@@ -211,7 +189,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
                         <div className="absolute -left-2.5 top-0 w-5 h-5 rounded-full bg-coral border-4 border-slate-50"></div>
                         <h3 className="text-lg font-bold text-slate-900 mb-2">Day {day.day_number}: {day.title}</h3>
                         <div className="prose prose-slate max-w-none text-slate-600 leading-relaxed">
-                          <ReactMarkdown>{day.description}</ReactMarkdown>
+                          <ReactMarkdown>{day.description || ''}</ReactMarkdown>
                         </div>
                       </div>
                     ))}
@@ -220,8 +198,8 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
               )}
 
               {/* Reviews */}
-              {tour.reviews && tour.reviews.length > 0 && (
-                <TourReviewsCarousel reviews={tour.reviews} />
+              {reviews && reviews.length > 0 && (
+                <TourReviewsCarousel reviews={reviews} />
               )}
             </div>
 

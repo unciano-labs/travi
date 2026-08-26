@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Image as ImageIcon, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import { ItineraryBuilder, ItineraryDay } from './ItineraryBuilder';
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '@/lib/supabase/browser';
 import dynamic from 'next/dynamic';
 const LocationPicker = dynamic(() => import('./LocationPicker'), { ssr: false });
 
@@ -57,12 +57,6 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
   const supabase = createClient();
 
   const isEdit = !!initialData?.id;
-
-  useEffect(() => {
-    // With schedules removed from this form, transport availability booking
-    // needs to move to the schedule creation form.
-    setAvailableVehicles([]);
-  }, [transportType]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;

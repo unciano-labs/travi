@@ -1,28 +1,28 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
-import { getUserRoles } from './auth';
+import { z } from 'zod';
+import { requireSession, assertRole } from '@/lib/auth-helpers';
+import { assertRateLimit } from '@/lib/ratelimit';
+import { captureException } from '@/lib/logger';
+
+const createBookingSchema = z.object({
+  scheduleId: z.string().uuid('Invalid schedule ID'),
+  seats: z.number().int().min(1, 'Must book at least 1 seat')
+});
 
 export async function createBooking(scheduleId: string, seats: number) {
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return { success: false, error: 'Unauthorized', code: 'unauthorized' };
-    }
-
-    // Ensure user has traveler role
-    const roles = await getUserRoles();
-    if (!roles.includes('traveler')) {
-      return { success: false, error: 'Only travelers can book tours.' };
-    }
+    const validated = createBookingSchema.parse({ scheduleId, seats });
+    
+    const { user, profile, supabase } = await requireSession();
+    await assertRole(user.id, 'traveler');
+    await assertRateLimit(profile.id, 'mutation');
 
     // Fetch the schedule to calculate amount and check capacity
     const { data: schedule, error: scheduleError } = await supabase
       .from('tour_schedules')
       .select('*, tours(price_per_person, slug)')
-      .eq('id', scheduleId)
+      .eq('id', validated.scheduleId)
       .single();
 
     if (scheduleError || !schedule) {
@@ -30,7 +30,7 @@ export async function createBooking(scheduleId: string, seats: number) {
     }
 
     const remaining = schedule.capacity - (schedule.booked_count || 0);
-    if (seats > remaining) {
+    if (validated.seats > remaining) {
       return { success: false, error: 'Not enough seats available.' };
     }
 
@@ -39,26 +39,15 @@ export async function createBooking(scheduleId: string, seats: number) {
       return { success: false, error: 'Price not configured.' };
     }
 
-    const totalAmount = pricePerPerson * seats;
-
-    // Ensure user has a profile
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('id')
-      .eq('user_id', user.id)
-      .single();
-
-    if (!profile) {
-      return { success: false, error: 'User profile not found.' };
-    }
+    const totalAmount = pricePerPerson * validated.seats;
 
     // Create booking
     const { data: booking, error: bookingError } = await supabase
       .from('bookings')
       .insert({
-        tour_schedule_id: scheduleId,
+        tour_schedule_id: validated.scheduleId,
         traveler_id: profile.id,
-        seats,
+        seats: validated.seats,
         total_amount: totalAmount,
         status: 'confirmed'
       })
@@ -66,34 +55,36 @@ export async function createBooking(scheduleId: string, seats: number) {
       .single();
 
     if (bookingError) {
-      console.error('Booking error:', bookingError);
+      captureException(bookingError, { action: 'createBooking', scheduleId, seats });
       return { success: false, error: `Failed to create booking: ${bookingError.message} / ${bookingError.details}` };
     }
 
     // Update the booked_count in tour_schedules using admin client (bypasses RLS since traveler can't update schedule)
-    const { createClient: createAdminClient } = await import('@supabase/supabase-js');
-    const adminSupabase = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SERVICE_ROLE_KEY!
-    );
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const adminSupabase = createAdminClient({ admin: true });
 
     await adminSupabase
       .from('tour_schedules')
-      .update({ booked_count: (schedule.booked_count || 0) + seats })
-      .eq('id', scheduleId);
+      .update({ booked_count: (schedule.booked_count || 0) + validated.seats })
+      .eq('id', validated.scheduleId);
 
-    // Revalidate paths to update the dashboard and tour page UI
-    const { revalidatePath } = await import('next/cache');
+    // Revalidate paths and tags to update the dashboard and tour page UI
+    const { revalidatePath, updateTag } = await import('next/cache');
+    updateTag('tours');
     revalidatePath('/dashboard', 'layout');
     revalidatePath(`/tours/${schedule.tours.slug}`, 'page');
 
     return {
       success: true,
       bookingId: booking.id,
-      slug: schedule.tours.slug // returning slug to help with redirect if needed
+      slug: schedule.tours.slug
     };
   } catch (error: any) {
-    console.error('Booking exception:', error);
-    return { success: false, error: error.message || 'An unexpected error occurred.' };
+    captureException(error, { action: 'createBooking exception', scheduleId, seats });
+    return { 
+      success: false, 
+      error: error.message || 'An unexpected error occurred.',
+      code: error.message === 'Unauthorized' ? 'unauthorized' : undefined
+    };
   }
 }

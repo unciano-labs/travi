@@ -40,7 +40,10 @@ export default async function BookingSuccessPage({ params }: { params: Promise<{
     .single();
 
   if (error || !booking) {
-    console.error("Error fetching booking:", error);
+    if (error) {
+      const { captureException } = await import('@/lib/logger');
+      captureException(error, { action: 'fetchBookingById', bookingId });
+    }
     notFound();
   }
 

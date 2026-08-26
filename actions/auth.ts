@@ -2,50 +2,80 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { env } from '@/lib/env';
+import { z } from 'zod';
+import { requireSession } from '@/lib/auth-helpers';
+import { assertRateLimit, getClientIp } from '@/lib/ratelimit';
+import { captureException } from '@/lib/logger';
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1, 'Password is required'),
+});
+
+const signupSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  role: z.enum(['traveler', 'organizer', 'transporter']).default('traveler'),
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+});
 
 export async function loginAsAdmin(formData: FormData) {
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
+  let success = false;
+  
+  try {
+    const clientIp = await getClientIp();
+    await assertRateLimit(clientIp, 'auth');
 
-  const supabase = await createClient();
+    const rawData = {
+      email: formData.get('email'),
+      password: formData.get('password')
+    };
+    const validated = loginSchema.parse(rawData);
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+    const supabase = await createClient();
 
-  if (error) {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: validated.email,
+      password: validated.password,
+    });
+
+    if (error) return { error: error.message };
+    if (!data.user) return { error: 'Login failed' };
+
+    // Verify the user actually has the admin role
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('id')
+      .eq('user_id', data.user.id)
+      .single();
+
+    if (profile) {
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('website_roles!inner(role)')
+        .eq('user_profile_id', profile.id)
+        .eq('website_roles.role', 'admin');
+
+      if (!roleData || roleData.length === 0) {
+        await supabase.auth.signOut();
+        return { error: 'Unauthorized: You do not have admin privileges.' };
+      }
+    } else {
+      await supabase.auth.signOut();
+      return { error: 'Unauthorized: User profile not found.' };
+    }
+    
+    success = true;
+  } catch (error: any) {
+    captureException(error, { action: 'loginAsAdmin' });
     return { error: error.message };
   }
-
-  if (!data.user) {
-    return { error: 'Login failed' };
+  
+  if (success) {
+    redirect('/admin');
   }
-
-  // Verify the user actually has the admin role
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('id')
-    .eq('user_id', data.user.id)
-    .single();
-
-  if (profile) {
-    const { data: roleData } = await supabase
-      .from('user_roles')
-      .select('website_roles!inner(role)')
-      .eq('user_profile_id', profile.id)
-      .eq('website_roles.role', 'admin');
-
-    if (!roleData || roleData.length === 0) {
-      await supabase.auth.signOut();
-      return { error: 'Unauthorized: You do not have admin privileges.' };
-    }
-  } else {
-    await supabase.auth.signOut();
-    return { error: 'Unauthorized: User profile not found.' };
-  }
-
-  redirect('/admin');
 }
 
 export async function logoutAdmin() {
@@ -54,69 +84,81 @@ export async function logoutAdmin() {
   redirect('/admin/login');
 }
 
-import { headers } from 'next/headers';
-
 export async function loginUser(formData: FormData) {
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
+  let primaryRole = 'traveler';
+  let success = false;
   
-  const supabase = await createClient();
+  try {
+    const clientIp = await getClientIp();
+    await assertRateLimit(clientIp, 'auth');
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+    const rawData = {
+      email: formData.get('email'),
+      password: formData.get('password')
+    };
+    const validated = loginSchema.parse(rawData);
+    
+    const supabase = await createClient();
 
-  if (error) {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: validated.email,
+      password: validated.password,
+    });
+
+    if (error) return { error: error.message };
+
+    const websiteId = env.WEBSITE_ID;
+
+    // Find the user profile first
+    const { data: profileData, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('id')
+      .eq('user_id', data.user.id)
+      .single();
+
+    if (profileError || !profileData) {
+      await supabase.auth.signOut();
+      return { error: 'Failed to retrieve user profile.' };
+    }
+
+    // Find the role for this website via website_roles
+    const { data: rolesData, error: rolesError } = await supabase
+      .from('user_roles')
+      .select(`
+        website_roles!inner (
+          role,
+          website_id
+        )
+      `)
+      .eq('user_profile_id', profileData.id);
+
+    if (rolesError) {
+      await supabase.auth.signOut();
+      return { error: 'Failed to verify user roles.' };
+    }
+
+    if (!rolesData || rolesData.length === 0) {
+      await supabase.auth.signOut();
+      return { error: 'Access denied: No role assigned for this website.' };
+    }
+
+    const roles = rolesData.filter((r: any) => !websiteId || r.website_roles?.website_id === websiteId).map((r: any) => r.website_roles.role);
+
+    if (roles.length === 0) {
+      await supabase.auth.signOut();
+      return { error: 'Access denied: You do not have permission for this website.' };
+    }
+
+    primaryRole = roles.includes('traveler') ? 'traveler' : roles[0];
+    success = true;
+  } catch (error: any) {
+    captureException(error, { action: 'loginUser' });
     return { error: error.message };
   }
-
-  const websiteId = process.env.WEBSITE_ID;
-
-  // Find the user profile first
-  const { data: profileData, error: profileError } = await supabase
-    .from('user_profiles')
-    .select('id')
-    .eq('user_id', data.user.id)
-    .single();
-
-  if (profileError || !profileData) {
-    await supabase.auth.signOut();
-    return { error: 'Failed to retrieve user profile.' };
+  
+  if (success) {
+    redirect(`/dashboard/${primaryRole}`);
   }
-
-  // Find the role for this website via website_roles
-  const { data: rolesData, error: rolesError } = await supabase
-    .from('user_roles')
-    .select(`
-      website_roles!inner (
-        role,
-        website_id
-      )
-    `)
-    .eq('user_profile_id', profileData.id);
-
-  if (rolesError) {
-    await supabase.auth.signOut();
-    return { error: 'Failed to verify user roles.' };
-  }
-
-  if (!rolesData || rolesData.length === 0) {
-    await supabase.auth.signOut();
-    return { error: 'Access denied: No role assigned for this website.' };
-  }
-
-  console.log('LOGIN websiteId:', websiteId, 'rolesData:', JSON.stringify(rolesData));
-  const roles = rolesData.filter((r: any) => !websiteId || r.website_roles?.website_id === websiteId).map((r: any) => r.website_roles.role);
-
-  if (roles.length === 0) {
-    await supabase.auth.signOut();
-    return { error: 'Access denied: You do not have permission for this website.' };
-  }
-
-  const primaryRole = roles.includes('traveler') ? 'traveler' : roles[0];
-  console.log('LOGIN REDIRECTING TO:', `/dashboard/${primaryRole}`);
-  redirect(`/dashboard/${primaryRole}`);
 }
 
 export async function logoutUser() {
@@ -126,76 +168,90 @@ export async function logoutUser() {
 }
 
 export async function signupUser(formData: FormData) {
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
-  const role = (formData.get('role') as string) || 'traveler';
-  const firstName = formData.get('firstName') as string;
-  const lastName = formData.get('lastName') as string;
+  let redirectUrl = '';
   
-  const supabase = await createClient();
+  try {
+    const clientIp = await getClientIp();
+    await assertRateLimit(clientIp, 'auth');
 
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        first_name: firstName,
-        last_name: lastName,
+    const rawData = {
+      email: formData.get('email'),
+      password: formData.get('password'),
+      role: formData.get('role') || 'traveler',
+      firstName: formData.get('firstName'),
+      lastName: formData.get('lastName'),
+    };
+    
+    const validated = signupSchema.parse(rawData);
+    const supabase = await createClient();
+
+    const { data, error } = await supabase.auth.signUp({
+      email: validated.email,
+      password: validated.password,
+      options: {
+        data: {
+          first_name: validated.firstName,
+          last_name: validated.lastName,
+        }
       }
-    }
-  });
+    });
 
-  if (error) {
-    return { error: error.message };
-  }
+    if (error) return { error: error.message };
 
-  if (data.user) {
-    const websiteId = process.env.WEBSITE_ID;
+    if (data.user) {
+      const websiteId = env.WEBSITE_ID;
 
-    // 1. Insert the global user profile
-    const { data: profileData, error: profileError } = await supabase
-      .from('user_profiles')
-      .insert({
-        user_id: data.user.id,
-        email: email,
-        full_name: `${firstName} ${lastName}`.trim()
-      })
-      .select('id')
-      .single();
-
-    if (profileData && websiteId) {
-      // 2. Find the correct website_roles ID
-      const { data: websiteRoleData } = await supabase
-        .from('website_roles')
+      // 1. Insert the global user profile
+      const { data: profileData } = await supabase
+        .from('user_profiles')
+        .insert({
+          user_id: data.user.id,
+          email: validated.email,
+          full_name: `${validated.firstName} ${validated.lastName}`.trim()
+        })
         .select('id')
-        .eq('role', role)
-        .eq('website_id', websiteId)
         .single();
 
-      // 3. Link them in user_roles
-      if (websiteRoleData) {
-        await supabase.from('user_roles').insert({
-          user_profile_id: profileData.id,
-          website_role_id: websiteRoleData.id
-        });
+      if (profileData && websiteId) {
+        // 2. Find the correct website_roles ID
+        const { data: websiteRoleData } = await supabase
+          .from('website_roles')
+          .select('id')
+          .eq('role', validated.role)
+          .eq('website_id', websiteId)
+          .single();
+
+        // 3. Link them in user_roles
+        if (websiteRoleData) {
+          await supabase.from('user_roles').insert({
+            user_profile_id: profileData.id,
+            website_role_id: websiteRoleData.id
+          });
+        }
       }
     }
-  }
 
-  if (data.session) {
-    redirect(`/dashboard/${role}`);
-  } else {
-    redirect('/login?message=Check your email to confirm your account');
+    if (data.session) {
+      redirectUrl = `/dashboard/${validated.role}`;
+    } else {
+      redirectUrl = '/login?message=Check your email to confirm your account';
+    }
+  } catch (error: any) {
+    captureException(error, { action: 'signupUser' });
+    return { error: error.message };
+  }
+  
+  if (redirectUrl) {
+    redirect(redirectUrl);
   }
 }
-
 
 export async function getUserRoles() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
-  const websiteId = process.env.WEBSITE_ID;
+  const websiteId = env.WEBSITE_ID;
 
   let query = supabase
     .from('user_roles')
@@ -215,42 +271,45 @@ export async function getUserRoles() {
   return data.map((r: any) => r.website_roles.role);
 }
 
+const addAccountTypeSchema = z.object({
+  role: z.enum(['traveler', 'organizer', 'transporter'])
+});
+
 export async function addAccountType(role: string) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Not authenticated' };
+  let success = false;
+  
+  try {
+    const validated = addAccountTypeSchema.parse({ role });
+    const { profile, supabase } = await requireSession();
 
-  const websiteId = process.env.WEBSITE_ID;
-  if (!websiteId) return { error: 'Missing website ID configuration' };
+    const websiteId = env.WEBSITE_ID;
+    if (!websiteId) return { error: 'Missing website ID configuration' };
 
-  // Get user profile
-  const { data: profileData } = await supabase
-    .from('user_profiles')
-    .select('id')
-    .eq('user_id', user.id)
-    .single();
+    // Get website role ID
+    const { data: websiteRoleData } = await supabase
+      .from('website_roles')
+      .select('id')
+      .eq('role', validated.role)
+      .eq('website_id', websiteId)
+      .single();
 
-  if (!profileData) return { error: 'Profile not found' };
+    if (!websiteRoleData) return { error: 'Role not found for this website' };
 
-  // Get website role ID
-  const { data: websiteRoleData } = await supabase
-    .from('website_roles')
-    .select('id')
-    .eq('role', role)
-    .eq('website_id', websiteId)
-    .single();
+    // Insert user_role
+    const { error } = await supabase.from('user_roles').insert({
+      user_profile_id: profile.id,
+      website_role_id: websiteRoleData.id
+    });
 
-  if (!websiteRoleData) return { error: 'Role not found for this website' };
-
-  // Insert user_role
-  const { error } = await supabase.from('user_roles').insert({
-    user_profile_id: profileData.id,
-    website_role_id: websiteRoleData.id
-  });
-
-  if (error) {
+    if (error) return { error: error.message };
+    
+    success = true;
+  } catch (error: any) {
+    captureException(error, { action: 'addAccountType', role });
     return { error: error.message };
   }
-
-  redirect(`/dashboard/${role}`);
+  
+  if (success) {
+    redirect(`/dashboard/${role}`);
+  }
 }

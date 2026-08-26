@@ -80,8 +80,21 @@ Travi is a travel marketplace where:
 - [x] Single-account role switching (Traveler, Organizer, Transporter)
 - [x] Organizer & Transporter seamless onboarding
 - [ ] Organizer tour CRUD
-- [ ] Transporter vehicle management
+- [x] Transporter vehicle management & fleet operations (TRANSPORTER.md)
 - [ ] Traveler booking flow
+
+## 8. Specialized Agent Roster
+
+| Agent / Alias | Role & Specialty | When to Invoke | Skill Location |
+|---|---|---|---|
+| **Planning Agent** (`@brainstorming`) | Feature architecture, interactive clarifying interview, technical spec mapping against `API.md` & `DATABASE.md`. | Before building any new feature or major workflow. | [`.agents/skills/brainstorming/SKILL.md`](file:///.agents/skills/brainstorming/SKILL.md) |
+| **Next.js TypeScript Expert** (`@optimized-nextjs-typescript`) | Main fullstack builder. Next.js 14+ App Router, RSC, Tailwind CSS v4, and strict Server Action mutation patterns. | When implementing components, routes, database mutations, and styling. | [`.agents/skills/optimized-nextjs-typescript/SKILL.md`](file:///.agents/skills/optimized-nextjs-typescript/SKILL.md) |
+| **Linting & Code Review** (`@lint-and-validate`) | Static analysis, code reviewer, WCAG 2.1 AA accessibility auditor, and edge-case detector. | Continuous lane during development and before finalizing pull requests. | [`.agents/skills/lint-and-validate/SKILL.md`](file:///.agents/skills/lint-and-validate/SKILL.md) |
+| **System Debugger** (`@systematic-debugging`) | Hydration mismatch fixer, SSR/CSR desync resolver, Supabase cookie auth troubleshooter, and Turbopack compiler error analyst. | When encountering runtime errors, hydration mismatches, or build breaks. | [`.agents/skills/systematic-debugging/SKILL.md`](file:///.agents/skills/systematic-debugging/SKILL.md) |
+| **QA Tester Agent** (`@qa-tester`) | Test automation engineer, smoke testing, RBAC security verification, and defect reporting. | Mandatory invocation after any code changes are made (`npm run test:qa`). | [`.agents/skills/qa-tester/SKILL.md`](file:///.agents/skills/qa-tester/SKILL.md) |
+| **Playwright Agent** (`@playwright-agent`) | Cross-browser End-to-End automation, user journey simulation, and visual regression tester. | When creating or executing browser E2E test suites (`npm run test:e2e`). | [`.agents/skills/playwright-agent/SKILL.md`](file:///.agents/skills/playwright-agent/SKILL.md) |
+| **Technical SEO Agent** (`@technical-seo`) | Dynamic metadata, JSON-LD structured data, sitemaps, robots.ts, and Core Web Vitals optimization. | When building public routes, adding metadata, or auditing organic search ranking signals. | [`.agents/skills/technical-seo/SKILL.md`](file:///.agents/skills/technical-seo/SKILL.md) |
+| **UI/UX Designer Agent** (`@ui-ux-designer`) | UI consistency, layout system design, Tailwind CSS v4 styling, component micro-interactions, and accessibility aesthetics. | When creating new interfaces, improving user experience, or auditing visual consistency across pages. | [`.agents/skills/ui-ux-designer/SKILL.md`](file:///.agents/skills/ui-ux-designer/SKILL.md) |
 
 ---
 
@@ -91,3 +104,5 @@ Travi is a travel marketplace where:
 - Default to Server Components; justify every `"use client"`
 - Add empty state for every list view
 - Use Tailwind v4 styling (no tailwind.config.ts)
+- **Invoke QA Tester Agent**: After any code changes are made, ALWAYS run QA verification (`npm run test:qa` and `npm run build`) using the [`qa-tester`](file:///.agents/skills/qa-tester/SKILL.md) skill protocols before concluding your turn or declaring tasks complete. Ensure 100% test pass rate and zero regressions.
+

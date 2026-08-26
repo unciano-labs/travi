@@ -2,51 +2,189 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { requireSession } from '@/lib/auth-helpers';
+import { captureException } from '@/lib/logger';
+import { logAdminAudit } from '@/lib/audit';
 
 export async function createTransporterProfile(formData: FormData) {
-  const supabase = await createClient();
+  try {
+    const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { error: 'Not authenticated' };
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { error: 'Not authenticated' };
+    }
+
+    // Get user profile id
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!profile) {
+      return { error: 'User profile not found' };
+    }
+
+    const transporterType = (formData.get('transporterType') as string) || 'individual';
+    const companyName = (formData.get('companyName') as string)?.trim() || null;
+    const displayName = (formData.get('displayName') as string)?.trim() || 'Transporter';
+    const phone = (formData.get('phone') as string)?.trim() || null;
+    const description = (formData.get('description') as string)?.trim() || null;
+    
+    const serviceAreasStr = formData.get('serviceAreas') as string;
+    const serviceAreas = serviceAreasStr 
+      ? serviceAreasStr.split(',').map(s => s.trim()).filter(Boolean) 
+      : [];
+
+    const { data: newProfile, error } = await supabase.from('transporter_profiles').insert({
+      user_profile_id: profile.id,
+      transporter_type: transporterType,
+      company_name: companyName,
+      display_name: displayName,
+      phone,
+      description,
+      service_areas: serviceAreas,
+      status: 'approved', // Seamless approval per user request
+    }).select().single();
+
+    if (error) {
+      captureException(error, { action: 'createTransporterProfile' });
+      return { error: error.message };
+    }
+
+    await logAdminAudit(
+      profile.id,
+      'CREATE_TRANSPORTER_PROFILE',
+      'transporter_profiles',
+      newProfile.id,
+      { transporterType, companyName, displayName }
+    );
+
+    revalidatePath('/dashboard/transporter');
+    return { success: true };
+  } catch (err: any) {
+    captureException(err, { action: 'createTransporterProfile exception' });
+    return { error: err.message || 'Failed to create transporter profile.' };
   }
+}
 
-  // Get user profile id
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('id')
-    .eq('user_id', user.id)
-    .single();
+/**
+ * Update transporter profile and business info.
+ */
+export async function updateTransporterProfile(formData: FormData) {
+  try {
+    const { profile, supabase } = await requireSession();
 
-  if (!profile) {
-    return { error: 'User profile not found' };
+    const { data: transporter, error: tErr } = await supabase
+      .from('transporter_profiles')
+      .select('id')
+      .eq('user_profile_id', profile.id)
+      .is('deleted_at', null)
+      .single();
+
+    if (tErr || !transporter) {
+      return { success: false, error: 'Transporter profile not found.' };
+    }
+
+    const transporterType = (formData.get('transporterType') as string) || 'individual';
+    const companyName = (formData.get('companyName') as string)?.trim() || null;
+    const displayName = (formData.get('displayName') as string)?.trim() || 'Transporter';
+    const phone = (formData.get('phone') as string)?.trim() || null;
+    const description = (formData.get('description') as string)?.trim() || null;
+    
+    const serviceAreasStr = formData.get('serviceAreas') as string;
+    const serviceAreas = serviceAreasStr 
+      ? serviceAreasStr.split(',').map(s => s.trim()).filter(Boolean) 
+      : [];
+
+    const updatePayload = {
+      transporter_type: transporterType,
+      company_name: companyName,
+      display_name: displayName,
+      phone,
+      description,
+      service_areas: serviceAreas,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error: updateErr } = await supabase
+      .from('transporter_profiles')
+      .update(updatePayload)
+      .eq('id', transporter.id);
+
+    if (updateErr) {
+      captureException(updateErr, { action: 'updateTransporterProfile', transporterId: transporter.id });
+      return { success: false, error: updateErr.message };
+    }
+
+    await logAdminAudit(
+      profile.id,
+      'UPDATE_TRANSPORTER_PROFILE',
+      'transporter_profiles',
+      transporter.id,
+      updatePayload
+    );
+
+    revalidatePath('/dashboard/transporter');
+    revalidatePath('/dashboard/transporter/profile');
+
+    return { success: true };
+  } catch (err: any) {
+    captureException(err, { action: 'updateTransporterProfile exception' });
+    return { success: false, error: err.message || 'Failed to update profile.' };
   }
+}
 
-  const transporterType = formData.get('transporterType') as string;
-  const companyName = formData.get('companyName') as string;
-  const displayName = formData.get('displayName') as string;
-  const phone = formData.get('phone') as string;
-  const description = formData.get('description') as string;
-  
-  // For MVP, we can just grab service areas as a string and array-ify it, or just keep it simple
-  const serviceAreasStr = formData.get('serviceAreas') as string;
-  const serviceAreas = serviceAreasStr ? serviceAreasStr.split(',').map(s => s.trim()) : [];
+/**
+ * Fetch reviews received by the transporter.
+ */
+export async function getTransporterReviews() {
+  try {
+    const { profile, supabase } = await requireSession();
 
-  const { error } = await supabase.from('transporter_profiles').insert({
-    user_profile_id: profile.id,
-    transporter_type: transporterType,
-    company_name: companyName,
-    display_name: displayName,
-    phone,
-    description,
-    service_areas: serviceAreas,
-    status: 'approved' // Seamless approval per user request
-  });
+    const { data: transporter } = await supabase
+      .from('transporter_profiles')
+      .select('id, average_rating, review_count')
+      .eq('user_profile_id', profile.id)
+      .is('deleted_at', null)
+      .single();
 
-  if (error) {
-    return { error: error.message };
+    if (!transporter) return { reviews: [], averageRating: 0, reviewCount: 0 };
+
+    const { data: reviews, error } = await supabase
+      .from('reviews')
+      .select(`
+        id,
+        rating,
+        comment,
+        created_at,
+        reviewer:user_profiles (
+          id,
+          full_name,
+          avatar_url
+        ),
+        vehicle:vehicles (
+          name,
+          vehicle_type
+        )
+      `)
+      .eq('transporter_id', transporter.id)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      captureException(error, { action: 'getTransporterReviews', transporterId: transporter.id });
+      return { reviews: [], averageRating: transporter.average_rating || 0, reviewCount: transporter.review_count || 0 };
+    }
+
+    return {
+      reviews: reviews || [],
+      averageRating: Number(transporter.average_rating) || 0,
+      reviewCount: transporter.review_count || 0,
+    };
+  } catch (err: any) {
+    captureException(err, { action: 'getTransporterReviews exception' });
+    return { reviews: [], averageRating: 0, reviewCount: 0 };
   }
-
-  revalidatePath('/dashboard/transporter');
-  return { success: true };
 }

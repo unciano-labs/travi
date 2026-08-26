@@ -1,264 +1,276 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { z } from 'zod';
+import { requireSession, assertRole } from '@/lib/auth-helpers';
+import { assertRateLimit } from '@/lib/ratelimit';
+import { captureException } from '@/lib/logger';
+
+const tourSchema = z.object({
+  title: z.string().min(1, 'Title is required'),
+  description: z.string().optional(),
+  location: z.string().min(1, 'Location is required'),
+  pricePerPerson: z.coerce.number().min(0),
+  durationDays: z.coerce.number().min(1),
+  accommodationDetails: z.string().optional(),
+  travelTimeInfo: z.string().optional(),
+  transportType: z.string().optional(),
+  status: z.string().default('draft'),
+  imageUrls: z.array(z.string()).default([]),
+  coverImageUrl: z.string().optional(),
+  latitude: z.coerce.number().nullable().optional(),
+  longitude: z.coerce.number().nullable().optional(),
+  selectedVehicleId: z.string().optional(),
+  itineraries: z.string().optional(),
+});
 
 export async function createTour(formData: FormData) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { error: 'Not authenticated' };
-  }
-
-  // Get user profile id
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('id')
-    .eq('user_id', user.id)
-    .single();
-
-  if (!profile) {
-    return { error: 'User profile not found' };
-  }
-
-  // Get organizer profile id
-  const { data: organizerProfile } = await supabase
-    .from('organizer_profiles')
-    .select('id')
-    .eq('user_profile_id', profile.id)
-    .single();
-
-  if (!organizerProfile) {
-    return { error: 'Organizer profile not found' };
-  }
-
-  // Extract form data
-  const title = formData.get('title') as string;
-  const description = formData.get('description') as string;
-  const location = formData.get('location') as string;
-  const pricePerPerson = parseFloat(formData.get('pricePerPerson') as string);
-  const durationDays = parseInt(formData.get('durationDays') as string, 10);
-  const accommodationDetails = formData.get('accommodationDetails') as string;
-  const travelTimeInfo = formData.get('travelTimeInfo') as string;
-  const transportType = formData.get('transportType') as string;
-  const status = (formData.get('status') as string) || 'draft';
+  let success = false;
   
-  // New optional fields
-  const imageUrls = formData.getAll('imageUrls') as string[];
-  let coverImageUrl = formData.get('coverImageUrl') as string;
-  if (!coverImageUrl && imageUrls.length > 0) {
-    coverImageUrl = imageUrls[0];
-  }
-  const latitudeStr = formData.get('latitude') as string;
-  const longitudeStr = formData.get('longitude') as string;
-  const latitude = latitudeStr ? parseFloat(latitudeStr) : null;
-  const longitude = longitudeStr ? parseFloat(longitudeStr) : null;
+  try {
+    const { user, profile, supabase } = await requireSession();
+    await assertRole(user.id, 'organizer');
+    await assertRateLimit(profile.id, 'mutation');
 
-  // External transporter fields
-  const selectedVehicleId = formData.get('selectedVehicleId') as string;
-  const pickupLocation = formData.get('pickupLocation') as string;
-  const dropoffLocation = formData.get('dropoffLocation') as string;
-  const pickupDatetime = formData.get('pickupDatetime') as string;
-  
-  const itinerariesStr = formData.get('itineraries') as string;
-  let itineraries = [];
-  if (itinerariesStr) {
-    try {
-      itineraries = JSON.parse(itinerariesStr);
-    } catch (e) {
-      console.error("Failed to parse itineraries", e);
+    const { data: organizerProfile } = await supabase
+      .from('organizer_profiles')
+      .select('id')
+      .eq('user_profile_id', profile.id)
+      .single();
+
+    if (!organizerProfile) return { success: false, error: 'Organizer profile not found' };
+
+    const rawData = {
+      title: formData.get('title'),
+      description: formData.get('description'),
+      location: formData.get('location'),
+      pricePerPerson: formData.get('pricePerPerson'),
+      durationDays: formData.get('durationDays'),
+      accommodationDetails: formData.get('accommodationDetails'),
+      travelTimeInfo: formData.get('travelTimeInfo'),
+      transportType: formData.get('transportType'),
+      status: formData.get('status') || 'draft',
+      imageUrls: formData.getAll('imageUrls'),
+      coverImageUrl: formData.get('coverImageUrl'),
+      latitude: formData.get('latitude') || null,
+      longitude: formData.get('longitude') || null,
+      selectedVehicleId: formData.get('selectedVehicleId'),
+      itineraries: formData.get('itineraries'),
+    };
+
+    const validated = tourSchema.parse(rawData);
+
+    let coverImageUrl = validated.coverImageUrl;
+    if (!coverImageUrl && validated.imageUrls.length > 0) coverImageUrl = validated.imageUrls[0];
+
+    const baseSlug = validated.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    const slug = `${baseSlug}-${Date.now().toString().slice(-6)}`;
+
+    let itineraries: any[] = [];
+    if (validated.itineraries) {
+      try { itineraries = JSON.parse(validated.itineraries); } catch (e) {}
     }
+
+    const transportType = validated.transportType || 'none';
+    const transportStatus = transportType === 'none' ? 'not_required' : (transportType === 'self_provided' ? 'self_provided' : (validated.selectedVehicleId ? 'pending' : 'unresolved'));
+
+    const { data: tourData, error } = await supabase.from('tours').insert({
+      organizer_id: organizerProfile.id,
+      title: validated.title,
+      slug,
+      description: validated.description,
+      location: validated.location,
+      price_per_person: validated.pricePerPerson,
+      duration_days: validated.durationDays,
+      accommodation_details: validated.accommodationDetails,
+      travel_time_info: validated.travelTimeInfo,
+      transport_type: transportType,
+      status: validated.status,
+      transport_status: transportStatus,
+      cover_image_url: coverImageUrl || null,
+      image_urls: validated.imageUrls,
+      latitude: validated.latitude,
+      longitude: validated.longitude
+    }).select('id').single();
+
+    if (error) {
+      captureException(error, { action: 'createTour insert' });
+      return { success: false, error: error.message };
+    }
+
+    if (tourData && itineraries.length > 0) {
+      const itineraryInserts = itineraries.map((day: any) => ({
+        tour_id: tourData.id,
+        day_number: day.day_number,
+        title: day.title,
+        description: day.description
+      }));
+      await supabase.from('tour_itineraries').insert(itineraryInserts);
+    }
+
+    success = true;
+  } catch (err: any) {
+    captureException(err, { action: 'createTour exception' });
+    return { success: false, error: err.message };
   }
-  
-  // Create a unique slug from the title
-  const baseSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-  const slug = `${baseSlug}-${Date.now().toString().slice(-6)}`;
 
-  const { data: tourData, error } = await supabase.from('tours').insert({
-    organizer_id: organizerProfile.id,
-    title,
-    slug,
-    description,
-    location,
-    price_per_person: pricePerPerson,
-    duration_days: durationDays,
-    accommodation_details: accommodationDetails,
-    travel_time_info: travelTimeInfo,
-    transport_type: transportType,
-    status: status,
-    transport_status: transportType === 'none' ? 'not_required' : (transportType === 'self_provided' ? 'self_provided' : (selectedVehicleId ? 'pending' : 'unresolved')),
-    cover_image_url: coverImageUrl || null,
-    image_urls: imageUrls,
-    latitude,
-    longitude
-  }).select('id').single();
-
-  if (error) {
-    return { error: error.message };
+  if (success) {
+    updateTag('tours');
+    revalidatePath('/dashboard/organizer/tours');
+    redirect('/dashboard/organizer/tours');
   }
-
-  if (tourData && itineraries.length > 0) {
-    const itineraryInserts = itineraries.map((day: any) => ({
-      tour_id: tourData.id,
-      day_number: day.day_number,
-      title: day.title,
-      description: day.description
-    }));
-    await supabase.from('tour_itineraries').insert(itineraryInserts);
-  }
-
-
-
-  revalidatePath('/dashboard/organizer/tours');
-  redirect('/dashboard/organizer/tours');
 }
 
 export async function updateTour(tourId: string, formData: FormData) {
-  const supabase = await createClient();
+  let success = false;
+  
+  try {
+    const { user, profile, supabase } = await requireSession();
+    await assertRole(user.id, 'organizer');
+    await assertRateLimit(profile.id, 'mutation');
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Not authenticated' };
+    const { data: organizerProfile } = await supabase.from('organizer_profiles').select('id').eq('user_profile_id', profile.id).single();
+    if (!organizerProfile) return { success: false, error: 'Organizer profile not found' };
 
-  const { data: profile } = await supabase.from('user_profiles').select('id').eq('user_id', user.id).single();
-  if (!profile) return { error: 'User profile not found' };
+    const rawData = {
+      title: formData.get('title'),
+      description: formData.get('description'),
+      location: formData.get('location'),
+      pricePerPerson: formData.get('pricePerPerson'),
+      durationDays: formData.get('durationDays'),
+      accommodationDetails: formData.get('accommodationDetails'),
+      travelTimeInfo: formData.get('travelTimeInfo'),
+      transportType: formData.get('transportType'),
+      status: formData.get('status') || 'draft',
+      imageUrls: formData.getAll('imageUrls'),
+      coverImageUrl: formData.get('coverImageUrl'),
+      latitude: formData.get('latitude') || null,
+      longitude: formData.get('longitude') || null,
+      itineraries: formData.get('itineraries'),
+    };
 
-  const { data: organizerProfile } = await supabase.from('organizer_profiles').select('id').eq('user_profile_id', profile.id).single();
-  if (!organizerProfile) return { error: 'Organizer profile not found' };
+    const validated = tourSchema.parse(rawData);
 
-  // Extract form data
-  const title = formData.get('title') as string;
-  const description = formData.get('description') as string;
-  const location = formData.get('location') as string;
-  const pricePerPerson = parseFloat(formData.get('pricePerPerson') as string);
-  const durationDays = parseInt(formData.get('durationDays') as string, 10);
-  const capacity = parseInt(formData.get('capacity') as string, 10);
-  const startDate = formData.get('startDate') as string;
-  const endDate = formData.get('endDate') as string;
-  const accommodationDetails = formData.get('accommodationDetails') as string;
-  const travelTimeInfo = formData.get('travelTimeInfo') as string;
-  const transportType = formData.get('transportType') as string;
-  const status = formData.get('status') as string;
+    let coverImageUrl = validated.coverImageUrl;
+    if (!coverImageUrl && validated.imageUrls.length > 0) coverImageUrl = validated.imageUrls[0];
 
-  const imageUrls = formData.getAll('imageUrls') as string[];
-  let coverImageUrl = formData.get('coverImageUrl') as string;
-  if (!coverImageUrl && imageUrls.length > 0) {
-    coverImageUrl = imageUrls[0];
-  }
-  const latitudeStr = formData.get('latitude') as string;
-  const longitudeStr = formData.get('longitude') as string;
-  const latitude = latitudeStr ? parseFloat(latitudeStr) : null;
-  const longitude = longitudeStr ? parseFloat(longitudeStr) : null;
+    const transportType = validated.transportType || 'none';
+    const updateData: any = {
+      title: validated.title,
+      description: validated.description,
+      location: validated.location,
+      price_per_person: validated.pricePerPerson,
+      duration_days: validated.durationDays,
+      accommodation_details: validated.accommodationDetails,
+      travel_time_info: validated.travelTimeInfo,
+      transport_type: transportType,
+      status: validated.status,
+      transport_status: transportType === 'none' ? 'not_required' : (transportType === 'self_provided' ? 'self_provided' : 'unresolved'),
+      cover_image_url: coverImageUrl || null,
+      image_urls: validated.imageUrls,
+    };
 
-  const updateData: any = {
-    title,
-    description,
-    location,
-    price_per_person: pricePerPerson,
-    duration_days: durationDays,
-    accommodation_details: accommodationDetails,
-    travel_time_info: travelTimeInfo,
-    transport_type: transportType,
-    transport_status: transportType === 'none' ? 'not_required' : (transportType === 'self_provided' ? 'self_provided' : 'unresolved'),
-  };
+    if (validated.latitude !== null) updateData.latitude = validated.latitude;
+    if (validated.longitude !== null) updateData.longitude = validated.longitude;
 
-  if (status) updateData.status = status;
+    const { error } = await supabase.from('tours').update(updateData).eq('id', tourId).eq('organizer_id', organizerProfile.id);
 
-  if (coverImageUrl) updateData.cover_image_url = coverImageUrl;
-  updateData.image_urls = imageUrls;
-  if (latitude !== null) updateData.latitude = latitude;
-  if (longitude !== null) updateData.longitude = longitude;
-
-  const { error } = await supabase.from('tours').update(updateData).eq('id', tourId).eq('organizer_id', organizerProfile.id);
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  // Update itineraries: delete existing and re-insert
-  const itinerariesStr = formData.get('itineraries') as string;
-  if (itinerariesStr) {
-    try {
-      const itineraries = JSON.parse(itinerariesStr);
-      await supabase.from('tour_itineraries').delete().eq('tour_id', tourId);
-      
-      if (itineraries.length > 0) {
-        const itineraryInserts = itineraries.map((day: any) => ({
-          tour_id: tourId,
-          day_number: day.day_number,
-          title: day.title,
-          description: day.description
-        }));
-        await supabase.from('tour_itineraries').insert(itineraryInserts);
-      }
-    } catch (e) {
-      console.error("Failed to parse/update itineraries", e);
+    if (error) {
+      captureException(error, { action: 'updateTour update', tourId });
+      return { success: false, error: error.message };
     }
+
+    if (validated.itineraries) {
+      try {
+        const itineraries = JSON.parse(validated.itineraries);
+        await supabase.from('tour_itineraries').delete().eq('tour_id', tourId);
+        
+        if (itineraries.length > 0) {
+          const itineraryInserts = itineraries.map((day: any) => ({
+            tour_id: tourId,
+            day_number: day.day_number,
+            title: day.title,
+            description: day.description
+          }));
+          await supabase.from('tour_itineraries').insert(itineraryInserts);
+        }
+      } catch (e) {}
+    }
+
+    success = true;
+  } catch (err: any) {
+    captureException(err, { action: 'updateTour exception', tourId });
+    return { success: false, error: err.message };
   }
 
-
-
-  revalidatePath('/dashboard/organizer/tours');
-  redirect('/dashboard/organizer/tours');
+  if (success) {
+    updateTag('tours');
+    revalidatePath('/dashboard/organizer/tours');
+    redirect('/dashboard/organizer/tours');
+  }
 }
 
 export async function publishTour(tourId: string) {
-  const supabase = await createClient();
+  try {
+    const { user, profile, supabase } = await requireSession();
+    await assertRole(user.id, 'organizer');
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Not authenticated' };
+    const { data: organizerProfile } = await supabase.from('organizer_profiles').select('id').eq('user_profile_id', profile.id).single();
+    if (!organizerProfile) return { success: false, error: 'Unauthorized: Organizer profile required' };
 
-  const { data: profile } = await supabase.from('user_profiles').select('id').eq('user_id', user.id).single();
-  const { data: organizerProfile } = await supabase.from('organizer_profiles').select('id').eq('user_profile_id', profile?.id).single();
+    const { data, error } = await supabase
+      .from('tours')
+      .update({ status: 'published', deleted_at: null })
+      .eq('id', tourId)
+      .eq('organizer_id', organizerProfile.id)
+      .select('id');
 
-  if (!organizerProfile) return { error: 'Unauthorized: Organizer profile required' };
+    if (error) {
+      captureException(error, { action: 'publishTour', tourId });
+      return { success: false, error: error.message };
+    }
+    if (!data || data.length === 0) return { success: false, error: 'Failed to publish: Tour not found or you do not have permission to modify it.' };
 
-  const { data, error } = await supabase
-    .from('tours')
-    .update({ status: 'published' })
-    .eq('id', tourId)
-    .eq('organizer_id', organizerProfile.id)
-    .select('id');
-
-  if (error) {
-    return { error: error.message };
+    updateTag('tours');
+    revalidatePath('/dashboard/organizer/tours');
+    return { success: true };
+  } catch (err: any) {
+    captureException(err, { action: 'publishTour exception', tourId });
+    return { success: false, error: err.message };
   }
-
-  if (!data || data.length === 0) {
-    return { error: 'Failed to publish: Tour not found or you do not have permission to modify it.' };
-  }
-
-  revalidatePath('/dashboard/organizer/tours');
-  return { success: true };
 }
 
 export async function archiveTour(tourId: string) {
-  const supabase = await createClient();
+  try {
+    const { user, profile, supabase } = await requireSession();
+    await assertRole(user.id, 'organizer');
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Not authenticated' };
+    const { data: organizerProfile } = await supabase.from('organizer_profiles').select('id').eq('user_profile_id', profile.id).single();
+    if (!organizerProfile) return { success: false, error: 'Unauthorized: Organizer profile required' };
 
-  const { data: profile } = await supabase.from('user_profiles').select('id').eq('user_id', user.id).single();
-  const { data: organizerProfile } = await supabase.from('organizer_profiles').select('id').eq('user_profile_id', profile?.id).single();
+    const { data, error } = await supabase
+      .from('tours')
+      .update({
+        status: 'archived',
+        deleted_at: new Date().toISOString(),
+      })
+      .eq('id', tourId)
+      .eq('organizer_id', organizerProfile.id)
+      .select('id');
 
-  if (!organizerProfile) return { error: 'Unauthorized: Organizer profile required' };
+    if (error) {
+      captureException(error, { action: 'archiveTour', tourId });
+      return { success: false, error: error.message };
+    }
+    if (!data || data.length === 0) return { success: false, error: 'Failed to archive: Tour not found or you do not have permission to modify it.' };
 
-  const { data, error } = await supabase
-    .from('tours')
-    .update({ status: 'archived' })
-    .eq('id', tourId)
-    .eq('organizer_id', organizerProfile.id)
-    .select('id');
-
-  if (error) {
-    return { error: error.message };
+    updateTag('tours');
+    revalidatePath('/dashboard/organizer/tours');
+    return { success: true };
+  } catch (err: any) {
+    captureException(err, { action: 'archiveTour exception', tourId });
+    return { success: false, error: err.message };
   }
-  
-  if (!data || data.length === 0) {
-    return { error: 'Failed to archive: Tour not found or you do not have permission to modify it.' };
-  }
-
-  revalidatePath('/dashboard/organizer/tours');
-  return { success: true };
 }

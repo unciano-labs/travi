@@ -42,6 +42,7 @@ export default async function OrganizerToursPage() {
       )
     `)
     .eq('organizer_id', organizerId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
 
   const tours = toursData || [];

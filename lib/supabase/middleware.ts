@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { env } from '../env'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -7,8 +8,8 @@ export async function updateSession(request: NextRequest) {
   })
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {
@@ -33,7 +34,7 @@ export async function updateSession(request: NextRequest) {
 
   let roles: string[] = [];
   if (user) {
-    const websiteId = process.env.WEBSITE_ID;
+    const websiteId = env.WEBSITE_ID;
 
     // Use websiteId if available, fallback to not filtering by domain if missing (for safety, though it should exist)
     let query = supabase
@@ -55,14 +56,9 @@ export async function updateSession(request: NextRequest) {
 
     const { data: roleData, error: roleError } = await query;
       
-    if (roleError) {
-      console.error('MIDDLEWARE ROLE ERROR:', roleError);
-    }
-      
     if (roleData && roleData.length > 0) {
       roles = roleData.map((r: any) => r.website_roles.role);
     }
-    console.log('MIDDLEWARE USER ROLES:', roles, 'WEBSITE_ID:', websiteId);
   }
 
   const { pathname } = request.nextUrl

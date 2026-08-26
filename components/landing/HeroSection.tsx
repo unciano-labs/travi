@@ -24,6 +24,7 @@ export default function HeroSection() {
         alt="El Nido Palawan" 
         fill
         priority
+        sizes="100vw"
         className="object-cover" 
       />
       <div className="absolute inset-0 bg-gradient-to-b from-brand-navy/75 via-brand-navy/60 to-brand-navy/85" />

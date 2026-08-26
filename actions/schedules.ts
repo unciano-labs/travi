@@ -1,7 +1,8 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
+import { captureException } from '@/lib/logger';
 
 export async function createSchedule(tourId: string, formData: FormData) {
   const supabase = await createClient();
@@ -28,6 +29,7 @@ export async function createSchedule(tourId: string, formData: FormData) {
     return { error: error.message };
   }
   
+  updateTag('tours');
   revalidatePath(`/dashboard/organizer/tours/${tourId}/schedules`);
   return { success: true };
 }
@@ -55,6 +57,7 @@ export async function updateSchedule(scheduleId: string, tourId: string, formDat
     return { error: error.message };
   }
   
+  updateTag('tours');
   revalidatePath(`/dashboard/organizer/tours/${tourId}/schedules`);
   revalidatePath(`/dashboard/organizer/tours/${tourId}/edit`);
   return { success: true };
@@ -63,12 +66,22 @@ export async function updateSchedule(scheduleId: string, tourId: string, formDat
 export async function deleteSchedule(scheduleId: string, tourId: string) {
   const supabase = await createClient();
   
-  const { error } = await supabase.from('tour_schedules').delete().eq('id', scheduleId).eq('tour_id', tourId);
+  const { error } = await supabase
+    .from('tour_schedules')
+    .update({
+      deleted_at: new Date().toISOString(),
+      status: 'cancelled',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', scheduleId)
+    .eq('tour_id', tourId);
   
   if (error) {
+    captureException(error, { action: 'deleteSchedule', scheduleId, tourId });
     return { error: error.message };
   }
   
+  updateTag('tours');
   revalidatePath(`/dashboard/organizer/tours/${tourId}/schedules`);
   revalidatePath(`/dashboard/organizer/tours/${tourId}/edit`);
   return { success: true };
