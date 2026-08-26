@@ -76,7 +76,7 @@ export async function createBooking(scheduleId: string, seats: number) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SERVICE_ROLE_KEY!
     );
-    
+
     await adminSupabase
       .from('tour_schedules')
       .update({ booked_count: (schedule.booked_count || 0) + seats })
@@ -87,8 +87,8 @@ export async function createBooking(scheduleId: string, seats: number) {
     revalidatePath('/dashboard', 'layout');
     revalidatePath(`/tours/${schedule.tours.slug}`, 'page');
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       bookingId: booking.id,
       slug: schedule.tours.slug // returning slug to help with redirect if needed
     };

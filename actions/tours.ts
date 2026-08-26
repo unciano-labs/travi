@@ -205,20 +205,60 @@ export async function updateTour(tourId: string, formData: FormData) {
 
 export async function publishTour(tourId: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from('tours').update({ status: 'published' }).eq('id', tourId);
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const { data: profile } = await supabase.from('user_profiles').select('id').eq('user_id', user.id).single();
+  const { data: organizerProfile } = await supabase.from('organizer_profiles').select('id').eq('user_profile_id', profile?.id).single();
+
+  if (!organizerProfile) return { error: 'Unauthorized: Organizer profile required' };
+
+  const { data, error } = await supabase
+    .from('tours')
+    .update({ status: 'published' })
+    .eq('id', tourId)
+    .eq('organizer_id', organizerProfile.id)
+    .select('id');
+
   if (error) {
     return { error: error.message };
   }
+
+  if (!data || data.length === 0) {
+    return { error: 'Failed to publish: Tour not found or you do not have permission to modify it.' };
+  }
+
   revalidatePath('/dashboard/organizer/tours');
   return { success: true };
 }
 
 export async function archiveTour(tourId: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from('tours').update({ status: 'archived' }).eq('id', tourId);
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const { data: profile } = await supabase.from('user_profiles').select('id').eq('user_id', user.id).single();
+  const { data: organizerProfile } = await supabase.from('organizer_profiles').select('id').eq('user_profile_id', profile?.id).single();
+
+  if (!organizerProfile) return { error: 'Unauthorized: Organizer profile required' };
+
+  const { data, error } = await supabase
+    .from('tours')
+    .update({ status: 'archived' })
+    .eq('id', tourId)
+    .eq('organizer_id', organizerProfile.id)
+    .select('id');
+
   if (error) {
     return { error: error.message };
   }
+  
+  if (!data || data.length === 0) {
+    return { error: 'Failed to archive: Tour not found or you do not have permission to modify it.' };
+  }
+
   revalidatePath('/dashboard/organizer/tours');
   return { success: true };
 }

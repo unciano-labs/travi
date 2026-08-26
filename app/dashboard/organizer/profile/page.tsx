@@ -35,7 +35,7 @@ export default async function OrganizerProfilePage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <h1 className="text-2xl font-bold text-slate-900">Organizer Profile</h1>
-      
+
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <OrganizerProfileForm profile={profile} />
       </div>

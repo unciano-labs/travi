@@ -9,13 +9,40 @@ export async function loginAsAdmin(formData: FormData) {
 
   const supabase = await createClient();
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
   if (error) {
     return { error: error.message };
+  }
+
+  if (!data.user) {
+    return { error: 'Login failed' };
+  }
+
+  // Verify the user actually has the admin role
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('id')
+    .eq('user_id', data.user.id)
+    .single();
+
+  if (profile) {
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('website_roles!inner(role)')
+      .eq('user_profile_id', profile.id)
+      .eq('website_roles.role', 'admin');
+
+    if (!roleData || roleData.length === 0) {
+      await supabase.auth.signOut();
+      return { error: 'Unauthorized: You do not have admin privileges.' };
+    }
+  } else {
+    await supabase.auth.signOut();
+    return { error: 'Unauthorized: User profile not found.' };
   }
 
   redirect('/admin');
