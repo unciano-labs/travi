@@ -49,7 +49,7 @@ export default async function PaymentPage({
     );
   }
 
-  const tourTitle = booking.tour_schedules?.tours?.title || 'Tour Booking';
+  const tourTitle = (booking.tour_schedules as any)?.tours?.title || 'Tour Booking';
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">

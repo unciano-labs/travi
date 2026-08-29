@@ -67,7 +67,7 @@ export async function POST(req: Request) {
 
     // TODO: If this schedule has an external transporter confirmed, we would split `organizerAmount` further.
     // For MVP, all revenue minus platform fee goes to the Organizer. The Organizer pays the transporter manually or we add it later.
-    const organizerProfileId = booking.tour_schedules.tours.organizer_id;
+    const organizerProfileId = (booking.tour_schedules as any).tours.organizer_id;
 
     // Ensure Organizer has a wallet
     const { data: walletId } = await admin.rpc('ensure_user_wallet', { profile_id: organizerProfileId });

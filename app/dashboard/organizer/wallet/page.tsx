@@ -1,6 +1,5 @@
 import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { WalletClient } from '@/components/dashboard/WalletClient';
-import { Card } from '@/components/ui/card'; // Check if we have standard tailwind components, otherwise we will just build the raw UI.
 
 export default async function WalletPage() {
   const { user, profile, supabase } = await requireSession();

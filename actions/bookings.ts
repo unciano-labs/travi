@@ -152,7 +152,7 @@ export async function verifyPaymentAndUpdateBooking(bookingId: string) {
       
       const platformFee = booking.total_amount * (feePercent / 100);
       const organizerAmount = booking.total_amount - platformFee;
-      const organizerProfileId = booking.tour_schedules.tours.organizer_id;
+      const organizerProfileId = (booking.tour_schedules as any).tours.organizer_id;
 
       const { data: walletId } = await admin.rpc('ensure_user_wallet', { profile_id: organizerProfileId });
 
