@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireSession } from '@/lib/auth-helpers';
 import { captureException } from '@/lib/logger';
 import { logAdminAudit } from '@/lib/audit';
+import { notifyOrganizerOfStatusChange } from './notifications';
 
 async function getTransporterSession() {
   const { user, profile, supabase } = await requireSession();
@@ -144,6 +145,30 @@ export async function acceptTransportRequest(requestId: string) {
     if (availErr) {
       console.warn('Could not auto-insert availability booking record:', availErr.message);
     }
+    
+    // 3.5 Update the tour_schedules table to 'confirmed'
+    await supabase
+      .from('tour_schedules')
+      .update({ transport_status: 'confirmed' })
+      .eq('id', request.tour_schedule_id);
+
+    // 3.6 Notify the Organizer
+    const { data: schedule } = await supabase
+      .from('tour_schedules')
+      .select('tour_id')
+      .eq('id', request.tour_schedule_id)
+      .single();
+      
+    if (schedule?.tour_id && request.organizer_id) {
+      const transporterName = transporter.display_name || transporter.company_name || 'Transporter';
+      await notifyOrganizerOfStatusChange(
+        request.organizer_id,
+        schedule.tour_id,
+        request.tour_schedule_id,
+        transporterName,
+        'accepted'
+      );
+    }
 
     // 4. Audit logging
     await logAdminAudit(
@@ -200,6 +225,30 @@ export async function declineTransportRequest(requestId: string, reason?: string
       captureException(updateErr, { action: 'declineTransportRequest', requestId });
       return { success: false, error: updateErr.message };
     }
+    
+    // Update the tour_schedules table to 'unresolved'
+    await supabase
+      .from('tour_schedules')
+      .update({ transport_status: 'unresolved' })
+      .eq('id', request.tour_schedule_id);
+      
+    // Notify the Organizer
+    const { data: schedule } = await supabase
+      .from('tour_schedules')
+      .select('tour_id')
+      .eq('id', request.tour_schedule_id)
+      .single();
+      
+    if (schedule?.tour_id && request.organizer_id) {
+      const transporterName = transporter.display_name || transporter.company_name || 'Transporter';
+      await notifyOrganizerOfStatusChange(
+        request.organizer_id,
+        schedule.tour_id,
+        request.tour_schedule_id,
+        transporterName,
+        'declined'
+      );
+    }
 
     await logAdminAudit(
       profile.id,
@@ -255,5 +304,88 @@ export async function completeTransportBooking(requestId: string) {
   } catch (err: any) {
     captureException(err, { action: 'completeTransportBooking exception' });
     return { success: false, error: err.message || 'Failed to complete booking.' };
+  }
+}
+
+/**
+ * Organizer sends a transport request to a transporter for a specific vehicle.
+ */
+export async function sendTransportRequest(formData: FormData) {
+  try {
+    const { user, profile, supabase } = await requireSession();
+    
+    // Validate Organizer role
+    const { data: organizer } = await supabase
+      .from('organizer_profiles')
+      .select('id')
+      .eq('user_profile_id', profile.id)
+      .single();
+
+    if (!organizer) {
+      return { success: false, error: 'Organizer profile not found' };
+    }
+
+    const tourScheduleId = formData.get('tourScheduleId') as string;
+    const vehicleId = formData.get('vehicleId') as string;
+    const transporterId = formData.get('transporterId') as string;
+    const pickupLocation = formData.get('pickupLocation') as string;
+    const dropoffLocation = formData.get('dropoffLocation') as string;
+    const pickupDatetime = formData.get('pickupDatetime') as string; // Expecting ISO string or YYYY-MM-DD
+    const returnDatetime = formData.get('returnDatetime') as string;
+    const seatsRequired = parseInt(formData.get('seatsRequired') as string, 10);
+
+    if (!tourScheduleId || !vehicleId || !transporterId || !pickupLocation || !dropoffLocation || !pickupDatetime || isNaN(seatsRequired)) {
+      return { success: false, error: 'Missing required fields for transport request' };
+    }
+
+    // Insert into transport_bookings
+    const { data: request, error: reqErr } = await supabase
+      .from('transport_bookings')
+      .insert({
+        tour_schedule_id: tourScheduleId,
+        organizer_id: organizer.id,
+        transporter_id: transporterId,
+        vehicle_id: vehicleId,
+        pickup_location: pickupLocation,
+        dropoff_location: dropoffLocation,
+        pickup_datetime: pickupDatetime,
+        return_datetime: returnDatetime || null,
+        seats_required: seatsRequired,
+        status: 'pending'
+      })
+      .select()
+      .single();
+
+    if (reqErr) {
+      captureException(reqErr, { action: 'sendTransportRequest insert' });
+      return { success: false, error: reqErr.message };
+    }
+
+    // Update the schedule's transport_status to pending
+    await supabase.from('tour_schedules').update({ transport_status: 'pending' }).eq('id', tourScheduleId);
+
+    await logAdminAudit(
+      profile.id,
+      'SEND_TRANSPORT_REQUEST',
+      'transport_bookings',
+      request.id,
+      { vehicleId, tourScheduleId, status: 'pending' }
+    );
+
+    revalidatePath('/dashboard/organizer/tours');
+    
+    // Simulate Notification Logic (Email, SMS, Dashboard)
+    console.log(`[NOTIFICATION SYSTEM] Transporter ${transporterId} notified via Email: New Transport Request for vehicle ${vehicleId}`);
+    console.log(`[NOTIFICATION SYSTEM] Transporter ${transporterId} notified via Dashboard Dashboard Notification.`);
+    // Fetch transporter's phone number to send SMS
+    const { data: transProfile } = await supabase.from('transporter_profiles').select('phone').eq('id', transporterId).single();
+    if (transProfile?.phone) {
+      console.log(`[NOTIFICATION SYSTEM] Transporter ${transporterId} notified via SMS to ${transProfile.phone}.`);
+    }
+
+    return { success: true, request };
+  } catch (err: any) {
+    captureException(err, { action: 'sendTransportRequest exception' });
+    return { success: false, error: err.message || 'Failed to send transport request' };
   }
 }

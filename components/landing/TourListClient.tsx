@@ -22,7 +22,7 @@ export default function TourListClient({ initialTours, initialHasMore }: TourLis
     if (loading || !hasMore) return;
     setLoading(true);
     try {
-      const { tours: newTours, hasMore: newHasMore } = await getPublicTours(offset, 6);
+      const { tours: newTours, hasMore: newHasMore } = await getPublicTours(offset, 100);
       setTours((prev) => [...prev, ...newTours]);
       setOffset((prev) => prev + newTours.length);
       setHasMore(newHasMore);
@@ -49,7 +49,7 @@ export default function TourListClient({ initialTours, initialHasMore }: TourLis
                 <div className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar h-full w-full">
                   {images.map((img: string, idx: number) => (
                     <div key={idx} className="shrink-0 w-full h-full snap-center relative">
-                      <Image 
+                      <Image loading="lazy"
                         src={img} 
                         alt={`${tour.title} - Image ${idx + 1}`} 
                         fill
@@ -60,8 +60,8 @@ export default function TourListClient({ initialTours, initialHasMore }: TourLis
                   ))}
                 </div>
                 
-                <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-slate-900 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md shadow-sm">
-                  Tour
+                <div className={`absolute top-3 left-3 backdrop-blur-md text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-md shadow-sm ${tour.format === 'private' ? 'bg-indigo-600/90 text-white' : tour.format === 'solo' ? 'bg-fuchsia-600/90 text-white' : 'bg-emerald-600/90 text-white'}`}>
+                  {tour.format === 'private' ? 'Private Group' : tour.format === 'solo' ? 'Solo / Couple' : 'Joiner Tour'}
                 </div>
 
                 {tour.is_on_sale && (
@@ -90,24 +90,38 @@ export default function TourListClient({ initialTours, initialHasMore }: TourLis
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-3 text-xs text-slate-500 font-medium mb-4 flex-wrap">
+                <div className="flex items-center gap-3 text-xs text-slate-500 font-medium mb-2 flex-wrap">
                   <span className="flex items-center gap-1">📍 {tour.location}</span>
                   <span className="flex items-center gap-1">⏱️ {tour.duration_days} Day{tour.duration_days > 1 ? 's' : ''}</span>
                   <span className="flex items-center gap-1">👥 Up to {tour.calculated_max_pax} pax</span>
                 </div>
                 
-                <div className="mt-auto pt-4 border-t border-slate-100 flex items-end justify-between">
-                  <div>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Starting at</p>
-                    <div className="flex items-baseline gap-2">
-                      <p className="font-extrabold text-lg text-slate-900">₱ {tour.calculated_lowest_price.toLocaleString()}</p>
+                <div className="flex flex-wrap gap-1.5 mb-4 mt-auto">
+                  {(tour.themes || []).map((theme: string) => (
+                    <span key={theme} className="px-2 py-0.5 rounded text-[10px] font-medium text-slate-600 bg-slate-100 border border-slate-200 capitalize">
+                      {theme.replace('_', ' ')}
+                    </span>
+                  ))}
+                </div>
+                
+                <div className="pt-5 border-t border-slate-100 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Starting at</span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-black text-xl text-slate-900 tracking-tight">₱{tour.calculated_lowest_price.toLocaleString()}</span>
                       {tour.is_on_sale && (
-                        <p className="text-xs text-slate-400 line-through">₱ {tour.calculated_original_price.toLocaleString()}</p>
+                        <span className="text-xs text-slate-400 line-through font-medium">₱{tour.calculated_original_price.toLocaleString()}</span>
                       )}
                     </div>
                   </div>
-                  <Link href={`/tours/${tour.slug}`} className="bg-coral/10 hover:bg-coral text-coral hover:text-white transition-all duration-300 text-xs font-extrabold px-5 py-2.5 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5">
-                    View & Book
+                  <Link 
+                    href={`/tours/${tour.slug}`} 
+                    className="flex items-center gap-1.5 bg-coral hover:bg-coral/90 text-white transition-all duration-300 text-sm font-extrabold px-5 py-2.5 rounded-xl shadow-[0_4px_14px_rgba(255,111,97,0.3)] hover:shadow-[0_6px_20px_rgba(255,111,97,0.4)] hover:-translate-y-0.5"
+                  >
+                    View Tour
+                    <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
                   </Link>
                 </div>
               </div>

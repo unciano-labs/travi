@@ -16,7 +16,7 @@ export default function DestinationsSection() {
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <a href="#tours" className="group relative rounded-2xl overflow-hidden lg:col-span-2 h-72 lg:h-96 shadow-card">
-            <Image 
+            <Image loading="lazy"
               src="https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?auto=format&fit=crop&w=1200&q=80" 
               alt="El Nido" 
               fill
@@ -33,7 +33,7 @@ export default function DestinationsSection() {
           
           <div className="grid grid-rows-2 gap-5">
             <a href="#tours" className="group relative rounded-2xl overflow-hidden h-44 shadow-card">
-              <Image 
+              <Image loading="lazy"
                 src="https://images.unsplash.com/photo-1559628233-100c798642d0?auto=format&fit=crop&w=800&q=80" 
                 alt="Siargao" 
                 fill
@@ -47,7 +47,7 @@ export default function DestinationsSection() {
               </div>
             </a>
             <a href="#tours" className="group relative rounded-2xl overflow-hidden h-44 shadow-card">
-              <Image 
+              <Image loading="lazy"
                 src="https://images.unsplash.com/photo-1620336655055-088d06e36bf0?auto=format&fit=crop&w=800&q=80" 
                 alt="Batanes" 
                 fill

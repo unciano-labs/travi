@@ -1,4 +1,5 @@
 import { Star, EyeOff } from 'lucide-react';
+import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
 
 export default function ReviewsPage() {
   const reviews = [
@@ -12,6 +13,41 @@ export default function ReviewsPage() {
         <h1 className="text-2xl font-bold text-slate-900">Reviews & Moderation</h1>
       </div>
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        {/* Mobile View */}
+        <div className="block md:hidden p-4 space-y-4">
+          {reviews.map((r) => (
+            <LazyMobileCard
+              key={r.id}
+              headerTitle={r.reviewer}
+              headerSubtitle={r.target}
+              rows={[
+                {
+                  label: 'Rating',
+                  value: (
+                    <div className="flex">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} className={`w-3.5 h-3.5 ${i < r.rating ? 'text-amber-400 fill-current' : 'text-slate-200'}`} />
+                      ))}
+                    </div>
+                  )
+                },
+                {
+                  label: 'Comment',
+                  value: <div className="italic text-slate-600 line-clamp-3">&quot;{r.comment}&quot;</div>,
+                  fullWidth: true
+                }
+              ]}
+              actions={
+                <button className="text-slate-400 hover:text-red-500 transition-colors" title="Hide Review">
+                  <EyeOff className="w-4 h-4" />
+                </button>
+              }
+            />
+          ))}
+        </div>
+
+        {/* Desktop View */}
+        <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
             <tr>
@@ -44,6 +80,7 @@ export default function ReviewsPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

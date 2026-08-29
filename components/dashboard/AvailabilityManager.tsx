@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Calendar, Plus, Trash2, Ban, Clock, Bus, Loader2 } from 'lucide-react';
 import { blockVehicleDates, removeAvailabilityBlock } from '@/actions/availability';
 import { useRouter } from 'next/navigation';
+import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
 import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { enUS } from 'date-fns/locale/en-US';
@@ -247,8 +248,81 @@ export default function AvailabilityManager({
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
-          <table className="w-full text-left text-sm">
+        <>
+          {/* Mobile View */}
+          <div className="block md:hidden space-y-4">
+            {filteredAvailability.map((item) => {
+              const isBooked = item.status === 'booked';
+              const isRemoving = actionLoading === item.id;
+              
+              return (
+                <LazyMobileCard
+                  key={item.id}
+                  headerTitle={item.vehicle?.name || 'Unknown Vehicle'}
+                  headerSubtitle={item.vehicle?.plate_number}
+                  headerBadge={
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        isBooked
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {isBooked ? (
+                        <Clock className="w-3 h-3" />
+                      ) : (
+                        <Ban className="w-3 h-3" />
+                      )}
+                      {isBooked ? 'Trip Booked' : 'Blocked'}
+                    </span>
+                  }
+                  rows={[
+                    {
+                      label: 'Dates',
+                      value: (
+                        <div className="flex flex-col">
+                          <span>{new Date(item.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(item.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                        </div>
+                      )
+                    },
+                    {
+                      label: 'Notes',
+                      value: (
+                        <div className="line-clamp-2">
+                          {isBooked && item.booking ? (
+                            <span>{item.booking.organizer?.company_name || item.booking.organizer?.display_name || 'Organizer Booking'} ({item.booking.pickup_location})</span>
+                          ) : (
+                            <span>{item.notes || 'No description provided'}</span>
+                          )}
+                        </div>
+                      ),
+                      fullWidth: true
+                    }
+                  ]}
+                  actions={
+                    !isBooked && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleRemoveBlock(item.id); }}
+                        disabled={isRemoving}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-auto"
+                        title="Remove Block"
+                      >
+                        {isRemoving ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-red-600" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                      </button>
+                    )
+                  }
+                />
+              );
+            })}
+          </div>
+
+          {/* Desktop View */}
+          <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+            <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
               <tr>
                 <th className="px-6 py-4">Vehicle</th>
@@ -340,9 +414,10 @@ export default function AvailabilityManager({
                   </tr>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
       </div>
 

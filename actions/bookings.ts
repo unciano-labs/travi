@@ -4,11 +4,9 @@ import { z } from 'zod';
 import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { assertRateLimit } from '@/lib/ratelimit';
 import { captureException } from '@/lib/logger';
+import { notifySuperAdmin } from './notifications';
 
-const createBookingSchema = z.object({
-  scheduleId: z.string().uuid('Invalid schedule ID'),
-  seats: z.number().int().min(1, 'Must book at least 1 seat')
-});
+import { createBookingSchema } from '@/lib/schemas/booking';
 
 export async function createBooking(scheduleId: string, seats: number) {
   try {
@@ -18,66 +16,31 @@ export async function createBooking(scheduleId: string, seats: number) {
     await assertRole(user.id, 'traveler');
     await assertRateLimit(profile.id, 'mutation');
 
-    // Fetch the schedule to calculate amount and check capacity
-    const { data: schedule, error: scheduleError } = await supabase
-      .from('tour_schedules')
-      .select('*, tours(price_per_person, slug)')
-      .eq('id', validated.scheduleId)
-      .single();
+    const { createBookingService } = await import('@/lib/services/bookings');
+    const result = await createBookingService(supabase, profile.id, validated);
 
-    if (scheduleError || !schedule) {
-      return { success: false, error: 'Schedule not found.' };
-    }
-
-    const remaining = schedule.capacity - (schedule.booked_count || 0);
-    if (validated.seats > remaining) {
-      return { success: false, error: 'Not enough seats available.' };
-    }
-
-    const pricePerPerson = schedule.price_per_person ?? schedule.tours?.price_per_person;
-    if (!pricePerPerson) {
-      return { success: false, error: 'Price not configured.' };
-    }
-
-    const totalAmount = pricePerPerson * validated.seats;
-
-    // Create booking
-    const { data: booking, error: bookingError } = await supabase
-      .from('bookings')
-      .insert({
-        tour_schedule_id: validated.scheduleId,
-        traveler_id: profile.id,
-        seats: validated.seats,
-        total_amount: totalAmount,
-        status: 'confirmed'
-      })
-      .select()
-      .single();
-
-    if (bookingError) {
-      captureException(bookingError, { action: 'createBooking', scheduleId, seats });
-      return { success: false, error: `Failed to create booking: ${bookingError.message} / ${bookingError.details}` };
-    }
-
-    // Update the booked_count in tour_schedules using admin client (bypasses RLS since traveler can't update schedule)
-    const { createAdminClient } = await import('@/lib/supabase/admin');
-    const adminSupabase = createAdminClient({ admin: true });
-
-    await adminSupabase
-      .from('tour_schedules')
-      .update({ booked_count: (schedule.booked_count || 0) + validated.seats })
-      .eq('id', validated.scheduleId);
+    // Generate PayMongo Checkout URL
+    const host = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    // Redirect to custom in-app payment page instead of PayMongo Hosted Checkout
+    const checkoutUrl = `${host}/tours/${result.slug}/booking/${result.bookingId}/pay`;
 
     // Revalidate paths and tags to update the dashboard and tour page UI
     const { revalidatePath, updateTag } = await import('next/cache');
     updateTag('tours');
-    revalidatePath('/dashboard', 'layout');
-    revalidatePath(`/tours/${schedule.tours.slug}`, 'page');
+    revalidatePath(`/tours/${result.slug}`);
+    revalidatePath('/dashboard/traveler/bookings');
+    
+    await notifySuperAdmin(
+      'New Booking Created',
+      `A traveler booked ${seats} seats. Awaiting payment.`,
+      'booking_created',
+      '/admin/bookings'
+    );
 
     return {
       success: true,
-      bookingId: booking.id,
-      slug: schedule.tours.slug
+      bookingId: result.bookingId,
+      checkoutUrl
     };
   } catch (error: any) {
     captureException(error, { action: 'createBooking exception', scheduleId, seats });
@@ -86,5 +49,188 @@ export async function createBooking(scheduleId: string, seats: number) {
       error: error.message || 'An unexpected error occurred.',
       code: error.message === 'Unauthorized' ? 'unauthorized' : undefined
     };
+  }
+}
+
+export async function updateBookingStatus(bookingId: string, status: 'confirmed' | 'canceled' | 'completed') {
+  try {
+    const { user, profile, supabase } = await requireSession();
+    await assertRole(user.id, 'organizer');
+
+    // Get Organizer Profile ID
+    const { data: orgProfile } = await supabase
+      .from('organizer_profiles')
+      .select('id')
+      .eq('user_profile_id', profile.id)
+      .single();
+
+    if (!orgProfile) throw new Error('Unauthorized');
+
+    // Verify ownership of the tour
+    const { data: booking } = await supabase
+      .from('bookings')
+      .select('id, tour_schedules!inner(tours!inner(organizer_id))')
+      .eq('id', bookingId)
+      .eq('tour_schedules.tours.organizer_id', orgProfile.id)
+      .single();
+
+    if (!booking) {
+      throw new Error('Unauthorized or booking not found.');
+    }
+
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const admin = createAdminClient({ admin: true });
+    const { error } = await admin
+      .from('bookings')
+      .update({ status })
+      .eq('id', bookingId);
+
+    if (error) throw error;
+
+    const { revalidatePath } = await import('next/cache');
+    revalidatePath('/dashboard/organizer/bookings');
+
+    return { success: true };
+  } catch (error: any) {
+    captureException(error, { action: 'updateBookingStatus exception', bookingId, status });
+    return { success: false, error: error.message || 'An unexpected error occurred.' };
+  }
+}
+
+export async function verifyPaymentAndUpdateBooking(bookingId: string) {
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const admin = createAdminClient({ admin: true });
+
+    // 1. Get the booking
+    const { data: booking, error: bookingError } = await admin
+      .from('bookings')
+      .select(`
+        id, 
+        status, 
+        total_amount,
+        paymongo_session_id,
+        booking_ref,
+        tour_schedules (
+          id,
+          tours (organizer_id)
+        )
+      `)
+      .eq('id', bookingId)
+      .single();
+
+    if (bookingError || !booking) throw new Error('Booking not found');
+
+    if (booking.status === 'confirmed') {
+      return { success: true, status: 'confirmed' };
+    }
+
+    if (!booking.paymongo_session_id) {
+      return { success: false, error: 'No PayMongo session linked to this booking' };
+    }
+
+    // 2. Verify with PayMongo
+    const { verifyCheckoutSession, verifyPaymentIntent } = await import('@/lib/paymongo');
+    
+    let isPaid = false;
+    
+    if (booking.paymongo_session_id.startsWith('pi_')) {
+      const intentRes = await verifyPaymentIntent(booking.paymongo_session_id);
+      isPaid = intentRes.status === 'succeeded';
+    } else {
+      const paymongoRes = await verifyCheckoutSession(booking.paymongo_session_id);
+      isPaid = paymongoRes.status === 'paid';
+    }
+
+    if (isPaid) {
+      // 3. Update to confirmed
+      await admin.from('bookings').update({ status: 'confirmed' }).eq('id', booking.id);
+
+      // 4. Run ledger logic
+      const { data: settings } = await admin.from('platform_settings').select('platform_fee_percent').limit(1).single();
+      const feePercent = settings?.platform_fee_percent || 10;
+      
+      const platformFee = booking.total_amount * (feePercent / 100);
+      const organizerAmount = booking.total_amount - platformFee;
+      const organizerProfileId = booking.tour_schedules.tours.organizer_id;
+
+      const { data: walletId } = await admin.rpc('ensure_user_wallet', { profile_id: organizerProfileId });
+
+      if (walletId) {
+        // Check if already logged to prevent duplicates if webhook fired at the exact same time
+        const { data: existingTx } = await admin.from('wallet_transactions')
+          .select('id').eq('reference_id', booking.id).eq('type', 'payment_hold').maybeSingle();
+
+        if (!existingTx) {
+          await admin.from('wallet_transactions').insert({
+            wallet_id: walletId,
+            amount: organizerAmount,
+            type: 'payment_hold',
+            balance_affected: 'escrow',
+            reference_type: 'booking',
+            reference_id: booking.id,
+            description: `Revenue for booking ${booking.booking_ref}`
+          });
+          await admin.rpc('increment_escrow_balance', { w_id: walletId, amt: organizerAmount });
+        }
+      }
+
+      return { success: true, status: 'confirmed' };
+    }
+
+    return { success: true, status: 'pending' };
+  } catch (error: any) {
+    captureException(error, { action: 'verifyPaymentAndUpdateBooking', bookingId });
+    return { success: false, error: error.message };
+  }
+}
+
+export async function processPayment(bookingId: string, method: 'gcash' | 'paymaya', returnUrl: string) {
+  try {
+    const { requireSession } = await import('@/lib/auth-helpers');
+    const { user } = await requireSession();
+
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const admin = createAdminClient({ admin: true });
+
+    const { data: booking } = await admin
+      .from('bookings')
+      .select('id, total_amount, booking_ref, paymongo_session_id')
+      .eq('id', bookingId)
+      .single();
+
+    if (!booking) throw new Error('Booking not found');
+
+    const { createPaymentIntent, createPaymentMethod, attachPaymentIntent } = await import('@/lib/paymongo');
+    
+    // Create Intent
+    const amountCents = Math.round(booking.total_amount * 100);
+    const intent = await createPaymentIntent(amountCents, `Travi Booking: ${booking.booking_ref}`);
+    
+    // Save the Intent ID to the booking so we can verify it later
+    await admin.from('bookings').update({ paymongo_session_id: intent.id }).eq('id', booking.id);
+
+    // Create Method
+    const pm = await createPaymentMethod(method, {
+      email: user.email,
+      name: user.user_metadata?.full_name || 'Traveler'
+    });
+
+    // Attach
+    const attachResult = await attachPaymentIntent(intent.id, pm.id, returnUrl);
+
+    if (attachResult.next_action?.type === 'redirect') {
+      return { success: true, redirectUrl: attachResult.next_action.redirect.url };
+    }
+
+    if (attachResult.status === 'succeeded') {
+      return { success: true, redirectUrl: returnUrl }; // It was instantly paid
+    }
+
+    throw new Error('Failed to process payment attachment');
+  } catch (error: any) {
+    const { captureException } = await import('@/lib/logger');
+    captureException(error, { action: 'processPayment', bookingId, method });
+    return { success: false, error: error.message };
   }
 }

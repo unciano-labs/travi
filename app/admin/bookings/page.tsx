@@ -1,44 +1,58 @@
-export default function BookingsPage() {
-  const bookings = [
-    { id: 'BK-1001', tour: 'Coron Ultimate Tour', pax: 4, total: '₱7,200', status: 'confirmed' },
-    { id: 'BK-1002', tour: 'Kawasan Falls Canyoneering', pax: 2, total: '₱3,000', status: 'pending' },
-  ];
+import { Suspense } from 'react';
+import { createAdminClient } from '@/lib/supabase/admin';
+import BookingsClient from '@/components/admin/BookingsClient';
+
+export default async function BookingsPage() {
+  const admin = createAdminClient({ admin: true });
+
+  const { data: bookings } = await admin
+    .from('bookings')
+    .select(`
+      id,
+      booking_ref,
+      seats,
+      total_amount,
+      status,
+      created_at,
+      traveler:user_profiles!traveler_id (
+        full_name,
+        email
+      ),
+      tour_schedule:tour_schedules (
+        id,
+        start_date,
+        end_date,
+        tour:tours (
+          title,
+          location
+        )
+      )
+    `)
+    .order('created_at', { ascending: false });
+
+  // Handle Supabase relation typing (array vs object)
+  const formattedBookings = (bookings || []).map((b) => {
+    const travelerProfile = Array.isArray(b.traveler) ? b.traveler[0] : b.traveler;
+    const schedule = Array.isArray(b.tour_schedule) ? b.tour_schedule[0] : b.tour_schedule;
+    
+    let tourInfo = null;
+    if (schedule && schedule.tour) {
+       tourInfo = Array.isArray(schedule.tour) ? schedule.tour[0] : schedule.tour;
+    }
+
+    return {
+      ...b,
+      traveler: travelerProfile,
+      tour_schedule: schedule ? {
+        ...schedule,
+        tour: tourInfo
+      } : null
+    };
+  });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Bookings</h1>
-      </div>
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
-            <tr>
-              <th className="px-6 py-4">Booking ID</th>
-              <th className="px-6 py-4">Tour</th>
-              <th className="px-6 py-4">Pax</th>
-              <th className="px-6 py-4">Total Amount</th>
-              <th className="px-6 py-4">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {bookings.map((b) => (
-              <tr key={b.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-6 py-4 font-mono text-xs font-medium text-slate-500">{b.id}</td>
-                <td className="px-6 py-4 font-medium text-slate-900">{b.tour}</td>
-                <td className="px-6 py-4 text-slate-600">{b.pax}</td>
-                <td className="px-6 py-4 text-slate-900 font-medium">{b.total}</td>
-                <td className="px-6 py-4">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    b.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                  }`}>
-                    {b.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <Suspense fallback={<div className="animate-pulse space-y-6"><div className="h-8 w-48 bg-slate-200 rounded"></div><div className="h-96 w-full bg-slate-200 rounded-xl"></div></div>}>
+      <BookingsClient initialBookings={formattedBookings as any} />
+    </Suspense>
   );
 }

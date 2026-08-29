@@ -1,72 +1,84 @@
 # Payment & Monetization Integration
 
-This document outlines the architecture, flow, and business logic for how payments are processed, how the platform earns revenue, and how organizers cash out.
+This document outlines the architecture, flow, and business logic for how payments are processed, how the platform earns revenue, and how organizers and transporters cash out.
 
-> **Stack:** Stripe Connect (Destination Charges) + Next.js App Router API Routes
+> **Stack:** PayMongo Checkout + Internal Digital Wallet System + Next.js App Router API Routes
 
 ---
 
 ## 1. Business Model (Monetization)
 The platform uses a **commission-based model**:
-- **Platform Fee (Commission)**: The platform takes a `10%` cut of the total booking amount automatically at checkout.
-- **Organizer Revenue**: The organizer receives the remaining `90%` of the booking amount.
+- **Platform Fee (Commission)**: The platform takes a `10%` cut of the total booking amount. This is fully configurable in the `platform_settings` table.
+- **Partner Revenue**: The remaining `90%` of the booking amount is credited to the Organizer (or split between Organizer and Transporter if an external transporter is used).
 
-*Example*: If a traveler books a tour for **$100**:
-- Platform receives **$10.00** (Platform Fee).
-- Organizer receives **$90.00** (minus standard Stripe processing fees).
+*Example*: If a traveler books a tour for **₱5,000**:
+- Platform receives **₱500.00** (Platform Fee).
+- Organizer receives **₱4,500.00** into their Wallet (minus any transporter splits).
 
 ---
 
-## 2. Architecture: Stripe Connect
-The platform utilizes **Stripe Connect Express** for multi-party payments. 
+## 2. Architecture: PayMongo + Digital Wallets
+Because strict KYC (Know Your Customer) requirements for automated split-routing gateways (like Stripe Connect) can hinder rapid MVP onboarding in the Philippines, the platform utilizes an internal **Escrow & Wallet System** powered by **PayMongo** for initial payments.
 
-### Why Stripe Connect?
-- **Automated Payouts**: The platform does not need to manually transfer funds or manage a complex internal ledger.
-- **Compliance**: Stripe handles KYC (Know Your Customer) and tax reporting (e.g., 1099s) for organizers.
-- **Destination Charges**: Users pay the platform, and the funds are automatically split instantly.
+### Key Components:
+- **Traveler Payment**: Processed securely via PayMongo (GCash, Maya, QR Ph, Credit/Debit).
+- **Internal Ledger**: Custom database tables (`user_wallets`, `wallet_transactions`) guarantee strict accounting and zero financial discrepancies.
+- **Escrow System**: Funds are locked in an `escrow_balance` until the tour is completed, protecting travelers from organizer cancellations or no-shows.
+- **Manual Payouts**: Partners withdraw funds from their `available_balance`, and the Platform Admin executes the manual bank transfer (InstaPay/PESONet).
 
 ---
 
 ## 3. The End-to-End Flow
 
-### Step A: Organizer Onboarding
-1. An Organizer navigates to their **Profile Settings** (`/dashboard/organizer/profile`).
-2. They click **"Connect with Stripe"**.
-3. The server calls `createStripeConnectedAccount()` (in `actions/stripe.ts`), creating an Express account and returning an onboarding URL.
-4. The Organizer is redirected to Stripe to fill in their identity and bank details.
-5. Upon returning, `checkStripeOnboardingStatus()` verifies if they are fully onboarded and sets `stripe_onboarding_complete = true` in the database.
+### Step A: Traveler Checkout
+1. A Traveler clicks "Book This Tour" on a tour schedule.
+2. The server verifies capacity, atomically creates a `pending` booking in the database, and calls `createCheckoutSession()` (via PayMongo API).
+3. The Traveler is redirected to the secure PayMongo Checkout URL.
+4. The Traveler completes the payment.
+5. *If payment is not completed within 15 minutes, a `pg_cron` background job automatically cancels the `pending` booking and releases the reserved seats.*
 
-### Step B: Traveler Checkout
-1. A Traveler clicks "Book" on a tour.
-2. The system calculates the `total_amount`, atomically verifies capacity via an RPC, and creates a `pending` booking in the database.
-3. The server calls `createCheckoutSession()` (in `actions/stripe.ts`).
-4. **The Split**: The session is created using `payment_intent_data`:
-   - `application_fee_amount`: `10%` of the total.
-   - `transfer_data.destination`: The Organizer's `stripe_account_id`.
-5. The Traveler completes the payment on Stripe's hosted checkout page.
+### Step B: Webhook Confirmation & Escrow
+1. PayMongo fires a `payment.paid` event to the platform's webhook (`/api/webhooks/paymongo/route.ts`).
+2. The webhook validates the event, updates the booking `status` to `confirmed`.
+3. The system calculates the 10% platform fee and credits the remaining 90% to the Organizer's `escrow_balance`.
+4. A `payment_hold` transaction is logged in `wallet_transactions`.
 
-### Step C: Webhook Confirmation
-1. Stripe fires a `checkout.session.completed` event to the platform's webhook (`/api/webhooks/stripe/route.ts`).
-2. The webhook secure validates the signature.
-3. The webhook updates the booking `status` to `confirmed` and saves the `stripe_payment_intent_id`.
+### Step C: Tour Completion (Escrow Release)
+1. When a tour schedule is marked as `completed`, the system triggers the `release_tour_escrow()` database function.
+2. This function iterates through all confirmed bookings for that schedule, deducts the funds from `escrow_balance`, and adds them to `available_balance`.
+3. An `escrow_release` transaction is logged.
 
-### Step D: Cashout
-- **Fully Automated**: Organizers do not need to click a "Cashout" button on the platform.
-- Stripe automatically sweeps the funds from the Organizer's connected Stripe account to their linked bank account on a rolling basis (usually 2 business days).
+### Step D: Cashout (Withdrawal)
+1. The Organizer navigates to their **Wallet Dashboard** (`/dashboard/organizer/wallet`).
+2. They click **Request Payout**, select their withdrawal method (e.g., GCash, BDO), and specify the amount.
+3. The amount is immediately deducted from their `available_balance` and a `payout_requests` row is created (status: `pending`).
+4. The Admin navigates to the **Admin Payouts Dashboard** (`/admin/payouts`), views the request, and manually transfers the funds via their banking app.
+5. The Admin clicks **Mark as Paid**, updating the request status to `paid`.
 
 ---
 
 ## 4. Database Schema Changes
 
-**`organizer_profiles` Table:**
-| Column | Type | Description |
-|---|---|---|
-| `stripe_account_id` | `text` | The unique connected account ID (e.g., `acct_12345`) |
-| `stripe_onboarding_complete` | `boolean` | True if the organizer can receive payouts |
+**`platform_settings` Table:**
+Stores global financial settings (e.g., `platform_fee_percent`).
 
-**`bookings` Table:**
+**`user_wallets` Table:**
 | Column | Type | Description |
 |---|---|---|
-| `platform_fee` | `decimal` | The 10% commission amount |
-| `organizer_revenue` | `decimal` | The 90% organizer net amount |
-| `stripe_payment_intent_id` | `text` | Reference to the Stripe transaction |
+| `available_balance` | `decimal` | Funds cleared and ready for withdrawal. |
+| `escrow_balance` | `decimal` | Funds held for upcoming tours. |
+
+**`wallet_transactions` Table:**
+The immutable ledger.
+| Column | Type | Description |
+|---|---|---|
+| `amount` | `decimal` | Transaction amount. |
+| `type` | `enum` | e.g., `payment_hold`, `escrow_release`, `withdrawal_pending`. |
+| `balance_affected` | `enum` | `available` or `escrow`. |
+
+**`payout_requests` Table:**
+| Column | Type | Description |
+|---|---|---|
+| `amount` | `decimal` | Amount requested. |
+| `status` | `enum` | `pending`, `processing`, `paid`, `rejected`. |
+| `payout_method` | `jsonb` | Bank details or GCash number. |

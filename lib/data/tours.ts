@@ -26,9 +26,11 @@ export const getCachedPublicTours = unstable_cache(
           location,
           duration_days,
           price_per_person,
+          format,
+          themes,
           cover_image_url,
           image_urls,
-          organizer:organizer_profiles(company_name, display_name),
+          organizer:organizer_profiles!inner(company_name, display_name),
           schedules:tour_schedules(capacity, price_per_person, original_price, status, start_date, deleted_at),
           reviews (
             id,
@@ -116,7 +118,7 @@ export async function getCachedTourBySlug(slug: string) {
       .from('tours')
       .select(`
         *,
-        organizer:organizer_profiles (
+        organizer:organizer_profiles!inner (
           id,
           company_name,
           display_name

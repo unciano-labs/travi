@@ -14,9 +14,9 @@ export default function Home() {
       
       <main className="flex-grow">
         <HeroSection />
+        <ToursSection />
         <StatsSection />
         <DestinationsSection />
-        <ToursSection />
         <HowItWorksSection />
         <PartnersSection />
       </main>

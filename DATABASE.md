@@ -32,6 +32,8 @@ tours (many per organizer)
 vehicles (many per transporter)
   vehicle_availability (many per vehicle)
 
+organizer_favorite_vehicles (links organizer + vehicle)
+
 transport_bookings (links tour + vehicle + transporter)
 reviews (linked to transporter + optional vehicle/tour)
 admin_audit_logs
@@ -136,14 +138,16 @@ Links a user's profile to a specific role on a website.
 | title | text | Yes | |
 | slug | text | Yes | URL-friendly unique identifier |
 | description | text | Yes | |
-| location | text | Yes | |
+| location | text | Yes | Detailed address or meetup point |
+| city | text | Yes | |
+| province | text | Yes | |
 | price_per_person | decimal | Yes | Must be > 0 |
 | duration_days | integer | Yes | |
 | accommodation_details | text | No | |
 | travel_time_info | text | No | |
-| transport_type | enum | Yes | none, self_provided, external_transporter |
-| transport_status | enum | Yes | not_required, self_provided, pending, confirmed, unresolved |
 | status | enum | Yes | draft, published, archived |
+| format | enum | Yes | joiner, private, solo |
+| themes | text[] | Yes | Array of theme tags (e.g., island_hopping) |
 | cover_image_url | text | No | First image uploaded |
 | image_urls | text[] | No | Array of all uploaded images |
 | created_at | timestamptz | Yes | |
@@ -162,6 +166,8 @@ Links a user's profile to a specific role on a website.
 | `capacity` | integer | Yes | Total available seats for this specific schedule |
 | `price_per_person`| numeric(10,2)| No | Custom price for this schedule |
 | `original_price`  | numeric(10,2)| No | Optional "compare-at" price |
+| `transport_type` | enum | Yes | none, self_provided, external_transporter |
+| `transport_status` | enum | Yes | not_required, self_provided, pending, confirmed, unresolved |
 | `status` | enum | Yes | Schedule status: `open`, `full`, `cancelled`, `completed` |
 | `created_at` | timestamptz | Yes | |
 | `updated_at` | timestamptz | Yes | |
@@ -186,6 +192,7 @@ Links a user's profile to a specific role on a website.
 | Field | Type | Required | Notes |
 |---|---|---:|---|
 | id | UUID | Yes | PK |
+| booking_ref | varchar | Yes | Auto-generated unique alphanumeric ID (e.g. BK-X9A2B4) |
 | tour_schedule_id | UUID | Yes | FK → tour_schedules |
 | traveler_id | UUID | Yes | FK → user_profiles |
 | seats | integer | Yes | Min 1 |
@@ -223,14 +230,24 @@ Links a user's profile to a specific role on a website.
 | plate_number | text | No | |
 | description | text | No | |
 | rate_per_day | decimal | No | |
-| photos | text[] | No | Array of URLs |
-| status | enum | Yes | active, inactive |
-| created_at | timestamptz | Yes | |
-| updated_at | timestamptz | Yes | |
+| `photos` | `text[]` | Optional, array of image URLs |
+| `status` | `text` | Default `'active'`, Check: `IN ('active', 'inactive')` |
+| `deleted_at` | `timestamp` | Optional (Soft Delete) |
+| `created_at` | `timestamp` | Default `now()` |
+| `updated_at` | `timestamp` | Default `now()` |
 
----
+### 11. `organizer_favorite_vehicles`
+Stores which vehicles an organizer has favorited for quick access.
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | `uuid` | Primary Key, Default `gen_random_uuid()` |
+| `organizer_id` | `uuid` | Not Null, References `organizer_profiles(id)` |
+| `vehicle_id` | `uuid` | Not Null, References `vehicles(id)` |
+| `created_at` | `timestamp` | Default `now()` |
 
-### 2.9 vehicle_availability
+*Note: Unique constraint on `(organizer_id, vehicle_id)` to prevent duplicates.*
+
+### 12. `vehicle_availability`
 
 | Field | Type | Required | Notes |
 |---|---|---:|---|

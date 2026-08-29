@@ -8,6 +8,6 @@ export function createAdminClient(options?: { admin: boolean }) {
 
   return createClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
-    env.NEXT_PUBLIC_SERVICE_ROLE_KEY!
+    env.SUPABASE_SERVICE_ROLE_KEY!
   );
 }

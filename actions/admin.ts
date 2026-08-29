@@ -7,24 +7,9 @@ import { logMutation } from '@/lib/audit';
 import { revalidatePath, updateTag } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { captureException } from '@/lib/logger';
+import { notifyOrganizerAccountStatus, notifyTransporterAccountStatus } from './notifications';
 
-const idSchema = z.string().min(1, 'ID is required');
-
-const rejectSchema = z.object({
-  id: z.string().min(1, 'ID is required'),
-  reason: z.string().optional(),
-});
-
-const moderateReviewSchema = z.object({
-  reviewId: z.string().min(1, 'Review ID is required'),
-  action: z.enum(['hide', 'publish', 'delete']),
-});
-
-const modifyRoleSchema = z.object({
-  userProfileId: z.string().min(1, 'User Profile ID is required'),
-  role: z.enum(['admin', 'traveler', 'organizer', 'transporter']),
-  operation: z.enum(['grant', 'revoke']),
-});
+import { idSchema, rejectSchema, moderateReviewSchema, modifyRoleSchema } from '@/lib/schemas/admin';
 
 /**
  * Approve an organizer application.
@@ -36,7 +21,9 @@ export async function approveOrganizer(organizerId: string) {
     await assertRole(user.id, 'admin');
     await assertRateLimit(profile.id, 'mutation');
 
-    const { error } = await supabase
+    const admin = createAdminClient({ admin: true });
+
+    const { error } = await admin
       .from('organizer_profiles')
       .update({ status: 'approved' })
       .eq('id', validatedId);
@@ -52,6 +39,8 @@ export async function approveOrganizer(organizerId: string) {
       notes: 'Organizer application approved by admin',
       diff: { status: 'approved' },
     });
+
+    await notifyOrganizerAccountStatus(validatedId, 'activated');
 
     updateTag('organizers');
     updateTag('platform-stats');
@@ -110,7 +99,9 @@ export async function approveTransporter(transporterId: string) {
     await assertRole(user.id, 'admin');
     await assertRateLimit(profile.id, 'mutation');
 
-    const { error } = await supabase
+    const admin = createAdminClient({ admin: true });
+
+    const { error } = await admin
       .from('transporter_profiles')
       .update({ status: 'approved' })
       .eq('id', validatedId);
@@ -126,6 +117,8 @@ export async function approveTransporter(transporterId: string) {
       notes: 'Transporter application approved by admin',
       diff: { status: 'approved' },
     });
+
+    await notifyTransporterAccountStatus(validatedId, 'activated');
 
     updateTag('transporters');
     updateTag('platform-stats');
@@ -147,7 +140,9 @@ export async function rejectTransporter(transporterId: string, reason?: string) 
     await assertRole(user.id, 'admin');
     await assertRateLimit(profile.id, 'mutation');
 
-    const { error } = await supabase
+    const admin = createAdminClient({ admin: true });
+
+    const { error } = await admin
       .from('transporter_profiles')
       .update({ status: 'rejected' })
       .eq('id', validated.id);
@@ -163,6 +158,8 @@ export async function rejectTransporter(transporterId: string, reason?: string) 
       notes: validated.reason ? `Rejected with reason: ${validated.reason}` : 'Transporter application rejected',
       diff: { status: 'rejected' },
     });
+
+    await notifyTransporterAccountStatus(validated.id, 'deactivated', validated.reason);
 
     updateTag('transporters');
     updateTag('platform-stats');
@@ -282,5 +279,47 @@ export async function modifyUserRole(
   } catch (error: any) {
     captureException(error, { action: 'modifyUserRole', userProfileId, role, operation });
     return { success: false, error: error.message || 'Failed to modify user role' };
+  }
+}
+
+/**
+ * Mark a payout request as paid and update the ledger.
+ */
+export async function markPayoutPaid(payoutId: string, walletId: string) {
+  try {
+    const { user, profile } = await requireSession();
+    await assertRole(user.id, 'admin');
+
+    const admin = createAdminClient({ admin: true });
+
+    // Mark as paid
+    const { error: payoutError } = await admin
+      .from('payout_requests')
+      .update({ status: 'paid', updated_at: new Date().toISOString() })
+      .eq('id', payoutId)
+      .eq('status', 'pending');
+
+    if (payoutError) throw payoutError;
+
+    // Create completed ledger entry
+    const { data: request } = await admin.from('payout_requests').select('amount').eq('id', payoutId).single();
+    
+    if (request) {
+      await admin.from('wallet_transactions').insert({
+        wallet_id: walletId,
+        amount: request.amount,
+        type: 'withdrawal_completed',
+        balance_affected: 'available',
+        reference_type: 'payout',
+        reference_id: payoutId,
+        description: 'Payout request fulfilled'
+      });
+    }
+
+    revalidatePath('/admin/payouts');
+    return { success: true };
+  } catch (error: any) {
+    captureException(error, { action: 'markPayoutPaid', payoutId });
+    return { success: false, error: error.message || 'Failed to mark payout as paid' };
   }
 }

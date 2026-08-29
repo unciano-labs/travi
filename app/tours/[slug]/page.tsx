@@ -9,6 +9,7 @@ import Image from 'next/image';
 import { TourJsonLd } from '@/components/seo/TourJsonLd';
 import { getCachedTourBySlug } from '@/lib/data/tours';
 import { getCachedTourReviews } from '@/lib/data/reviews';
+import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -121,30 +122,64 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
                     <Calendar className="w-5 h-5 text-coral" /> Upcoming Dates
                   </h3>
                   {tour.schedules && tour.schedules.length > 0 ? (
-                    <div className="border border-slate-200 rounded-xl overflow-hidden">
-                      <table className="w-full text-left border-collapse">
-                        <tbody className="divide-y divide-slate-100">
-                          {tour.schedules
-                            .filter((s: any) => s.status === 'open' && new Date(s.start_date) > new Date())
-                            .sort((a: any, b: any) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
-                            .map((schedule: any) => (
-                              <tr key={schedule.id} className="hover:bg-slate-50 transition-colors group">
-                                <td className="py-3 px-4 flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></div>
-                                    <span className="text-sm font-medium text-slate-700">
-                                      {new Date(schedule.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — {new Date(schedule.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    <>
+                      {/* Mobile View */}
+                      <div className="block md:hidden space-y-3 mt-4">
+                        {tour.schedules
+                          .filter((s: any) => s.status === 'open' && new Date(s.start_date) > new Date())
+                          .sort((a: any, b: any) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
+                          .map((schedule: any) => (
+                            <LazyMobileCard
+                              key={schedule.id}
+                              rows={[
+                                {
+                                  label: 'Dates',
+                                  value: (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></div>
+                                      <span className="text-sm font-medium text-slate-700">
+                                        {new Date(schedule.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — {new Date(schedule.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                      </span>
+                                    </div>
+                                  ),
+                                  fullWidth: true
+                                }
+                              ]}
+                              actions={
+                                <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-500">
+                                  Available
+                                </span>
+                              }
+                            />
+                        ))}
+                      </div>
+
+                      {/* Desktop View */}
+                      <div className="hidden md:block border border-slate-200 rounded-xl overflow-hidden mt-4">
+                        <table className="w-full text-left border-collapse">
+                          <tbody className="divide-y divide-slate-100">
+                            {tour.schedules
+                              .filter((s: any) => s.status === 'open' && new Date(s.start_date) > new Date())
+                              .sort((a: any, b: any) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
+                              .map((schedule: any) => (
+                                <tr key={schedule.id} className="hover:bg-slate-50 transition-colors group">
+                                  <td className="py-3 px-4 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></div>
+                                      <span className="text-sm font-medium text-slate-700">
+                                        {new Date(schedule.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — {new Date(schedule.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 group-hover:text-coral transition-colors">
+                                      Available
                                     </span>
-                                  </div>
-                                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 group-hover:text-coral transition-colors">
-                                    Available
-                                  </span>
-                                </td>
-                              </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                                  </td>
+                                </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
                   ) : (
                     <p className="text-slate-500 text-sm">No open dates available currently.</p>
                   )}

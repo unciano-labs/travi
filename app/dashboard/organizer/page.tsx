@@ -2,6 +2,7 @@ import { MapPin, Users, Banknote } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
 
 export default async function OrganizerDashboard() {
   const supabase = await createClient();
@@ -118,7 +119,37 @@ export default async function OrganizerDashboard() {
         {bookings.length === 0 ? (
           <div className="p-8 text-center text-slate-500">No bookings found.</div>
         ) : (
-          <table className="w-full text-left text-sm">
+          <>
+            {/* Mobile View */}
+            <div className="block md:hidden p-4 space-y-4">
+              {bookings.slice(0, 5).map(b => (
+                <LazyMobileCard
+                  key={b.id}
+                  headerTitle={b.user_profiles?.full_name || 'Anonymous'}
+                  headerSubtitle={b.tour_schedules?.tours?.title}
+                  headerBadge={
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
+                      b.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' : 
+                      b.status === 'pending' ? 'bg-amber-100 text-amber-800' :
+                      b.status === 'canceled' ? 'bg-red-100 text-red-800' :
+                      'bg-slate-100 text-slate-800'
+                    }`}>
+                      {b.status}
+                    </span>
+                  }
+                  rows={[
+                    {
+                      label: 'Date',
+                      value: b.tour_schedules?.start_date ? new Date(b.tour_schedules.start_date).toLocaleDateString() : 'N/A'
+                    }
+                  ]}
+                />
+              ))}
+            </div>
+
+            {/* Desktop View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
               <tr>
                 <th className="px-6 py-4">Traveler</th>
@@ -147,6 +178,8 @@ export default async function OrganizerDashboard() {
               ))}
             </tbody>
           </table>
+          </div>
+          </>
         )}
       </div>
     </div>

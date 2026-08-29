@@ -260,11 +260,19 @@ export async function deleteVehicle(vehicleId: string) {
 /**
  * Helper query for Tour Organizers looking for available vehicles.
  */
-export async function getAvailableVehicles(date: string, requiredCapacity: number) {
+export async function getAvailableVehicles(startDate: string, endDate: string, requiredCapacity: number) {
   try {
-    const { supabase } = await requireSession();
+    const { profile, supabase } = await requireSession();
+    
+    // Fetch user's organizer profile to get favorites
+    const { data: organizerProfile } = await supabase
+      .from('organizer_profiles')
+      .select('id')
+      .eq('user_profile_id', profile.id)
+      .single();
 
-    const { data, error } = await supabase
+    // 1. Fetch all active vehicles with enough capacity
+    const { data: vehicles, error: vError } = await supabase
       .from('vehicles')
       .select(`
         id,
@@ -284,14 +292,97 @@ export async function getAvailableVehicles(date: string, requiredCapacity: numbe
       .eq('status', 'active')
       .is('deleted_at', null);
 
-    if (error) {
-      captureException(error, { action: 'getAvailableVehicles', date, requiredCapacity });
+    if (vError || !vehicles) {
+      captureException(vError, { action: 'getAvailableVehicles fetch vehicles', startDate, endDate });
       return [];
     }
 
-    return data || [];
+    if (vehicles.length === 0) return [];
+
+    // 2. Fetch all overlapping availability blocks for these dates
+    const { data: blocks, error: bError } = await supabase
+      .from('vehicle_availability')
+      .select('vehicle_id')
+      .lte('start_date', endDate)
+      .gte('end_date', startDate);
+
+    if (bError) {
+      captureException(bError, { action: 'getAvailableVehicles fetch blocks', startDate, endDate });
+      return [];
+    }
+
+    // 3. Fetch organizer favorites
+    const { data: favoritesData } = await supabase
+      .from('organizer_favorite_vehicles')
+      .select('vehicle_id')
+      .eq('organizer_id', organizerProfile?.id || '');
+      
+    const favoriteVehicleIds = new Set(favoritesData?.map(f => f.vehicle_id) || []);
+
+    // 4. Filter out vehicles that have any overlapping blocks and map is_favorite
+    const blockedVehicleIds = new Set(blocks?.map(b => b.vehicle_id) || []);
+    const availableVehicles = vehicles
+      .filter(v => !blockedVehicleIds.has(v.id))
+      .map(v => ({
+        ...v,
+        is_favorite: favoriteVehicleIds.has(v.id)
+      }));
+
+    return availableVehicles;
   } catch (err: any) {
     captureException(err, { action: 'getAvailableVehicles exception' });
     return [];
+  }
+}
+
+/**
+ * Toggle a vehicle in the organizer's favorites list.
+ */
+export async function toggleFavoriteVehicle(vehicleId: string) {
+  try {
+    const { profile, supabase } = await requireSession();
+
+    const { data: organizerProfile } = await supabase
+      .from('organizer_profiles')
+      .select('id')
+      .eq('user_profile_id', profile.id)
+      .single();
+
+    if (!organizerProfile) {
+      return { success: false, error: 'Only organizers can favorite vehicles.' };
+    }
+
+    // Check if it's already favorited
+    const { data: existing } = await supabase
+      .from('organizer_favorite_vehicles')
+      .select('id')
+      .eq('organizer_id', organizerProfile.id)
+      .eq('vehicle_id', vehicleId)
+      .single();
+
+    if (existing) {
+      // Remove favorite
+      const { error } = await supabase
+        .from('organizer_favorite_vehicles')
+        .delete()
+        .eq('id', existing.id);
+        
+      if (error) throw error;
+      return { success: true, is_favorite: false };
+    } else {
+      // Add favorite
+      const { error } = await supabase
+        .from('organizer_favorite_vehicles')
+        .insert({
+          organizer_id: organizerProfile.id,
+          vehicle_id: vehicleId
+        });
+        
+      if (error) throw error;
+      return { success: true, is_favorite: true };
+    }
+  } catch (err: any) {
+    captureException(err, { action: 'toggleFavoriteVehicle exception' });
+    return { success: false, error: err.message || 'Failed to toggle favorite.' };
   }
 }

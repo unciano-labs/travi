@@ -7,19 +7,9 @@ import { z } from 'zod';
 import { requireSession } from '@/lib/auth-helpers';
 import { assertRateLimit, getClientIp } from '@/lib/ratelimit';
 import { captureException } from '@/lib/logger';
+import { notifySuperAdmin } from './notifications';
 
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1, 'Password is required'),
-});
-
-const signupSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  role: z.enum(['traveler', 'organizer', 'transporter']).default('traveler'),
-  firstName: z.string().min(1, 'First name is required'),
-  lastName: z.string().min(1, 'Last name is required'),
-});
+import { loginSchema, signupSchema, addAccountTypeSchema } from '@/lib/schemas/auth';
 
 export async function loginAsAdmin(formData: FormData) {
   let success = false;
@@ -228,6 +218,13 @@ export async function signupUser(formData: FormData) {
             website_role_id: websiteRoleData.id
           });
         }
+        
+        // Notify SuperAdmin
+        await notifySuperAdmin(
+          'New Account Created',
+          `${validated.firstName} ${validated.lastName} (${validated.email}) created a new ${validated.role} account.`,
+          'account_created'
+        );
       }
     }
 
@@ -271,9 +268,7 @@ export async function getUserRoles() {
   return data.map((r: any) => r.website_roles.role);
 }
 
-const addAccountTypeSchema = z.object({
-  role: z.enum(['traveler', 'organizer', 'transporter'])
-});
+
 
 export async function addAccountType(role: string) {
   let success = false;

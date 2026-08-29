@@ -5,6 +5,7 @@ import { ArrowLeft, Calendar, Users, List, Info, CalendarDays } from 'lucide-rea
 import TourForm from '@/components/dashboard/TourForm';
 import ScheduleForm from '@/components/dashboard/ScheduleForm';
 import SchedulesCalendar from '@/components/dashboard/SchedulesCalendar';
+import TransportManager from '@/components/dashboard/TransportManager';
 
 export default async function EditTourPage(props: { 
   params: Promise<{ id: string }>,
@@ -54,32 +55,42 @@ export default async function EditTourPage(props: {
     redirect('/dashboard/organizer/tours');
   }
 
-  // Fetch transport booking if any
-  let transportBooking = null;
-  if (tour.transport_type === 'external_transporter') {
-    const { data: tb } = await supabase
-      .from('transport_bookings')
-      .select('vehicle_id, pickup_location, dropoff_location, pickup_datetime')
-      .eq('tour_id', tour.id)
-      .maybeSingle();
-      
-    if (tb) {
-      transportBooking = tb;
-    }
-  }
-
-  // Fetch schedules
+  // Fetch schedules with their associated transport bookings
   const { data: schedules } = await supabase
     .from('tour_schedules')
-    .select('*')
+    .select('*, transport_bookings(*, vehicle:vehicles(name, photos, vehicle_type, seat_capacity), transporter:transporter_profiles(company_name, display_name)), bookings(seats, status)')
     .eq('tour_id', id)
     .order('start_date', { ascending: true });
+
+  // Filter transport_bookings to only include the latest active one
+  const schedulesWithBookings = schedules?.map(schedule => {
+    let activeBooking = null;
+    if (schedule.transport_bookings && schedule.transport_bookings.length > 0) {
+      // Sort to get the latest first
+      const sorted = schedule.transport_bookings.sort((a: any, b: any) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      activeBooking = sorted[0]; // Get the latest one
+    }
+    
+    // Calculate total booked seats (excluding canceled and refunded)
+    const booked_count = schedule.bookings?.reduce((acc: number, b: any) => {
+      if (['pending', 'confirmed', 'completed'].includes(b.status)) {
+        return acc + b.seats;
+      }
+      return acc;
+    }, 0) || 0;
+    
+    return { ...schedule, transport_booking: activeBooking, booked_count };
+  });
 
   // Format initialData for the form
   const initialData = {
     id: tour.id,
     title: tour.title,
     description: tour.description,
+    city: tour.city,
+    province: tour.province,
     location: tour.location,
     price_per_person: tour.price_per_person,
     duration_days: tour.duration_days,
@@ -95,7 +106,6 @@ export default async function EditTourPage(props: {
     longitude: tour.longitude,
     status: tour.status,
     tour_itineraries: tour.tour_itineraries,
-    transport_booking: transportBooking || undefined,
   };
 
   return (
@@ -116,13 +126,13 @@ export default async function EditTourPage(props: {
       <div className="flex gap-2 border-b border-slate-200">
         <Link 
           href={`/dashboard/organizer/tours/${id}/edit?tab=details`}
-          className={`flex items-center gap-2 px-6 py-3 border-b-2 transition-colors font-medium text-sm ${tab === 'details' ? 'border-coral-600 text-coral-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+          className={`flex items-center gap-2 px-6 py-3 border-b-2 transition-colors font-medium text-sm ${tab === 'details' ? 'border-coral-500 text-coral-500' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
         >
           <Info className="w-4 h-4" /> Tour Details
         </Link>
         <Link 
           href={`/dashboard/organizer/tours/${id}/edit?tab=schedules`}
-          className={`flex items-center gap-2 px-6 py-3 border-b-2 transition-colors font-medium text-sm ${tab === 'schedules' ? 'border-coral-600 text-coral-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+          className={`flex items-center gap-2 px-6 py-3 border-b-2 transition-colors font-medium text-sm ${tab === 'schedules' ? 'border-coral-500 text-coral-500' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
         >
           <CalendarDays className="w-4 h-4" /> Schedules
         </Link>
@@ -139,7 +149,7 @@ export default async function EditTourPage(props: {
                 key={editScheduleId || 'new'}
                 tourId={id} 
                 basePrice={tour.price_per_person} 
-                initialData={editScheduleId ? schedules?.find(s => s.id === editScheduleId) : undefined} 
+                initialData={editScheduleId ? schedulesWithBookings?.find(s => s.id === editScheduleId) : undefined} 
               />
             </div>
 
@@ -165,11 +175,11 @@ export default async function EditTourPage(props: {
                 
                 {calendarView === 'calendar' ? (
                   <div className="p-4">
-                    <SchedulesCalendar schedules={schedules || []} tourId={id} />
+                    <SchedulesCalendar schedules={schedulesWithBookings || []} tourId={id} />
                   </div>
                 ) : (
                   <>
-                    {(!schedules || schedules.length === 0) ? (
+                    {(!schedulesWithBookings || schedulesWithBookings.length === 0) ? (
                       <div className="p-12 text-center text-slate-500">
                         <Calendar className="w-12 h-12 mx-auto text-slate-300 mb-3" />
                         <p>No schedules have been added yet.</p>
@@ -177,45 +187,58 @@ export default async function EditTourPage(props: {
                       </div>
                     ) : (
                       <div className="divide-y divide-slate-100">
-                        {schedules.map((schedule) => {
+                        {schedulesWithBookings.map((schedule) => {
                           const start = new Date(schedule.start_date);
                           const end = new Date(schedule.end_date);
                           const isPast = end < new Date();
                           
                           return (
-                            <div key={schedule.id} className={`p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${isPast ? 'bg-slate-50 opacity-75' : ''}`}>
-                              <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                  <h3 className="font-bold text-slate-900 text-lg">
-                                    {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                    {' - '}
-                                    {end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                  </h3>
-                                  {schedule.status === 'open' && !isPast && <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Open</span>}
-                                  {schedule.status === 'full' && <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Full</span>}
-                                  {schedule.status === 'cancelled' && <span className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Cancelled</span>}
-                                  {isPast && <span className="bg-slate-200 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Past</span>}
+                            <div key={schedule.id} className={`p-6 flex flex-col items-start gap-4 ${isPast ? 'bg-slate-50 opacity-75' : ''}`}>
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-4">
+                                <div>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h3 className="font-bold text-slate-900 text-lg">
+                                      {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                      {' - '}
+                                      {end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </h3>
+                                    {schedule.status === 'open' && !isPast && <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Open</span>}
+                                    {schedule.status === 'full' && <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Full</span>}
+                                    {schedule.status === 'cancelled' && <span className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Cancelled</span>}
+                                    {isPast && <span className="bg-slate-200 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Past</span>}
+                                  </div>
+                                  <div className="flex items-center gap-4 text-sm text-slate-500 font-medium">
+                                    <span className="flex items-center gap-1"><Users className="w-4 h-4"/> {schedule.booked_count} / {schedule.capacity} Booked</span>
+                                    {schedule.price_per_person && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                        {schedule.original_price && (
+                                          <span className="line-through text-green-600 opacity-70">₱{schedule.original_price}</span>
+                                        )}
+                                        Promo: ₱{schedule.price_per_person}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-4 text-sm text-slate-500 font-medium">
-                                  <span className="flex items-center gap-1"><Users className="w-4 h-4"/> {schedule.booked_count} / {schedule.capacity} Booked</span>
-                                  {schedule.price_per_person && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                                      {schedule.original_price && (
-                                        <span className="line-through text-green-600 opacity-70">₱{schedule.original_price}</span>
-                                      )}
-                                      Promo: ₱{schedule.price_per_person}
-                                    </span>
-                                  )}
+                                
+                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                  <Link href={`?tab=schedules&view=list&editScheduleId=${schedule.id}`} className="w-full sm:w-auto text-center px-4 py-2 border border-slate-200 text-slate-600 font-medium rounded-lg hover:bg-slate-50 transition-colors text-sm">
+                                    Edit
+                                  </Link>
+                                  <Link href={`/dashboard/organizer/tours/${id}/schedules/${schedule.id}`} className="w-full sm:w-auto text-center px-4 py-2 bg-slate-900 text-white font-medium rounded-lg hover:bg-slate-800 transition-colors text-sm">
+                                    View Bookings
+                                  </Link>
                                 </div>
                               </div>
                               
-                              <div className="flex items-center gap-2 w-full sm:w-auto">
-                                <Link href={`?tab=schedules&view=list&editScheduleId=${schedule.id}`} className="w-full sm:w-auto text-center px-4 py-2 border border-slate-200 text-slate-600 font-medium rounded-lg hover:bg-slate-50 transition-colors text-sm">
-                                  Edit
-                                </Link>
-                                <Link href={`/dashboard/organizer/tours/${id}/schedules/${schedule.id}`} className="w-full sm:w-auto text-center px-4 py-2 bg-slate-900 text-white font-medium rounded-lg hover:bg-slate-800 transition-colors text-sm">
-                                  View Bookings
-                                </Link>
+                              <div className="w-full pt-3 border-t border-slate-100 flex items-center justify-between">
+                                <TransportManager
+                                  tourScheduleId={schedule.id}
+                                  startDate={schedule.start_date}
+                                  endDate={schedule.end_date}
+                                  capacity={schedule.capacity}
+                                  transportType={schedule.transport_type}
+                                  existingRequest={schedule.transport_booking}
+                                />
                               </div>
                             </div>
                           );

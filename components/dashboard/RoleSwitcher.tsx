@@ -1,15 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
 import { getUserRoles, addAccountType } from '@/actions/auth';
-import { ChevronDown, Loader2 } from 'lucide-react';
+import { ChevronDown, Loader2, Compass, Briefcase, Car, Plus, Check } from 'lucide-react';
 import Link from 'next/link';
 
 const ALL_ROLES = [
-  { id: 'traveler', label: 'Traveler' },
-  { id: 'organizer', label: 'Organizer' },
-  { id: 'transporter', label: 'Transporter' },
+  { id: 'traveler', label: 'Traveler', icon: Compass, description: 'Explore & book tours' },
+  { id: 'organizer', label: 'Organizer', icon: Briefcase, description: 'Manage tour packages' },
+  { id: 'transporter', label: 'Transporter', icon: Car, description: 'Manage fleet & vehicles' },
 ];
 
 export function RoleSwitcher({ currentRole }: { currentRole: string }) {
@@ -49,45 +48,89 @@ export function RoleSwitcher({ currentRole }: { currentRole: string }) {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-50">
-          <div className="px-4 py-2 border-b border-slate-100 mb-2">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Switch Account</p>
+        <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] border border-slate-100 py-3 z-50 origin-top-right transition-all">
+          <div className="px-4 pb-3 border-b border-slate-100 mb-2">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Switch Account</p>
           </div>
           
           {loading ? (
-            <div className="px-4 py-4 flex justify-center">
+            <div className="px-4 py-8 flex justify-center">
               <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
             </div>
           ) : (
-            ALL_ROLES.map((roleDef) => {
-              const hasRole = roles.includes(roleDef.id);
-              const isActive = currentRole === roleDef.id;
+            <div className="space-y-1 px-2">
+              {ALL_ROLES.map((roleDef) => {
+                const hasRole = roles.includes(roleDef.id);
+                const isActive = currentRole === roleDef.id;
+                const Icon = roleDef.icon;
 
-              if (hasRole) {
-                return (
-                  <Link
-                    key={roleDef.id}
-                    href={`/dashboard/${roleDef.id}`}
-                    onClick={() => setIsOpen(false)}
-                    className={`block px-4 py-2 text-sm ${isActive ? 'bg-coral/10 text-coral font-medium' : 'text-slate-700 hover:bg-slate-50'}`}
-                  >
-                    {roleDef.label} Account {isActive && '(Active)'}
-                  </Link>
-                );
-              } else {
-                return (
-                  <button
-                    key={roleDef.id}
-                    onClick={() => handleAddRole(roleDef.id)}
-                    disabled={addingRole !== null}
-                    className="w-full text-left px-4 py-2 text-sm text-coral hover:bg-slate-50 flex items-center justify-between"
-                  >
-                    <span>Add {roleDef.label} Account</span>
-                    {addingRole === roleDef.id && <Loader2 className="w-3 h-3 animate-spin" />}
-                  </button>
-                );
-              }
-            })
+                if (hasRole) {
+                  return (
+                    <Link
+                      key={roleDef.id}
+                      href={`/dashboard/${roleDef.id}`}
+                      onClick={() => setIsOpen(false)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors group ${
+                        isActive 
+                          ? 'bg-coral-50/50' 
+                          : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-md ${isActive ? 'bg-coral-100 text-coral-600' : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200'}`}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="text-left">
+                          <p className={`text-sm font-semibold ${isActive ? 'text-coral-700' : 'text-slate-700'}`}>
+                            {roleDef.label}
+                          </p>
+                          <p className="text-[11px] text-slate-500 leading-none mt-0.5">{roleDef.description}</p>
+                        </div>
+                      </div>
+                      {isActive && <Check className="w-4 h-4 text-coral-600" />}
+                    </Link>
+                  );
+                }
+                return null;
+              })}
+
+              {roles.length > 0 && roles.length < 3 && (
+                <div className="my-2 border-t border-slate-100"></div>
+              )}
+
+              {ALL_ROLES.map((roleDef) => {
+                const hasRole = roles.includes(roleDef.id);
+                const Icon = roleDef.icon;
+
+                if (!hasRole) {
+                  return (
+                    <button
+                      key={roleDef.id}
+                      onClick={() => handleAddRole(roleDef.id)}
+                      disabled={addingRole !== null}
+                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-50 group text-left disabled:opacity-50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-md bg-slate-50 border border-dashed border-slate-300 text-slate-400 group-hover:border-coral group-hover:text-coral transition-colors">
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-slate-600 group-hover:text-coral transition-colors">
+                            Add {roleDef.label}
+                          </p>
+                        </div>
+                      </div>
+                      {addingRole === roleDef.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-coral" />
+                      ) : (
+                        <Plus className="w-4 h-4 text-slate-300 group-hover:text-coral transition-colors" />
+                      )}
+                    </button>
+                  );
+                }
+                return null;
+              })}
+            </div>
           )}
         </div>
       )}

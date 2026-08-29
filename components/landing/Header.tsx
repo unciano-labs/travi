@@ -1,11 +1,25 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, User } from "lucide-react";
+import { createClient } from "@/lib/supabase/browser";
 
 export default function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeHash, setActiveHash] = useState("#home");
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const supabase = createClient();
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        const { data: profile } = await supabase.from('profiles').select('avatar_url, full_name').eq('id', authUser.id).single();
+        setUser({ ...authUser, profile });
+      }
+    };
+    fetchUser();
+  }, []);
 
   useEffect(() => {
     const onScroll = () => {
@@ -64,10 +78,20 @@ export default function Header() {
             </nav>
 
             <div className="hidden lg:flex items-center gap-3">
-              <a href="/login" className={`text-sm font-semibold ${scrolled ? 'text-slate-600' : 'text-white'}`}>Sign In</a>
-              <a href="#contact" className="bg-brand hover:bg-brand-dark transition-colors text-white text-sm font-bold px-5 py-2.5 rounded-xl shadow-card">
-                Get Started
-              </a>
+              {user ? (
+                <a href="/dashboard" className="flex items-center gap-2 group">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center overflow-hidden border ${scrolled ? 'bg-slate-100 border-slate-200' : 'bg-white/10 border-white/20'}`}>
+                    {user.profile?.avatar_url ? (
+                      <img src={user.profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <User size={16} className={`${scrolled ? 'text-slate-400 group-hover:text-brand' : 'text-white'}`} />
+                    )}
+                  </div>
+                  <span className={`text-sm font-semibold ${scrolled ? 'text-slate-700' : 'text-white'}`}>Dashboard</span>
+                </a>
+              ) : (
+                <a href="/login" className={`text-sm font-semibold ${scrolled ? 'text-slate-600' : 'text-white'}`}>Sign In</a>
+              )}
             </div>
 
             <button 
@@ -96,7 +120,23 @@ export default function Header() {
                 </a>
               );
             })}
-            <a href="#contact" className="mt-4 bg-brand text-white text-center px-5 py-3 rounded-xl font-bold">Get Started</a>
+            <div className="border-t border-slate-100 my-1"></div>
+            {user ? (
+              <a href="/dashboard" className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-sky-50 text-brand-dark">
+                <div className="w-8 h-8 rounded-full bg-brand/10 flex items-center justify-center overflow-hidden">
+                  {user.profile?.avatar_url ? (
+                    <img src={user.profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <User size={16} className="text-brand" />
+                  )}
+                </div>
+                <span>Dashboard</span>
+              </a>
+            ) : (
+              <a href="/login" className="px-3 py-3 rounded-lg hover:bg-sky-50 hover:text-brand-dark text-slate-700">
+                Sign In
+              </a>
+            )}
           </nav>
         </div>
       )}

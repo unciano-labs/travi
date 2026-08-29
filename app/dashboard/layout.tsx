@@ -8,6 +8,7 @@ import {
   MapPin, Users, Bus, CalendarCheck, Calendar, Inbox, Star
 } from 'lucide-react';
 import { logoutUser } from '@/actions/auth';
+import { NotificationBell } from '@/components/dashboard/NotificationBell';
 
 import { RoleSwitcher } from '@/components/dashboard/RoleSwitcher';
 
@@ -21,6 +22,7 @@ const ROLE_NAV = {
     { name: 'Dashboard', href: '/dashboard/organizer', icon: Map },
     { name: 'My Tours', href: '/dashboard/organizer/tours', icon: MapPin },
     { name: 'Bookings', href: '/dashboard/organizer/bookings', icon: Users },
+    { name: 'Wallet', href: '/dashboard/organizer/wallet', icon: CreditCard },
     { name: 'Profile', href: '/dashboard/organizer/profile', icon: User },
   ],
   transporter: [
@@ -28,6 +30,7 @@ const ROLE_NAV = {
     { name: 'My Vehicles', href: '/dashboard/transporter/vehicles', icon: Bus },
     { name: 'Availability', href: '/dashboard/transporter/availability', icon: Calendar },
     { name: 'Requests', href: '/dashboard/transporter/requests', icon: Inbox },
+    { name: 'Wallet', href: '/dashboard/transporter/wallet', icon: CreditCard },
     { name: 'Reviews', href: '/dashboard/transporter/reviews', icon: Star },
     { name: 'Profile', href: '/dashboard/transporter/profile', icon: User },
   ]
@@ -110,6 +113,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
           
           <div className="flex items-center gap-4 ml-auto">
+            <NotificationBell />
             <RoleSwitcher currentRole={currentRole} />
           </div>
         </header>

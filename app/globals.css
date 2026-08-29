@@ -27,6 +27,11 @@
     @apply bg-white text-slate-800 antialiased font-sans;
   }
   
+  /* Enforce pointer (hand icon) on all clickable elements */
+  a, button, [role="button"], [role="link"], [role="menuitem"], select, summary, label, input[type="submit"], input[type="button"], input[type="checkbox"], input[type="radio"] {
+    cursor: pointer;
+  }
+  
   ::selection {
     background: #0EA5E9;
     color: #fff;

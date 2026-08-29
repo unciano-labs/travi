@@ -12,9 +12,9 @@ export default function TourBookingCard({ tour }: { tour: any }) {
   const [isBooking, setIsBooking] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   
-  // Filter active schedules
+  // Filter active schedules that have available capacity
   const activeSchedules = tour.schedules
-    ?.filter((s: any) => s.status === 'open' && new Date(s.start_date) > new Date())
+    ?.filter((s: any) => s.status === 'open' && new Date(s.start_date) > new Date() && (s.capacity - (s.booked_count || 0)) > 0)
     .sort((a: any, b: any) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()) || [];
 
   const [selectedSchedule, setSelectedSchedule] = useState<any>(activeSchedules[0] || null);
@@ -46,8 +46,8 @@ export default function TourBookingCard({ tour }: { tour: any }) {
     
     const result = await createBooking(selectedSchedule.id, seats);
     
-    if (result.success) {
-      router.push(`/tours/${tour.slug}/booking/${result.bookingId}`);
+    if (result.success && result.checkoutUrl) {
+      window.location.href = result.checkoutUrl;
     } else {
       setIsBooking(false);
       if (result.code === 'unauthorized') {
@@ -209,6 +209,8 @@ export default function TourBookingCard({ tour }: { tour: any }) {
             <Loader2 className="w-5 h-5 animate-spin" />
             Processing...
           </>
+        ) : activeSchedules.length === 0 ? (
+          'Sold Out'
         ) : !selectedSchedule ? (
           'Select a date' 
         ) : remainingSlots <= 0 ? (
@@ -219,7 +221,7 @@ export default function TourBookingCard({ tour }: { tour: any }) {
         </span>
       </button>
       <p className="text-center text-xs text-slate-400 mt-4 font-medium flex items-center justify-center gap-1">
-        🔒 You won't be charged yet
+        🔒 Secure payment via PayMongo
       </p>
     </div>
   );

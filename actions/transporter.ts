@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/auth-helpers';
 import { captureException } from '@/lib/logger';
 import { logAdminAudit } from '@/lib/audit';
+import { notifySuperAdmin } from './notifications';
 
 export async function createTransporterProfile(formData: FormData) {
   try {
@@ -59,6 +60,13 @@ export async function createTransporterProfile(formData: FormData) {
       'transporter_profiles',
       newProfile.id,
       { transporterType, companyName, displayName }
+    );
+    
+    await notifySuperAdmin(
+      'New Transporter Profile',
+      `A new transporter profile was created by ${displayName || companyName}.`,
+      'transporter_created',
+      '/admin/transporters'
     );
 
     revalidatePath('/dashboard/transporter');

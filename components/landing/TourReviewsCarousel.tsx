@@ -114,7 +114,7 @@ export default function TourReviewsCarousel({ reviews }: TourReviewsCarouselProp
                 className="flex-none w-[85vw] sm:w-[calc(50%-12px)] snap-center sm:snap-start bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow"
               >
                 <div className="flex items-center gap-4 mb-4">
-                  <Image
+                  <Image loading="lazy"
                     src={avatarUrl}
                     alt={fullName}
                     width={48}

@@ -4,7 +4,7 @@ import TourListClient from './TourListClient';
 import { TourCardsGridSkeleton } from './TourCardSkeleton';
 
 async function TourListLoader() {
-  const { tours, hasMore } = await getPublicTours(0, 6);
+  const { tours, hasMore } = await getPublicTours(0, 100);
   return <TourListClient initialTours={tours} initialHasMore={hasMore} />;
 }
 

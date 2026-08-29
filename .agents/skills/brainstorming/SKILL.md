@@ -20,7 +20,7 @@ The **Planning Agent** is invoked *before* starting implementation on any new fe
    - Verify table schemas, columns, and foreign keys against [`DATABASE.md`](file:///c:/Users/webca/Workstation/Orgy/DATABASE.md).
    - Verify endpoints, server actions, payloads, and response types against [`API.md`](file:///c:/Users/webca/Workstation/Orgy/API.md).
    - Check role authorization boundaries against [`AGENTS.md`](file:///c:/Users/webca/Workstation/Orgy/AGENTS.md).
-3. **Draft Implementation Spec**: Generate an `implementation_plan.md` artifact detailing components, server actions, DB migrations, security checks, and verification steps.
+3. **Draft Implementation Spec**: Provide the implementation plan directly in the chat conversation. Do NOT generate an `implementation_plan.md` artifact or trigger any execution steps, as this agent is strictly for brainstorming and planning.
 
 ---
 
@@ -51,7 +51,7 @@ When questions are needed, group them concisely into:
 - **Data Lifecycles**: Is soft delete (`status: 'archived'`) required? Are audit logs needed?
 
 ### Step 3: Spec Drafting Template
-Generate an implementation plan structured as:
+Provide the implementation plan directly in the chat, structured as:
 1. **User Story & Acceptance Criteria**: What does "done" look like?
 2. **Data & Schema Changes**: SQL migration diffs with RLS policies.
 3. **Server Action & API Contracts**: Zod schemas, auth helpers (`requireSession`, `assertRole`), rate limits, and audit logs.

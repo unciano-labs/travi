@@ -2,6 +2,7 @@ import { Bus, CalendarCheck, Map, Star, Clock, Plus, Calendar, Inbox, ArrowRight
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
 
 export default async function TransporterDashboard() {
   const supabase = await createClient();
@@ -193,8 +194,59 @@ export default async function TransporterDashboard() {
             <p className="text-xs text-slate-400">Make sure your vehicles are active and availability is set to attract Tour Organizers.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+          <>
+            {/* Mobile View */}
+            <div className="block md:hidden p-4 space-y-4">
+              {recentRequests.map((r: any) => {
+                const isPending = r.status === 'pending';
+                const isAccepted = r.status === 'accepted';
+                const isCompleted = r.status === 'completed';
+                return (
+                  <LazyMobileCard
+                    key={r.id}
+                    headerTitle={r.organizer?.company_name || r.organizer?.display_name || 'Tour Organizer'}
+                    headerSubtitle={<span className="font-mono text-[10px]">Route: <span className="text-slate-600">{r.pickup_location} → {r.dropoff_location}</span></span>}
+                    headerBadge={
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${
+                        isPending ? 'bg-amber-100 text-amber-800' : 
+                        isAccepted ? 'bg-blue-100 text-blue-800' : 
+                        isCompleted ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {r.status.toUpperCase()}
+                      </span>
+                    }
+                    rows={[
+                      {
+                        label: 'Vehicle',
+                        value: r.vehicle?.name || 'Any Available',
+                        fullWidth: true
+                      },
+                      {
+                        label: 'Pickup Date',
+                        value: new Date(r.pickup_datetime).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          timeZone: 'UTC'
+                        })
+                      }
+                    ]}
+                    actions={
+                      <Link
+                        href="/dashboard/transporter/requests"
+                        className="text-xs font-bold text-coral hover:underline"
+                      >
+                        Manage
+                      </Link>
+                    }
+                  />
+                );
+              })}
+            </div>
+
+            {/* Desktop View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold text-xs uppercase tracking-wider">
                 <tr>
                   <th className="px-6 py-4">Organizer</th>
@@ -224,6 +276,7 @@ export default async function TransporterDashboard() {
                           month: 'short',
                           day: 'numeric',
                           year: 'numeric',
+                          timeZone: 'UTC'
                         })}
                       </td>
                       <td className="px-6 py-4 text-slate-600 text-xs max-w-xs truncate">
@@ -257,7 +310,8 @@ export default async function TransporterDashboard() {
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </div>
     </div>

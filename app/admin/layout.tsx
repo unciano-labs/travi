@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, Users, Bus, Map, 
-  CreditCard, Star, Settings, LogOut, Menu, X 
+  CreditCard, Star, Settings, LogOut, Menu, X, Banknote
 } from 'lucide-react';
 import { logoutAdmin } from '@/actions/auth';
+import AdminNotificationBell from '@/components/admin/AdminNotificationBell';
 
 const navigation = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
@@ -15,6 +16,7 @@ const navigation = [
   { name: 'Transporters', href: '/admin/transporters', icon: Bus },
   { name: 'Tours', href: '/admin/tours', icon: Map },
   { name: 'Bookings', href: '/admin/bookings', icon: CreditCard },
+  { name: 'Payouts', href: '/admin/payouts', icon: Banknote },
   { name: 'Reviews', href: '/admin/reviews', icon: Star },
   { name: 'Settings', href: '/admin/settings', icon: Settings },
 ];
@@ -94,6 +96,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
           
           <div className="flex items-center gap-4 ml-auto">
+            <AdminNotificationBell />
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-brand-navy text-white flex items-center justify-center font-bold text-sm">
                 A

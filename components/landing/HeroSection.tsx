@@ -1,104 +1,311 @@
 "use client";
-import { useState, useEffect } from "react";
-import Image from "next/image";
-import { Search, Calendar, MapPin, Plus, Minus } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import "./hero.css"; // We extracted the reference CSS here
+import { MapPin, Calendar, Users, Search, Minus, Plus } from "lucide-react";
+
+const DESTS = [
+  { name: "Palawan", tag: "El Nido, Coron & island hopping", tours: 58, price: 49, type: "dest" },
+  { name: "Siargao", tag: "Surf, lagoons & Naked Island", tours: 34, price: 39, type: "dest" },
+  { name: "Boracay", tag: "Sunset sails & white beach", tours: 41, price: 45, type: "dest" },
+  { name: "Cebu", tag: "Canyoneering & whale sharks", tours: 47, price: 55, type: "dest" },
+  { name: "Bohol", tag: "Chocolate Hills & tarsiers", tours: 29, price: 42, type: "dest" },
+  { name: "Sagada", tag: "Cloud seas & cave treks", tours: 18, price: 59, type: "dest" },
+  { name: "Batanes", tag: "Rolling hills & lighthouses", tours: 12, price: 89, type: "dest" },
+  { name: "Vigan", tag: "Heritage streets & calesa", tours: 10, price: 35, type: "dest" },
+  { name: "Island hopping", tag: "Activity · Palawan, Siargao & more", tours: 74, price: 39, type: "act" },
+  { name: "Canyoneering", tag: "Activity · Cebu (Kawasan)", tours: 11, price: 55, type: "act" },
+  { name: "Scuba diving", tag: "Activity · certified & discover", tours: 23, price: 70, type: "act" },
+  { name: "Sunset cruise", tag: "Activity · Boracay & Manila Bay", tours: 16, price: 45, type: "act" }
+];
 
 export default function HeroSection() {
-  const [pax, setPax] = useState(2);
-  const [location, setLocation] = useState("");
   const [isMounted, setIsMounted] = useState(false);
+  const [destQuery, setDestQuery] = useState("");
+  const [showDestList, setShowDestList] = useState(false);
+  const [travelers, setTravelers] = useState(2);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [isPaused, setIsPaused] = useState(true); // default ambient video playing, wait, isPaused=false for playing
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsMounted(true), 10);
-    return () => clearTimeout(timer);
+    setTimeout(() => setIsMounted(true), 0);
+    // Play video after mount
+    if (videoRef.current) {
+      videoRef.current.play().then(() => setIsPaused(false)).catch(() => setIsPaused(true));
+    }
   }, []);
 
-  const handleQuickSearch = (loc: string) => {
-    setLocation(loc);
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!destQuery.trim()) {
+      alert("Please enter a destination");
+      return;
+    }
+    // Perform search
+    console.log("Searching for:", { destQuery, startDate, endDate, travelers });
   };
 
+  const toggleVideo = () => {
+    if (videoRef.current) {
+      if (videoRef.current.paused) {
+        videoRef.current.play();
+        setIsPaused(false);
+      } else {
+        videoRef.current.pause();
+        setIsPaused(true);
+      }
+    }
+  };
+
+  const filteredDests = destQuery.trim() === "" 
+    ? DESTS.slice(0, 5) 
+    : DESTS.filter(d => d.name.toLowerCase().includes(destQuery.toLowerCase()) || d.tag.toLowerCase().includes(destQuery.toLowerCase())).slice(0, 6);
+
+  if (!isMounted) return <div className="hero bg-brand-navy min-h-screen"></div>;
+
   return (
-    <section id="home" className="relative bg-brand-navy overflow-hidden min-h-screen flex items-center">
-      <Image 
-        src="https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?auto=format&fit=crop&w=2000&q=80" 
-        alt="El Nido Palawan" 
-        fill
-        priority
-        sizes="100vw"
-        className="object-cover" 
+    <section className="hero" aria-labelledby="heroTitle">
+      <img
+        className="hero-bg"
+        src="https://image.qwenlm.ai/public_source/0d03f5cf-0e10-4545-8c7b-372335c79b34/1a5690047-a1fe-46e1-8188-85cabaf33afd.png"
+        alt=""
+        loading="lazy"
+        decoding="async"
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-brand-navy/75 via-brand-navy/60 to-brand-navy/85" />
-      
-      <div className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 lg:pt-32 pb-16">
-        <div className={`max-w-2xl transition-all duration-700 ${isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-          <p className="text-sky-300 text-sm font-bold uppercase tracking-widest mb-3">🇵🇭 Philippines Tour Marketplace</p>
-          <h1 className="font-display font-extrabold leading-tight text-4xl sm:text-5xl lg:text-6xl">
-            <span className="text-shimmer">Discover the</span><br/>
-            <span className="text-white">Philippines</span><br/>
-            <em className="text-coral not-italic font-display">Your Way</em>
+      <div className="hero-overlay" aria-hidden="true"></div>
+
+      <div className="container hero-inner">
+        <div className="hero-stack">
+          <p className="eyebrow">🇵🇭 Philippines tour marketplace</p>
+          <h1 id="heroTitle">
+            The Philippines, <em>minus the planning stress.</em>
           </h1>
-          <p className="text-slate-300 mt-5 max-w-lg text-sm sm:text-base leading-relaxed">
-            Browse curated local tour packages from trusted organizers. From island hopping in Palawan to mountain treks in Benguet — find your perfect adventure.
+          <p className="sub">
+            Compare and book 400+ tours run by vetted local experts — from Palawan island-hopping
+            to Sagada treks. Best price guaranteed, free cancellation up to 24 hours.
           </p>
-        </div>
 
-        <div className={`mt-10 max-w-3xl transition-all duration-700 delay-100 ${isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-          <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-1.5 shadow-lift">
-            <form onSubmit={(e) => e.preventDefault()}>
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_auto] divide-y sm:divide-y-0 sm:divide-x divide-white/15">
-                
-                <div className="flex items-center gap-3 px-5 py-4">
-                  <div className="shrink-0 grid place-items-center w-9 h-9 rounded-lg bg-sky-500/20 text-sky-300"><MapPin size={20} /></div>
-                  <div className="flex-1 min-w-0">
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-sky-200/80 mb-0.5">Where</label>
-                    <input type="text" placeholder="Palawan, Siargao..." value={location} onChange={e => setLocation(e.target.value)} className="w-full bg-transparent text-white placeholder:text-slate-400 font-semibold focus:outline-none text-sm" required />
-                  </div>
+          <div className="flex items-center gap-3 flex-wrap mb-6">
+            <div className="flex items-center">
+              <span className="w-8 h-8 rounded-full border-2 border-[#0A1B2A] flex items-center justify-center text-[10px] font-extrabold text-white bg-blue-500 z-30">JR</span>
+              <span className="w-8 h-8 rounded-full border-2 border-[#0A1B2A] flex items-center justify-center text-[10px] font-extrabold text-white bg-orange-500 -ml-2 z-20">KL</span>
+              <span className="w-8 h-8 rounded-full border-2 border-[#0A1B2A] flex items-center justify-center text-[10px] font-extrabold text-white bg-teal-500 -ml-2 z-10">MS</span>
+            </div>
+            <span className="stars flex gap-0.5 text-amber-400" aria-hidden="true">
+              {[1, 2, 3, 4, 5].map(i => (
+                <svg key={i} width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 17.3 18.2 21l-1.6-7 5.4-4.8-7.2-.6L12 2 9.2 8.6 2 9.2l5.4 4.8-1.6 7z" />
+                </svg>
+              ))}
+            </span>
+            <p className="text-sm font-bold text-white">
+              4.8/5 <span className="font-semibold text-slate-300">· 12,400+ verified reviews</span>
+            </p>
+          </div>
+
+          <form className="bg-white rounded-xl p-6 md:p-8 shadow-2xl flex flex-col gap-5 text-slate-800" id="bookingForm" role="search" aria-label="Search tours" onSubmit={handleSearch}>
+            <div className="relative">
+              <label htmlFor="destInput" className="flex items-center gap-1.5 text-sm font-bold text-brand mb-1.5">
+                <MapPin size={16} /> Where do you want to go?
+              </label>
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-brand">
+                  <MapPin size={18} />
                 </div>
+                <input
+                  id="destInput"
+                  role="combobox"
+                  aria-expanded={showDestList}
+                  aria-controls={showDestList ? "destList" : undefined}
+                  autoComplete="off"
+                  spellCheck="false"
+                  placeholder="Type a destination or activity (e.g., Palawan, Island Hopping)"
+                  className="w-full border border-slate-200 rounded-lg pl-10 pr-10 py-3 text-slate-700 font-medium focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-colors"
+                  value={destQuery}
+                  onChange={(e) => setDestQuery(e.target.value)}
+                  onFocus={() => setShowDestList(true)}
+                  onBlur={() => setTimeout(() => setShowDestList(false), 200)}
+                />
+                {destQuery && (
+                  <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" aria-label="Clear destination" onClick={() => setDestQuery("")}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+                      <path d="M6 6l12 12M18 6 6 18" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-1.5 font-medium">Try: Beach tours, Mountain trekking, or specific locations</p>
 
-                <div className="flex items-center gap-3 px-5 py-4">
-                  <div className="shrink-0 grid place-items-center w-9 h-9 rounded-lg bg-sky-500/20 text-sky-300"><Calendar size={20} /></div>
-                  <div className="flex-1 min-w-0">
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-sky-200/80 mb-0.5">Start Date</label>
-                    <input type="date" className="w-full bg-transparent text-white font-semibold focus:outline-none text-sm [color-scheme:dark]" required />
-                  </div>
+              {showDestList && (
+                <ul id="destList" className="absolute left-0 right-0 top-full mt-2 z-50 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto p-2">
+                  {filteredDests.length > 0 ? (
+                    filteredDests.map((d, i) => (
+                      <li key={i} role="option" aria-selected="false" className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-lg cursor-pointer" onClick={() => setDestQuery(d.name)}>
+                        <MapPin size={16} className="text-brand flex-shrink-0" />
+                        <span className="font-bold text-slate-800">{d.name}</span>
+                        <span className="text-xs text-slate-500 flex-1 truncate">{d.tag}</span>
+                        <span className="text-xs font-bold text-blue-600">from ${d.price}</span>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="p-3 text-sm text-slate-500 text-center">No suggestions found</li>
+                  )}
+                </ul>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-bold text-brand mb-1.5">
+                  <Calendar size={16} /> Travel Dates
+                </label>
+                <div className="relative flex items-center border border-slate-200 rounded-lg overflow-hidden focus-within:border-brand focus-within:ring-1 focus-within:ring-brand transition-colors">
+                  <input
+                    type="date"
+                    className="w-full pl-3 py-3.5 text-slate-700 font-medium focus:outline-none text-sm bg-transparent"
+                    value={startDate}
+                    min={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      if (endDate && e.target.value > endDate) setEndDate(e.target.value);
+                    }}
+                    required
+                  />
+                  <span className="text-slate-400 font-bold px-1 text-sm">➔</span>
+                  <input
+                    type="date"
+                    className="w-full pr-3 py-3.5 text-slate-700 font-medium focus:outline-none text-sm bg-transparent"
+                    value={endDate}
+                    min={startDate || new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    required
+                  />
                 </div>
+              </div>
 
-                <div className="flex items-center gap-3 px-5 py-4">
-                  <div className="shrink-0 grid place-items-center w-9 h-9 rounded-lg bg-sky-500/20 text-sky-300"><Calendar size={20} /></div>
-                  <div className="flex-1 min-w-0">
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-sky-200/80 mb-0.5">End Date</label>
-                    <input type="date" className="w-full bg-transparent text-white font-semibold focus:outline-none text-sm [color-scheme:dark]" required />
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-bold text-brand mb-1.5">
+                  <Users size={16} /> Travelers
+                </label>
+                <div className="flex items-center justify-between border border-slate-200 rounded-lg p-1.5 h-[50px]">
+                  <button type="button" className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-700 hover:bg-slate-200 transition-colors" onClick={() => setTravelers(Math.max(1, travelers - 1))} disabled={travelers <= 1}>
+                    <Minus size={14} />
+                  </button>
+                  <div className="font-bold text-slate-800">
+                    <span className="text-lg">{travelers}</span> <span className="font-medium text-sm text-slate-600">travelers</span>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-2 px-4 py-3">
-                  <div className="flex-1 min-w-0">
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-sky-200/80 mb-0.5">Travelers</label>
-                    <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => setPax(Math.max(1, pax - 1))} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center transition-colors"><Minus size={14}/></button>
-                      <input type="number" value={pax} readOnly className="w-8 bg-transparent text-white font-semibold text-center text-sm focus:outline-none" />
-                      <button type="button" onClick={() => setPax(pax + 1)} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center transition-colors"><Plus size={14}/></button>
-                    </div>
-                  </div>
-                  <button type="submit" className="shrink-0 bg-brand hover:bg-brand-dark hover:-translate-y-0.5 active:scale-95 transition-all text-white text-sm font-extrabold px-6 py-3.5 rounded-xl shadow-lg shadow-brand/20 flex items-center gap-2 group relative overflow-hidden">
-                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
-                    <span className="relative flex items-center gap-2"><Search size={16} /> Find My Adventure</span>
+                  <button type="button" className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-700 hover:bg-slate-200 transition-colors" onClick={() => setTravelers(Math.min(12, travelers + 1))} disabled={travelers >= 12}>
+                    <Plus size={14} />
                   </button>
                 </div>
-
               </div>
-            </form>
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-2 mt-4">
-            <span className="text-xs text-slate-300 font-medium">Popular:</span>
-            {['Palawan', 'Siargao', 'Batanes', 'Sagada', 'Boracay'].map(dest => (
-              <button key={dest} onClick={() => handleQuickSearch(dest)} className="text-xs bg-white/10 hover:bg-white/20 text-white font-semibold px-3 py-1.5 rounded-full transition-colors border border-white/20">
-                {dest}
-              </button>
-            ))}
+            </div>
+
+            <button type="submit" className="group w-full bg-gradient-to-r from-brand to-brand-dark hover:from-brand-dark hover:to-sky-700 shadow-[0_8px_20px_rgba(14,165,233,0.3)] hover:shadow-[0_12px_28px_rgba(14,165,233,0.5)] transform hover:-translate-y-0.5 text-white font-bold text-lg py-3.5 rounded-lg flex items-center justify-center gap-2 transition-all duration-300 mt-2">
+              <Search size={20} className="group-hover:scale-110 transition-transform duration-300" /> Find My Perfect Tour
+            </button>
+
+            <div className="flex flex-wrap items-center justify-between pt-6 border-t border-slate-100 gap-4">
+              <div className="flex items-center gap-4 md:gap-6 text-xs font-semibold text-slate-600">
+                <span className="flex items-center gap-1.5">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="text-brand" aria-hidden="true">
+                    <path d="m4 12.5 5 5L20 6.5" />
+                  </svg>
+                  Free cancellation
+                </span>
+                <span className="flex items-center gap-1.5 hidden sm:flex">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="text-brand" aria-hidden="true">
+                    <path d="m4 12.5 5 5L20 6.5" />
+                  </svg>
+                  Instant confirmation
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
+                <span className="hidden md:inline">Secure Payment:</span>
+                <div className="flex items-center gap-2">
+                  <div className="bg-white px-2 py-1.5 rounded flex items-center justify-center border border-slate-200 h-7 w-11 shadow-sm">
+                    <svg className="h-[10px] w-auto" viewBox="0 0 25.5 8.3" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M11 0l-1.7 8.3h2.6l1.7-8.3zm7-0.2c-1.3 0-2.3.4-2.8 1.1-.5.7-.6 1.3-.6 1.8 0 1 .8 1.5 1.5 1.8.7.3 1 .6 1 .9 0 .5-.6.7-1.1.7-.8 0-1.3-.1-1.8-.4l-.2-.1-.3 1.7c.5.2 1.3.4 2.1.4 2.3 0 3.8-1 3.8-2.6 0-.8-.4-1.5-1.5-2-.6-.3-1-.5-1-.8 0-.3.3-.6 1-.6.7 0 1.2.2 1.6.3l.2.1.3-1.7c-.5-.2-1.1-.4-1.9-.4zm-8.8 8.4h2.5L9.6 0H7.7c-.4 0-.7.2-.8.5l-3 7h-.1l-.1-.4-1.4-5.9c-.1-.4-.5-.6-.9-.6H0l.1.3c1 .2 2.1.6 2.8 1l.2.4 1.7 6h2.7l1.7-8.3zm15.1-8.3h-2c-.4 0-.7.1-.9.5L17.7 8.1h2.6l.5-1.4h3.1l.3 1.4h2.4L24.3-0.1h.1zM21 5.4l.7-1.9c0-.1.1-.2.1-.2.3.9 1 2.9 1 2.9H21z" fill="#1434CB"/>
+                    </svg>
+                  </div>
+                  <div className="bg-white px-2 py-1 rounded flex items-center justify-center border border-slate-200 h-7 w-11 shadow-sm">
+                    <svg className="h-[14px] w-auto" viewBox="0 0 36 24" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="12" cy="12" r="12" fill="#EB001B"/>
+                      <circle cx="24" cy="12" r="12" fill="#F79E1B" fillOpacity="0.85"/>
+                    </svg>
+                  </div>
+                  <div className="bg-white px-1.5 py-1 rounded flex items-center justify-center border border-slate-200 h-7 shadow-sm">
+                    <div className="flex items-center gap-1 font-bold text-[#0D3B66] text-[10px] tracking-tight">
+                      <svg className="h-3.5 w-3.5 text-[#E63946]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+                        <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+                        <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+                        <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+                        <circle cx="6.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+                        <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+                        <circle cx="17.5" cy="17.5" r="1" fill="currentColor" stroke="none" />
+                        <circle cx="6.5" cy="17.5" r="1" fill="currentColor" stroke="none" />
+                      </svg>
+                      QRPh
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </form>
+
+          <div className="below">
+            <div className="popular">
+              <span>Popular:</span>
+              <button type="button" className="chip" onClick={() => setDestQuery("Palawan")}>Palawan</button>
+              <button type="button" className="chip" onClick={() => setDestQuery("Siargao")}>Siargao</button>
+              <button type="button" className="chip" onClick={() => setDestQuery("Batanes")}>Batanes</button>
+              <button type="button" className="chip" onClick={() => setDestQuery("Sagada")}>Sagada</button>
+              <button type="button" className="chip" onClick={() => setDestQuery("Boracay")}>Boracay</button>
+            </div>
+            <p className="urgency">
+              <span className="dot" aria-hidden="true"></span>
+              High demand today: 3 spots left on El Nido Island Hopping (small group).
+            </p>
           </div>
         </div>
+
+        <aside className="reel" aria-label="Destination video">
+          <div className="reel-frame" data-mode="ambient">
+            <video
+              ref={videoRef}
+              muted
+              loop
+              playsInline
+              preload="none"
+              poster="https://image.qwenlm.ai/public_source/0d03f5cf-0e10-4545-8c7b-372335c79b34/13c794e47-d45f-4e95-8a69-9971ed29a166.png"
+              src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4"
+            ></video>
+            <div className="reel-shade" aria-hidden="true"></div>
+            <button className="reel-pause" onClick={toggleVideo} aria-pressed={isPaused} aria-label="Pause ambient video">
+              {isPaused ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M7 4.5 20 12 7 19.5z" />
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M7 5h4v14H7zM13 5h4v14h-4z" />
+                </svg>
+              )}
+            </button>
+            <div className="reel-cap">
+              <strong>Water that resets you</strong>
+              <span>Palawan · tours from $49</span>
+              <button className="cap-btn" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M16.6 3c.4 2.2 1.9 3.9 4.4 4.1v3c-1.7 0-3.2-.6-4.4-1.5v6.6a5.9 5.9 0 1 1-5.9-5.9c.3 0 .7 0 1 .1v3.1a2.9 2.9 0 1 0 2 2.8V3h2.9z" />
+                </svg>
+                Watch @travi.ph on TikTok
+              </button>
+            </div>
+          </div>
+        </aside>
       </div>
     </section>
   );
