@@ -8,6 +8,7 @@ import { revalidatePath, updateTag } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { captureException } from '@/lib/logger';
 import { notifyOrganizerAccountStatus, notifyTransporterAccountStatus } from './notifications';
+import { sendEmail } from '@/lib/email';
 
 import { idSchema, rejectSchema, moderateReviewSchema, modifyRoleSchema } from '@/lib/schemas/admin';
 
@@ -285,17 +286,25 @@ export async function modifyUserRole(
 /**
  * Mark a payout request as paid and update the ledger.
  */
-export async function markPayoutPaid(payoutId: string, walletId: string) {
+export async function markPayoutPaid(payoutId: string, walletId: string, referenceNumber: string) {
   try {
     const { user, profile } = await requireSession();
     await assertRole(user.id, 'admin');
 
+    if (!referenceNumber) {
+      throw new Error('Reference number is required');
+    }
+
     const admin = createAdminClient({ admin: true });
 
-    // Mark as paid
+    // Mark as paid and save the reference number as admin notes
     const { error: payoutError } = await admin
       .from('payout_requests')
-      .update({ status: 'paid', updated_at: new Date().toISOString() })
+      .update({ 
+        status: 'paid', 
+        admin_notes: `Reference ID: ${referenceNumber}`,
+        updated_at: new Date().toISOString() 
+      })
       .eq('id', payoutId)
       .eq('status', 'pending');
 
@@ -312,7 +321,34 @@ export async function markPayoutPaid(payoutId: string, walletId: string) {
         balance_affected: 'available',
         reference_type: 'payout',
         reference_id: payoutId,
-        description: 'Payout request fulfilled'
+        description: `Payout fulfilled. Ref: ${referenceNumber}`
+      });
+    }
+
+    // 5. Send Email Notification
+    const { data: walletData } = await admin
+      .from('user_wallets')
+      .select('user_profiles(full_name, email)')
+      .eq('id', walletId)
+      .single();
+    
+    // Handle potential array or object return from Supabase relations
+    const walletProfile = Array.isArray(walletData?.user_profiles) ? walletData?.user_profiles[0] : walletData?.user_profiles;
+
+    if (walletProfile?.email) {
+      await sendEmail({
+        to: walletProfile.email,
+        subject: 'Payout Request Completed',
+        html: `
+          <div style="font-family: sans-serif; color: #1e293b;">
+            <h2>Payout Completed</h2>
+            <p>Hi ${walletProfile.full_name},</p>
+            <p>Your recent payout request for <strong>₱${Number(request?.amount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</strong> has been successfully processed!</p>
+            <p><strong>Reference Number:</strong> ${referenceNumber}</p>
+            <p>The funds should reflect in your account shortly, depending on your bank's processing times.</p>
+            <p>Thank you,<br/>Travi Support</p>
+          </div>
+        `
       });
     }
 
@@ -321,5 +357,105 @@ export async function markPayoutPaid(payoutId: string, walletId: string) {
   } catch (error: any) {
     captureException(error, { action: 'markPayoutPaid', payoutId });
     return { success: false, error: error.message || 'Failed to mark payout as paid' };
+  }
+}
+
+export async function rejectPayout(payoutId: string, walletId: string, reason?: string) {
+  try {
+    const { user } = await requireSession();
+    await assertRole(user.id, 'admin');
+
+    const admin = createAdminClient({ admin: true });
+
+    // 1. Get the pending payout amount
+    const { data: request, error: fetchReqError } = await admin
+      .from('payout_requests')
+      .select('amount, status')
+      .eq('id', payoutId)
+      .eq('status', 'pending')
+      .single();
+
+    if (fetchReqError || !request) throw new Error('Payout request not found or not pending');
+
+    // 2. Mark as rejected
+    const { error: payoutError } = await admin
+      .from('payout_requests')
+      .update({ status: 'rejected', updated_at: new Date().toISOString() })
+      .eq('id', payoutId);
+
+    if (payoutError) throw payoutError;
+
+    // 3. Return funds to available balance
+    await admin.rpc('increment_available_balance', { w_id: walletId, amt: request.amount });
+
+    // 4. Create ledger entry
+    await admin.from('wallet_transactions').insert({
+      wallet_id: walletId,
+      amount: request.amount, // Positive amount to credit back
+      type: 'withdrawal_rejected',
+      balance_affected: 'available',
+      reference_type: 'payout',
+      reference_id: payoutId,
+      description: reason ? `Payout rejected: ${reason}` : 'Payout rejected by Admin'
+    });
+
+    // 5. Send Email Notification
+    const { data: walletData } = await admin
+      .from('user_wallets')
+      .select('user_profiles(full_name, email)')
+      .eq('id', walletId)
+      .single();
+    
+    const walletProfile = Array.isArray(walletData?.user_profiles) ? walletData?.user_profiles[0] : walletData?.user_profiles;
+
+    if (walletProfile?.email) {
+      await sendEmail({
+        to: walletProfile.email,
+        subject: 'Payout Request Rejected',
+        html: `
+          <div style="font-family: sans-serif; color: #1e293b;">
+            <h2>Payout Request Update</h2>
+            <p>Hi ${walletProfile.full_name},</p>
+            <p>Unfortunately, your payout request for <strong>₱${Number(request.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</strong> was rejected.</p>
+            ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
+            <p>The funds have been returned to your Travi available balance.</p>
+            <p>If you have any questions, please contact our support team.</p>
+            <p>Thank you,<br/>Travi Support</p>
+          </div>
+        `
+      });
+    }
+
+    revalidatePath('/admin/payouts');
+    return { success: true };
+  } catch (error: any) {
+    captureException(error, { action: 'rejectPayout', payoutId });
+    return { success: false, error: error.message || 'Failed to reject payout' };
+  }
+}
+
+export async function updatePlatformSettings(data: { organizer_fee_percent: number; transporter_fee_percent: number; escrow_holding_days: number }) {
+  try {
+    const { user } = await requireSession();
+    await assertRole(user.id, 'admin');
+
+    const admin = createAdminClient({ admin: true });
+
+    const { error } = await admin
+      .from('platform_settings')
+      .update({
+        organizer_fee_percent: data.organizer_fee_percent,
+        transporter_fee_percent: data.transporter_fee_percent,
+        escrow_holding_days: data.escrow_holding_days
+      })
+      .eq('id', 1);
+
+    if (error) throw error;
+
+    revalidatePath('/admin/settings');
+    return { success: true };
+  } catch (error: any) {
+    captureException(error, { action: 'updatePlatformSettings' });
+    return { success: false, error: error.message || 'Failed to update platform settings' };
   }
 }

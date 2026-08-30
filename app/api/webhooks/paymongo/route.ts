@@ -58,8 +58,8 @@ export async function POST(req: Request) {
     await admin.from('bookings').update({ status: 'confirmed' }).eq('id', booking.id);
 
     // 3. Platform Fee & Split Ledger Logic
-    const { data: settings } = await admin.from('platform_settings').select('platform_fee_percent').limit(1).single();
-    const feePercent = settings?.platform_fee_percent || 10;
+    const { data: settings } = await admin.from('platform_settings').select('organizer_fee_percent').limit(1).single();
+    const feePercent = settings?.organizer_fee_percent || 3;
     
     const platformFee = amountPaid * (feePercent / 100);
     let organizerAmount = amountPaid - platformFee;
@@ -69,8 +69,12 @@ export async function POST(req: Request) {
     // For MVP, all revenue minus platform fee goes to the Organizer. The Organizer pays the transporter manually or we add it later.
     const organizerProfileId = (booking.tour_schedules as any).tours.organizer_id;
 
+    // We need the user_profile_id, not the organizer_profiles.id
+    const { data: orgData } = await admin.from('organizer_profiles').select('user_profile_id').eq('id', organizerProfileId).single();
+    const userProfileId = orgData?.user_profile_id;
+
     // Ensure Organizer has a wallet
-    const { data: walletId } = await admin.rpc('ensure_user_wallet', { profile_id: organizerProfileId });
+    const { data: walletId } = await admin.rpc('ensure_user_wallet', { profile_id: userProfileId });
 
     if (walletId) {
       // Create Ledger Entry

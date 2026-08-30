@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import TravelerProfileForm from '@/components/dashboard/TravelerProfileForm';
+import AccountSecurityManager from '@/components/dashboard/AccountSecurityManager';
 
 export default async function TravelerProfilePage() {
   const supabase = await createClient();
@@ -12,7 +13,7 @@ export default async function TravelerProfilePage() {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('id, full_name, email')
+    .select('id, full_name, email, phone, email_verified_at')
     .eq('user_id', user.id)
     .single();
 
@@ -27,6 +28,12 @@ export default async function TravelerProfilePage() {
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <TravelerProfileForm profile={profile} />
       </div>
+
+      <AccountSecurityManager
+        email={profile.email}
+        phone={profile.phone}
+        emailVerifiedAt={profile.email_verified_at}
+      />
     </div>
   );
 }

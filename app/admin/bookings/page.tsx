@@ -13,6 +13,7 @@ export default async function BookingsPage() {
       seats,
       total_amount,
       status,
+      dispute_status,
       created_at,
       traveler:user_profiles!traveler_id (
         full_name,

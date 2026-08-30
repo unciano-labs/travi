@@ -270,7 +270,7 @@ export default function OrganizersClient({ initialOrganizers }: OrganizersClient
                   <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
                     <Calendar className="w-3.5 h-3.5" /> Applied On
                   </span>
-                  <div className="font-medium text-slate-900 text-sm">{new Date(selectedOrg.created_at).toLocaleDateString()}</div>
+                  <div className="font-medium text-slate-900 text-sm">{new Date(selectedOrg.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
                 </div>
                 <div className="col-span-2">
                   <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">

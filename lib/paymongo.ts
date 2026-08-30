@@ -230,3 +230,65 @@ export async function verifyPaymentIntent(intentId: string) {
   const json = await response.json();
   return { status: json.data.attributes.status }; // 'succeeded', 'awaiting_payment_method', 'processing'
 }
+
+export async function refundPayment(sessionId: string, amount: number, reason: 'requested_by_customer' | 'fraudulent' | 'duplicate' | 'others' = 'requested_by_customer') {
+  if (!env.PAYMONGO_SECRET_KEY) {
+    console.warn('PAYMONGO_SECRET_KEY missing. Mocking refund success.');
+    return { success: true, refund_id: 'ref_test_123' };
+  }
+
+  try {
+    let paymentId = '';
+    
+    const headers = {
+      accept: 'application/json',
+      authorization: `Basic ${Buffer.from(env.PAYMONGO_SECRET_KEY + ':').toString('base64')}`
+    };
+
+    if (sessionId.startsWith('pi_')) {
+      const intentRes = await fetch(`https://api.paymongo.com/v1/payment_intents/${sessionId}`, { headers });
+      const intentJson = await intentRes.json();
+      const payments = intentJson.data?.attributes?.payments || [];
+      const paidPayment = payments.find((p: any) => p.attributes.status === 'paid');
+      if (!paidPayment) throw new Error('No paid payment found on intent.');
+      paymentId = paidPayment.id;
+    } else {
+      const checkoutRes = await fetch(`https://api.paymongo.com/v1/checkout_sessions/${sessionId}`, { headers });
+      const checkoutJson = await checkoutRes.json();
+      const payments = checkoutJson.data?.attributes?.payments || [];
+      const paidPayment = payments.find((p: any) => p.attributes.status === 'paid');
+      if (!paidPayment) throw new Error('No paid payment found on checkout session.');
+      paymentId = paidPayment.id;
+    }
+
+    const refundOptions = {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        data: {
+          attributes: {
+            amount: Math.round(amount * 100),
+            payment_id: paymentId,
+            reason
+          }
+        }
+      })
+    };
+
+    const response = await fetch('https://api.paymongo.com/v1/refunds', refundOptions);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Paymongo Refund Error:', errorText);
+      throw new Error('Failed to process Paymongo refund');
+    }
+
+    const refundJson = await response.json();
+    return { success: true, refund_id: refundJson.data.id };
+  } catch (error: any) {
+    console.error('refundPayment exception:', error);
+    throw new Error('Refund failed: ' + error.message);
+  }
+}

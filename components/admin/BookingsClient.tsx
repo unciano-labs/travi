@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { Search, MapPin, Calendar, User, DollarSign, X, Users, Hash } from 'lucide-react';
+import { Search, MapPin, Calendar, User, DollarSign, X, Users, Hash, AlertCircle, CheckCircle } from 'lucide-react';
+import { resolveDispute } from '@/actions/bookings';
 
 const BookingMobileCard = dynamic(() => import('./BookingMobileCard'), { 
   ssr: false,
@@ -16,6 +17,7 @@ interface Booking {
   seats: number;
   total_amount: number;
   status: 'pending' | 'confirmed' | 'canceled' | 'refunded' | 'completed';
+  dispute_status: string;
   created_at: string;
   traveler: {
     full_name: string | null;
@@ -47,6 +49,7 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
   
   // Filter logic
   const filtered = bookings.filter((booking) => {
@@ -64,8 +67,9 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
     const email = booking.traveler?.email?.toLowerCase() || '';
     const name = booking.traveler?.full_name?.toLowerCase() || '';
     const status = booking.status.toLowerCase();
+    const dispute = booking.dispute_status?.toLowerCase() || '';
     
-    return ref.includes(q) || id.includes(q) || tourTitle.includes(q) || email.includes(q) || name.includes(q) || status.includes(q);
+    return ref.includes(q) || id.includes(q) || tourTitle.includes(q) || email.includes(q) || name.includes(q) || status.includes(q) || dispute.includes(q);
   });
 
   // Pagination logic
@@ -82,6 +86,25 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
         return 'bg-red-100 text-red-800';
       default:
         return 'bg-amber-100 text-amber-800';
+    }
+  };
+
+  const handleResolveDispute = async (bookingId: string, decision: 'refund' | 'deny') => {
+    if (!window.confirm(`Are you sure you want to ${decision} this dispute? This action is final.`)) return;
+    setLoadingAction(bookingId);
+    try {
+      const res = await resolveDispute(bookingId, decision);
+      if (!res.success) {
+        alert(res.error || 'Failed to resolve dispute');
+      } else {
+        alert('Dispute resolved successfully.');
+        // Optionally update local state here instead of waiting for reload
+        setSelectedBooking(null);
+      }
+    } catch (e: any) {
+      alert(e.message || 'Error occurred');
+    } finally {
+      setLoadingAction(null);
     }
   };
 
@@ -172,9 +195,18 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
                       ₱{booking.total_amount.toLocaleString()}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${getStatusColor(booking.status)}`}>
-                        {booking.status}
-                      </span>
+                      <div className="flex flex-col gap-1 items-start">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${getStatusColor(booking.status)}`}>
+                          {booking.status}
+                        </span>
+                        {booking.dispute_status && booking.dispute_status !== 'none' && (
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${
+                            booking.dispute_status === 'open' ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-800'
+                          }`}>
+                            Dispute: {booking.dispute_status.replace('_', ' ')}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button 
@@ -238,12 +270,47 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
                     <Hash className="w-4 h-4" /> {selectedBooking.booking_ref}
                   </div>
                 </div>
-                <div className="flex items-start">
+                <div className="flex flex-col items-end gap-2">
                   <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold capitalize ${getStatusColor(selectedBooking.status)}`}>
                     {selectedBooking.status}
                   </span>
+                  {selectedBooking.dispute_status && selectedBooking.dispute_status !== 'none' && (
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold capitalize ${
+                      selectedBooking.dispute_status === 'open' ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-800'
+                    }`}>
+                      Dispute: {selectedBooking.dispute_status.replace('_', ' ')}
+                    </span>
+                  )}
                 </div>
               </div>
+
+              {selectedBooking.dispute_status === 'open' && (
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-start gap-3 text-orange-800">
+                    <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
+                    <div>
+                      <h4 className="font-bold text-sm">Dispute Open</h4>
+                      <p className="text-xs opacity-90 mt-0.5">This booking has an open dispute from the traveler. Funds are held in escrow.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => handleResolveDispute(selectedBooking.id, 'deny')}
+                      disabled={loadingAction === selectedBooking.id}
+                      className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+                    >
+                      Deny & Release
+                    </button>
+                    <button
+                      onClick={() => handleResolveDispute(selectedBooking.id, 'refund')}
+                      disabled={loadingAction === selectedBooking.id}
+                      className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                    >
+                      Approve Refund
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Grid Details */}
               <div className="bg-slate-50 rounded-xl p-5 grid grid-cols-2 gap-y-6 gap-x-4 border border-slate-100">
@@ -276,7 +343,7 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
                     <Calendar className="w-3.5 h-3.5" /> Booked On
                   </span>
                   <div className="font-medium text-slate-900 text-sm">
-                    {new Date(selectedBooking.created_at).toLocaleString()}
+                    {new Date(selectedBooking.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                   </div>
                 </div>
 

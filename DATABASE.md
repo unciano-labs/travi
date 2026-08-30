@@ -37,6 +37,11 @@ organizer_favorite_vehicles (links organizer + vehicle)
 transport_bookings (links tour + vehicle + transporter)
 reviews (linked to transporter + optional vehicle/tour)
 admin_audit_logs
+
+platform_settings (singleton)
+user_wallets (1:1 with user_profiles)
+  wallet_transactions (many per wallet)
+  payout_requests (many per wallet)
 ```
 
 ---
@@ -198,6 +203,7 @@ Links a user's profile to a specific role on a website.
 | seats | integer | Yes | Min 1 |
 | total_amount | decimal | Yes | price × seats |
 | status | enum | Yes | pending, confirmed, canceled, refunded, completed |
+| dispute_status | enum | Yes | none, open, resolved_refunded, resolved_denied |
 | created_at | timestamptz | Yes | |
 | updated_at | timestamptz | Yes | |
 
@@ -311,6 +317,65 @@ Stores which vehicles an organizer has favorited for quick access.
 | action | text | Yes | approve, reject, hide, update |
 | notes | text | No | |
 | created_at | timestamptz | Yes | |
+
+---
+
+### 2.13 platform_settings
+
+| Field | Type | Required | Notes |
+|---|---|---:|---|
+| id | UUID | Yes | PK |
+| organizer_fee_percent | numeric | Yes | Default 3.00 |
+| transporter_fee_percent | numeric | Yes | Default 3.00 |
+| escrow_holding_days | integer | Yes | Default 3 |
+| updated_at | timestamptz | Yes | |
+| updated_by | UUID | No | FK → user_profiles (Admin) |
+
+---
+
+### 2.14 user_wallets
+
+| Field | Type | Required | Notes |
+|---|---|---:|---|
+| id | UUID | Yes | PK |
+| user_profile_id | UUID | Yes | FK → user_profiles (Unique) |
+| available_balance | numeric | Yes | Default 0.00 |
+| escrow_balance | numeric | Yes | Default 0.00 |
+| currency | text | Yes | Default 'PHP' |
+| created_at | timestamptz | Yes | |
+| updated_at | timestamptz | Yes | |
+
+---
+
+### 2.15 wallet_transactions
+
+| Field | Type | Required | Notes |
+|---|---|---:|---|
+| id | UUID | Yes | PK |
+| wallet_id | UUID | Yes | FK → user_wallets |
+| amount | numeric | Yes | |
+| fee_amount | numeric | Yes | Default 0.00 (Platform fee taken) |
+| type | enum | Yes | escrow_deposit, escrow_release, withdrawal_pending, withdrawal_completed, withdrawal_rejected, refund, platform_fee, penalty, manual_adjustment |
+| balance_affected | enum | Yes | available, escrow |
+| reference_type | text | Yes | booking, payout, transport_booking, dispute |
+| reference_id | UUID | Yes | ID of referenced entity |
+| description | text | No | |
+| created_at | timestamptz | Yes | |
+
+---
+
+### 2.16 payout_requests
+
+| Field | Type | Required | Notes |
+|---|---|---:|---|
+| id | UUID | Yes | PK |
+| wallet_id | UUID | Yes | FK → user_wallets |
+| amount | numeric | Yes | |
+| status | enum | Yes | pending, processing, paid, rejected |
+| payout_method | jsonb | Yes | Stored method (e.g. GCash number, Bank Details) |
+| admin_notes | text | No | |
+| created_at | timestamptz | Yes | |
+| updated_at | timestamptz | Yes | |
 
 ---
 

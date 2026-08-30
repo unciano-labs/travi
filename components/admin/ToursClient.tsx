@@ -321,7 +321,7 @@ export default function ToursClient({ initialTours }: ToursClientProps) {
                   <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
                     <Calendar className="w-3.5 h-3.5" /> Created On
                   </span>
-                  <div className="font-medium text-slate-900 text-sm mt-1.5">{new Date(selectedTour.created_at).toLocaleDateString()}</div>
+                  <div className="font-medium text-slate-900 text-sm mt-1.5">{new Date(selectedTour.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
                 </div>
               </div>
 

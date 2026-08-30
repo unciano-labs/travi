@@ -74,7 +74,7 @@ export default async function AdminDashboard() {
           {recentBookings.map((b: any) => {
             const travelerName = b.user_profiles?.full_name || 'Anonymous';
             const tourTitle = b.tour_schedules?.tours?.title || 'Unknown Tour';
-            const timeAgo = new Date(b.created_at).toLocaleDateString();
+            const timeAgo = new Date(b.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
             return (
               <div key={b.id} className="px-6 py-4 flex items-center hover:bg-slate-50 transition-colors">
