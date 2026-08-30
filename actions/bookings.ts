@@ -87,6 +87,11 @@ export async function updateBookingStatus(bookingId: string, status: 'confirmed'
 
     if (error) throw error;
 
+    if (status === 'confirmed') {
+      const { notifyOrganizerOfNewBooking } = await import('@/actions/notifications');
+      await notifyOrganizerOfNewBooking(bookingId);
+    }
+
     const { revalidatePath } = await import('next/cache');
     revalidatePath('/dashboard/organizer/bookings');
 
@@ -174,6 +179,9 @@ export async function verifyPaymentAndUpdateBooking(bookingId: string) {
           await admin.rpc('increment_escrow_balance', { w_id: walletId, amt: organizerAmount });
         }
       }
+
+      const { notifyOrganizerOfNewBooking } = await import('@/actions/notifications');
+      await notifyOrganizerOfNewBooking(booking.id);
 
       return { success: true, status: 'confirmed' };
     }

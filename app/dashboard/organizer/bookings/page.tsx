@@ -35,6 +35,9 @@ export default async function OrganizerBookings() {
       total_amount,
       status,
       created_at,
+      updated_at,
+      booking_ref,
+      paymongo_session_id,
       user_profiles!traveler_id ( full_name ),
       tour_schedules!inner (
         start_date,

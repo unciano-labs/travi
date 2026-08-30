@@ -91,6 +91,10 @@ export async function POST(req: Request) {
       });
     }
 
+    // 4. Notify the Organizer
+    const { notifyOrganizerOfNewBooking } = await import('@/actions/notifications');
+    await notifyOrganizerOfNewBooking(booking.id);
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Paymongo Webhook Error:', error);

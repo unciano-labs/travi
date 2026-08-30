@@ -426,3 +426,81 @@ export async function notifySuperAdmin(
     captureException(err, { action: 'notifySuperAdmin exception' });
   }
 }
+
+export async function notifyOrganizerOfNewBooking(bookingId: string) {
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const admin = createAdminClient({ admin: true });
+
+    // 1. Fetch booking to get organizer ID and other details
+    const { data: booking, error: bookingError } = await admin
+      .from('bookings')
+      .select(`
+        id,
+        booking_ref,
+        seats,
+        user_profiles!traveler_id ( full_name ),
+        tour_schedules (
+          tours (
+            title,
+            organizer_id
+          )
+        )
+      `)
+      .eq('id', bookingId)
+      .single();
+
+    if (bookingError || !booking) return;
+
+    const organizerId = (booking.tour_schedules as any).tours.organizer_id;
+    const tourTitle = (booking.tour_schedules as any).tours.title;
+    const travelerProfile = Array.isArray(booking.user_profiles) ? booking.user_profiles[0] : booking.user_profiles;
+    const travelerName = travelerProfile?.full_name || 'A traveler';
+    const seats = booking.seats;
+
+    // 2. Fetch organizer's user_id and email
+    const { data: op } = await admin
+      .from('organizer_profiles')
+      .select(`
+        company_name, 
+        display_name, 
+        user_profile:user_profiles ( user_id, email )
+      `)
+      .eq('id', organizerId)
+      .single();
+
+    if (!op || !op.user_profile) return;
+
+    const userProfile = Array.isArray(op.user_profile) ? op.user_profile[0] : op.user_profile;
+    const organizerName = op.display_name || op.company_name || 'Organizer';
+    
+    // 3. Create In-app Notification
+    await admin.from('notifications').insert({
+      user_id: userProfile.user_id,
+      title: 'New Booking! 🎉',
+      message: `${travelerName} just booked ${seats} seat(s) for ${tourTitle}.`,
+      type: 'booking_new',
+      link: '/dashboard/organizer/bookings'
+    });
+
+    // 4. Send Email Notification
+    await sendEmailNotification(
+      userProfile.email,
+      'New Booking Received! - Travi',
+      `
+      <div style="font-family: sans-serif; max-w-2xl mx-auto p-4 border rounded-lg">
+        <h2 style="color: #059669;">New Booking Received! 🎉</h2>
+        <p>Hello <strong>${organizerName}</strong>,</p>
+        <p>Great news! <strong>${travelerName}</strong> just booked <strong>${seats} seat(s)</strong> for your tour: <strong>${tourTitle}</strong>.</p>
+        <p>Booking Reference: <strong>${booking.booking_ref}</strong></p>
+        <p>Log in to your dashboard to view the full booking details.</p>
+        <br/>
+        <a href="https://travi.app/dashboard/organizer/bookings" style="display: inline-block; background: #059669; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">View Bookings</a>
+      </div>
+      `
+    );
+
+  } catch (err: any) {
+    captureException(err, { action: 'notifyOrganizerOfNewBooking exception' });
+  }
+}

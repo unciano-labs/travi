@@ -11,6 +11,9 @@ interface Booking {
   total_amount: number;
   status: string;
   created_at: string;
+  updated_at?: string;
+  booking_ref?: string;
+  paymongo_session_id?: string;
   user_profiles: { full_name: string } | null;
   tour_schedules: {
     start_date: string;
@@ -133,6 +136,15 @@ export default function OrganizerBookingsClient({ initialBookings }: OrganizerBo
                     {
                       label: 'Amount',
                       value: <span className="text-emerald-600 font-bold">₱{(b.total_amount || 0).toLocaleString()}</span>
+                    },
+                    {
+                      label: 'Booked On',
+                      value: (
+                        <div className="text-right">
+                          <div>{new Date(b.created_at).toLocaleDateString()}</div>
+                          <div className="text-xs text-slate-500">{new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                        </div>
+                      )
                     }
                   ]}
                   actions={
@@ -156,6 +168,7 @@ export default function OrganizerBookingsClient({ initialBookings }: OrganizerBo
                   <th className="px-6 py-4">Traveler</th>
                   <th className="px-6 py-4">Tour & Date</th>
                   <th className="px-6 py-4">Amount</th>
+                  <th className="px-6 py-4">Booked On</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
@@ -178,6 +191,10 @@ export default function OrganizerBookingsClient({ initialBookings }: OrganizerBo
                       </div>
                     </td>
                     <td className="px-6 py-4 text-slate-900 font-bold tracking-tight">₱{(b.total_amount || 0).toLocaleString()}</td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-medium text-slate-900">{new Date(b.created_at).toLocaleDateString()}</div>
+                      <div className="text-xs text-slate-500">{new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                    </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${
                         b.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' : 
@@ -279,6 +296,45 @@ export default function OrganizerBookingsClient({ initialBookings }: OrganizerBo
                 <div>
                   <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Total Amount</span>
                   <div className="font-bold text-emerald-600 text-sm">₱{(selectedBooking.total_amount || 0).toLocaleString()}</div>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Booked On</span>
+                  <div className="font-medium text-slate-900 text-sm">
+                    {new Date(selectedBooking.created_at).toLocaleDateString()} at {new Date(selectedBooking.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Details */}
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <h3 className="text-sm font-bold text-slate-900 mb-3 border-b border-slate-200 pb-2">Payment Details</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Status</span>
+                    <div className="font-medium text-slate-900 text-sm capitalize">
+                      {selectedBooking.status === 'confirmed' || selectedBooking.status === 'completed' ? 'Paid' : selectedBooking.status}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Mode</span>
+                    <div className="font-medium text-slate-900 text-sm">
+                      {selectedBooking.paymongo_session_id ? 'Online (PayMongo)' : 'Manual / Cash'}
+                    </div>
+                  </div>
+                  {selectedBooking.booking_ref && (
+                    <div className="col-span-2 sm:col-span-1">
+                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Reference No.</span>
+                      <div className="font-mono text-slate-900 text-xs mt-0.5 break-all">{selectedBooking.booking_ref}</div>
+                    </div>
+                  )}
+                  {selectedBooking.status === 'confirmed' && selectedBooking.updated_at && (
+                    <div className="col-span-2 sm:col-span-1">
+                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Paid On</span>
+                      <div className="font-medium text-slate-900 text-sm">
+                        {new Date(selectedBooking.updated_at).toLocaleDateString()} at {new Date(selectedBooking.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

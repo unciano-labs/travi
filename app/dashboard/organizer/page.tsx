@@ -46,10 +46,13 @@ export default async function OrganizerDashboard() {
       total_amount,
       status,
       created_at,
+      updated_at,
+      booking_ref,
+      paymongo_session_id,
       user_profiles!traveler_id ( full_name ),
       tour_schedules!inner (
         start_date,
-        tours!inner ( title, organizer_id )
+        tours!inner ( title, organizer_id, location, format, duration_days )
       )
     `)
     .eq('tour_schedules.tours.organizer_id', profile.id)
@@ -139,8 +142,26 @@ export default async function OrganizerDashboard() {
                   }
                   rows={[
                     {
-                      label: 'Date',
+                      label: 'Tour Details',
+                      value: (
+                        <div className="text-right">
+                          <div className="capitalize">{b.tour_schedules?.tours?.format} • {b.tour_schedules?.tours?.duration_days} Days</div>
+                          <div className="text-xs text-slate-500 truncate max-w-[150px]">{b.tour_schedules?.tours?.location}</div>
+                        </div>
+                      )
+                    },
+                    {
+                      label: 'Schedule',
                       value: b.tour_schedules?.start_date ? new Date(b.tour_schedules.start_date).toLocaleDateString() : 'N/A'
+                    },
+                    {
+                      label: 'Booked On',
+                      value: (
+                        <div className="text-right">
+                          <div>{new Date(b.created_at).toLocaleDateString()}</div>
+                          <div className="text-xs text-slate-500">{new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                        </div>
+                      )
                     }
                   ]}
                 />
@@ -153,8 +174,9 @@ export default async function OrganizerDashboard() {
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
               <tr>
                 <th className="px-6 py-4">Traveler</th>
-                <th className="px-6 py-4">Tour</th>
-                <th className="px-6 py-4">Date</th>
+                <th className="px-6 py-4">Tour & Details</th>
+                <th className="px-6 py-4">Schedule</th>
+                <th className="px-6 py-4">Booked On</th>
                 <th className="px-6 py-4">Status</th>
               </tr>
             </thead>
@@ -162,8 +184,21 @@ export default async function OrganizerDashboard() {
               {bookings.slice(0, 5).map(b => (
                 <tr key={b.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 font-medium text-slate-900">{b.user_profiles?.full_name || 'Anonymous'}</td>
-                  <td className="px-6 py-4 text-slate-600">{b.tour_schedules?.tours?.title}</td>
+                  <td className="px-6 py-4">
+                    <div className="font-medium text-slate-900">{b.tour_schedules?.tours?.title}</div>
+                    <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                      <span className="capitalize">{b.tour_schedules?.tours?.format}</span>
+                      <span>•</span>
+                      <span>{b.tour_schedules?.tours?.duration_days} Days</span>
+                      <span>•</span>
+                      <span className="truncate max-w-[120px] inline-block align-bottom">{b.tour_schedules?.tours?.location}</span>
+                    </div>
+                  </td>
                   <td className="px-6 py-4 text-slate-600">{b.tour_schedules?.start_date ? new Date(b.tour_schedules.start_date).toLocaleDateString() : 'N/A'}</td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-medium text-slate-900">{new Date(b.created_at).toLocaleDateString()}</div>
+                    <div className="text-xs text-slate-500">{new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                  </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
                       b.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' : 
