@@ -33,9 +33,15 @@ export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  async function fetchNotifications() {
+    const unread = await getUnreadNotifications();
+    setNotifications(unread);
+  }
+
   useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 60000); // 1m fallback poll
+    Promise.resolve().then(() => fetchNotifications());
+    const interval = setInterval(() => fetchNotifications(), 60000); // 1m fallback poll
+
     
     const supabase = createClient();
     let channel: any;
@@ -79,10 +85,6 @@ export function NotificationBell() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  async function fetchNotifications() {
-    const unread = await getUnreadNotifications();
-    setNotifications(unread);
-  }
 
   async function handleNotificationClick(notificationId: string) {
     await markNotificationAsRead(notificationId);

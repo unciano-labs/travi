@@ -16,7 +16,11 @@ export default function VehicleListClient({ initialVehicles }: VehicleListClient
   const [vehicles, setVehicles] = useState(initialVehicles);
 
   useEffect(() => {
-    setVehicles(initialVehicles);
+    let mounted = true;
+    Promise.resolve().then(() => {
+      if (mounted) setVehicles(initialVehicles);
+    });
+    return () => { mounted = false; };
   }, [initialVehicles]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<any | null>(null);

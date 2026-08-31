@@ -62,8 +62,8 @@ export async function POST(req: Request) {
     const feePercent = settings?.organizer_fee_percent || 3;
     
     const platformFee = amountPaid * (feePercent / 100);
-    let organizerAmount = amountPaid - platformFee;
-    let transporterAmount = 0;
+    const organizerAmount = amountPaid - platformFee;
+    const transporterAmount = 0;
 
     // TODO: If this schedule has an external transporter confirmed, we would split `organizerAmount` further.
     // For MVP, all revenue minus platform fee goes to the Organizer. The Organizer pays the transporter manually or we add it later.

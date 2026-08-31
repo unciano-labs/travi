@@ -158,7 +158,7 @@ export async function savePayoutMethod(walletId: string, methodData: Omit<SavedP
       ...methodData
     };
 
-    let methods = (wallet.saved_payout_methods as SavedPayoutMethod[]) || [];
+    const methods = (wallet.saved_payout_methods as SavedPayoutMethod[]) || [];
     
     if (methods.length === 0) {
       newMethod.isDefault = true;

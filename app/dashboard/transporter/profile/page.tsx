@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import TransporterProfileForm from '@/components/dashboard/TransporterProfileForm';
+import AccountSecurityManager from '@/components/dashboard/AccountSecurityManager';
 
 export default async function TransporterProfilePage() {
   const supabase = await createClient();
@@ -13,7 +14,7 @@ export default async function TransporterProfilePage() {
   // Get user profile first
   const { data: userProfile } = await supabase
     .from('user_profiles')
-    .select('id')
+    .select('id, email, phone, email_verified_at, phone_verified_at')
     .eq('user_id', user.id)
     .single();
 
@@ -39,6 +40,13 @@ export default async function TransporterProfilePage() {
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <TransporterProfileForm profile={profile} />
       </div>
+
+      <AccountSecurityManager
+        email={userProfile.email}
+        phone={userProfile.phone}
+        emailVerifiedAt={userProfile.email_verified_at}
+        phoneVerifiedAt={userProfile.phone_verified_at}
+      />
     </div>
   );
 }

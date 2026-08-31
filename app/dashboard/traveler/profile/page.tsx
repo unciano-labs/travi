@@ -13,7 +13,7 @@ export default async function TravelerProfilePage() {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('id, full_name, email, phone, email_verified_at')
+    .select('id, full_name, email, phone, email_verified_at, phone_verified_at')
     .eq('user_id', user.id)
     .single();
 
@@ -33,6 +33,7 @@ export default async function TravelerProfilePage() {
         email={profile.email}
         phone={profile.phone}
         emailVerifiedAt={profile.email_verified_at}
+        phoneVerifiedAt={profile.phone_verified_at}
       />
     </div>
   );

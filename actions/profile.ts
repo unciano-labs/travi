@@ -28,30 +28,71 @@ export async function updateProfileName(fullName: string) {
   }
 }
 
-// ─── Update Phone Number ───
-export async function updateProfilePhone(phone: string) {
+// ─── Change Phone: Step 1 — Send OTP to new phone ───
+export async function requestPhoneChange(newPhone: string) {
   try {
-    const { profile } = await requireSession();
+    const { user } = await requireSession();
     const admin = createAdminClient({ admin: true });
 
     // Basic PH phone validation
-    const cleaned = phone.replace(/\s|-/g, '');
+    const cleaned = newPhone.replace(/\s|-/g, '');
     if (!/^(\+63|0)9\d{9}$/.test(cleaned)) {
       throw new Error('Please enter a valid Philippine mobile number (e.g., 09123456789)');
     }
 
-    const { error } = await admin
+    // Check if new phone is already in use
+    const { data: existing } = await admin
       .from('user_profiles')
-      .update({ phone: cleaned, updated_at: new Date().toISOString() })
+      .select('id')
+      .eq('phone', cleaned)
+      .neq('user_id', user.id)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      throw new Error('This phone number is already associated with another account.');
+    }
+
+    // Send OTP to registered email, store newPhone in JWT payload
+    return sendOtp('change_phone', 'email', { newPhone: cleaned });
+  } catch (error: any) {
+    captureException(error, { action: 'requestPhoneChange' });
+    return { success: false, error: error.message };
+  }
+}
+
+// ─── Change Phone: Step 2 — Confirm OTP & update ───
+export async function confirmPhoneChange(code: string) {
+  try {
+    const verifyResult = await verifyOtp('change_phone', code);
+    if (!verifyResult.success) return verifyResult;
+
+    const { profile } = await requireSession();
+    const payload = await requireVerifiedOtp('change_phone');
+    const newPhone = payload.newPhone as string;
+
+    if (!newPhone) throw new Error('New phone number not found in verification payload');
+
+    const admin = createAdminClient({ admin: true });
+
+    // Update profile phone
+    const { error: profileError } = await admin
+      .from('user_profiles')
+      .update({
+        phone: newPhone,
+        phone_verified_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
       .eq('id', profile.id);
 
-    if (error) throw error;
+    if (profileError) throw profileError;
+
+    await consumeVerifiedOtp('change_phone');
 
     const { revalidatePath } = await import('next/cache');
     revalidatePath('/dashboard');
     return { success: true };
   } catch (error: any) {
-    captureException(error, { action: 'updateProfilePhone' });
+    captureException(error, { action: 'confirmPhoneChange' });
     return { success: false, error: error.message };
   }
 }

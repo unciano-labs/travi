@@ -76,8 +76,11 @@ Global profile for an authenticated user.
 | id | UUID | Yes | PK, Default `gen_random_uuid()` |
 | user_id | UUID | Yes | FK → auth.users(id) ON DELETE CASCADE |
 | email | text | Yes | |
+| phone | text | No | |
 | full_name | text | No | |
 | avatar_url | text | No | |
+| email_verified_at | timestamptz | No | |
+| phone_verified_at | timestamptz | No | |
 | created_at | timestamptz | Yes | |
 | updated_at | timestamptz | Yes | |
 

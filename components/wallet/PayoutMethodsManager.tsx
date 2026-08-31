@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CreditCard, Landmark, Wallet, Plus, Star, Trash2 } from 'lucide-react';
+import { CreditCard, Wallet, Plus, Star, Trash2 } from 'lucide-react';
 import { SavedPayoutMethod, savePayoutMethod, deletePayoutMethod, setDefaultPayoutMethod } from '@/actions/wallet';
 import { sendPayoutOtp, verifyPayoutOtp } from '@/actions/otp';
 
@@ -44,8 +44,8 @@ export default function PayoutMethodsManager({ walletId, methods }: { walletId: 
         const res = await sendPayoutOtp();
         if (!res.success) throw new Error(res.error);
         setOtpStep(true);
-      } catch (err: any) {
-        alert(err.message || 'Failed to send OTP');
+      } catch (err: unknown) {
+        alert(err instanceof Error ? err.message : 'Failed to send OTP');
       } finally {
         setLoading(null);
       }
@@ -78,8 +78,8 @@ export default function PayoutMethodsManager({ walletId, methods }: { walletId: 
       setAccountName('');
       setAccountNumber('');
       setBankName('');
-    } catch (err: any) {
-      setOtpError(err.message || 'Verification failed');
+    } catch (err: unknown) {
+      setOtpError(err instanceof Error ? err.message : 'Verification failed');
     } finally {
       setLoading(null);
     }
@@ -91,8 +91,8 @@ export default function PayoutMethodsManager({ walletId, methods }: { walletId: 
     try {
       const res = await deletePayoutMethod(walletId, id);
       if (!res.success) throw new Error(res.error);
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete method');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to delete method');
     } finally {
       setLoading(null);
     }
@@ -103,8 +103,8 @@ export default function PayoutMethodsManager({ walletId, methods }: { walletId: 
     try {
       const res = await setDefaultPayoutMethod(walletId, id);
       if (!res.success) throw new Error(res.error);
-    } catch (err: any) {
-      alert(err.message || 'Failed to set default method');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to set default method');
     } finally {
       setLoading(null);
     }
@@ -161,7 +161,7 @@ export default function PayoutMethodsManager({ walletId, methods }: { walletId: 
                 <select 
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand/20"
                   value={type} 
-                  onChange={(e) => setType(e.target.value as any)}
+                  onChange={(e) => setType(e.target.value as 'bank' | 'gcash' | 'maya')}
                 >
                   <option value="bank">Bank Transfer</option>
                   <option value="gcash">GCash</option>
@@ -179,6 +179,7 @@ export default function PayoutMethodsManager({ walletId, methods }: { walletId: 
                   >
                     {bankName ? (
                       <div className="flex items-center gap-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img 
                           src={`https://logo.clearbit.com/${PH_BANKS.find(b => b.name === bankName)?.domain || 'bdo.com.ph'}`} 
                           alt={bankName} 
@@ -205,6 +206,7 @@ export default function PayoutMethodsManager({ walletId, methods }: { walletId: 
                           }}
                           className="flex items-center gap-3 w-full text-left px-3 py-2 hover:bg-slate-50 transition border-b border-slate-50 last:border-0"
                         >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img 
                             src={`https://logo.clearbit.com/${bank.domain}`} 
                             alt={bank.name} 
@@ -285,15 +287,18 @@ export default function PayoutMethodsManager({ walletId, methods }: { walletId: 
                     method.type === 'gcash' ? 'bg-blue-50 text-blue-500' : 'bg-green-100 text-green-600'
                   }`}>
                     {method.type === 'bank' ? (
-                      <img 
-                        src={`https://logo.clearbit.com/${PH_BANKS.find(b => b.name === method.details.bankName)?.domain || 'bank.com'}`}
-                        alt={method.details.bankName}
-                        className="w-full h-full object-contain p-1"
-                        onError={(e) => { 
-                           e.currentTarget.style.display = 'none'; 
-                           e.currentTarget.parentElement!.innerHTML = '<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path></svg>';
-                        }}
-                      />
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img 
+                          src={`https://logo.clearbit.com/${PH_BANKS.find(b => b.name === method.details.bankName)?.domain || 'bank.com'}`}
+                          alt={method.details.bankName}
+                          className="w-full h-full object-contain p-1"
+                          onError={(e) => { 
+                             e.currentTarget.style.display = 'none'; 
+                             e.currentTarget.parentElement!.innerHTML = '<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path></svg>';
+                          }}
+                        />
+                      </>
                     ) : (
                       <Wallet className="w-5 h-5" />
                     )}

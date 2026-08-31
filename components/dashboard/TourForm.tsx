@@ -89,7 +89,7 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
 
   useEffect(() => {
     if (!selectedProvinceCode) {
-      setCities([]);
+      Promise.resolve().then(() => setCities([]));
       return;
     }
     

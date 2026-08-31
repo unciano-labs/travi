@@ -13,6 +13,7 @@ const getJwtSecret = () => new TextEncoder().encode(process.env.SUPABASE_JWT_SEC
 export type OtpAction =
   | 'add_payout_method'
   | 'change_email'
+  | 'change_phone'
   | 'change_password_email'
   | 'change_password_phone'
   | 'verify_email';
@@ -41,17 +42,25 @@ export async function sendOtp(
       const email = user.email;
       if (!email) throw new Error('No email address on this account');
 
+      let subject = 'Your Travi Verification Code';
+      let warningText = 'This code expires in 10 minutes. If you did not request this, please secure your account immediately.';
+      
+      if (action === 'change_phone') {
+        subject = 'Change Phone number OTP';
+        warningText = 'This code expires in 10 minutes. If you did not request this, please contact support immediately.';
+      }
+
       try {
         await sendEmail({
           to: email,
-          subject: `Your Travi Verification Code`,
+          subject,
           html: `
             <div style="font-family: sans-serif; color: #1e293b;">
               <h2>Security Verification</h2>
               <p>Hi ${profile.full_name || 'there'},</p>
               <p>Your one-time verification code is:</p>
               <p style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #0EA5E9;">${code}</p>
-              <p>This code expires in 10 minutes. If you did not request this, please secure your account immediately.</p>
+              <p>${warningText}</p>
               <p>Thank you,<br/>Travi Support</p>
             </div>
           `
@@ -60,9 +69,9 @@ export async function sendOtp(
         console.warn(`[OTP] Failed to send email for action "${action}". Code: ${code}`);
       }
     } else if (channel === 'phone') {
-      // Resolve phone from profile or role-specific profiles
-      const phone = profile.phone;
-      if (!phone) throw new Error('No phone number on this account. Please add one in your profile first.');
+      // Resolve phone from payload (if changing number) or profile
+      const phone = extraPayload.newPhone || profile.phone;
+      if (!phone) throw new Error('No phone number available to send OTP to.');
 
       try {
         await sendSms({
@@ -123,6 +132,7 @@ export async function verifyOtp(action: OtpAction, code: string) {
       action,
       // Carry over any extra payload from the pending JWT
       ...(payload.newEmail ? { newEmail: payload.newEmail } : {}),
+      ...(payload.newPhone ? { newPhone: payload.newPhone } : {}),
       ...(payload.newPasswordHash ? { newPasswordHash: payload.newPasswordHash } : {}),
     })
       .setProtectedHeader({ alg: 'HS256' })

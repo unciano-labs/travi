@@ -58,14 +58,14 @@ export default function TransportRequestModal({
     }
   }, [isOpen, existingRequest, startDate, endDate, capacity]);
 
-  const loadVehicles = async () => {
+  async function loadVehicles() {
     setLoading(true);
     setError(null);
     try {
       const data = await getAvailableVehicles(startDate, endDate, capacity);
       
       // Normalize transporter field from array to object if necessary
-      let normalizedData = data.map((v: any) => ({
+      const normalizedData = data.map((v: any) => ({
         ...v,
         transporter: Array.isArray(v.transporter) ? v.transporter[0] : v.transporter
       }));

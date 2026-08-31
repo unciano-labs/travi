@@ -50,7 +50,7 @@ export default function ScheduleForm({ tourId, basePrice, initialData }: { tourI
             parseInt(capacity, 10)
           );
           
-          let normalizedData = data.map((v: any) => ({
+          const normalizedData = data.map((v: any) => ({
             ...v,
             transporter: Array.isArray(v.transporter) ? v.transporter[0] : v.transporter
           }));
@@ -69,7 +69,7 @@ export default function ScheduleForm({ tourId, basePrice, initialData }: { tourI
       };
       fetchVehicles();
     } else {
-      setVehicles([]);
+      Promise.resolve().then(() => setVehicles([]));
     }
   }, [transportType, range, capacity]);
 

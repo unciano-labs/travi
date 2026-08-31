@@ -9,16 +9,17 @@ import {
   sendVerifyEmailOtp, confirmVerifyEmail,
   requestEmailChange, confirmEmailChange,
   requestPasswordChange, confirmPasswordChange,
-  updateProfilePhone
+  requestPhoneChange, confirmPhoneChange
 } from '@/actions/profile';
 
 interface AccountSecurityProps {
   email: string;
   phone?: string | null;
   emailVerifiedAt?: string | null;
+  phoneVerifiedAt?: string | null;
 }
 
-export default function AccountSecurityManager({ email, phone, emailVerifiedAt }: AccountSecurityProps) {
+export default function AccountSecurityManager({ email, phone, emailVerifiedAt, phoneVerifiedAt }: AccountSecurityProps) {
   // Section toggles
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggle = (section: string) => setOpenSection(openSection === section ? null : section);
@@ -51,6 +52,7 @@ export default function AccountSecurityManager({ email, phone, emailVerifiedAt }
         />
         <PhoneSection
           phone={phone || ''}
+          isVerified={!!phoneVerifiedAt}
           isOpen={openSection === 'phone'}
           onToggle={() => toggle('phone')}
         />
@@ -234,20 +236,32 @@ function ChangeEmailSection({ currentEmail, isOpen, onToggle }: {
 }
 
 // ─── Phone Section ───
-function PhoneSection({ phone, isOpen, onToggle }: {
-  phone: string; isOpen: boolean; onToggle: () => void;
+function PhoneSection({ phone, isVerified, isOpen, onToggle }: {
+  phone: string; isVerified: boolean; isOpen: boolean; onToggle: () => void;
 }) {
-  const [phoneValue, setPhoneValue] = useState(phone || '');
+  const [step, setStep] = useState<'form' | 'otp' | 'done'>('form');
+  const [newPhone, setNewPhone] = useState(phone || '');
+  const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleRequestChange = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setError(''); setSuccess(false);
-    const res = await updateProfilePhone(phoneValue);
-    if (res.success) setSuccess(true);
-    else setError(res.error || 'Failed to update phone');
+    if (!newPhone || newPhone === phone) { setError('Enter a different mobile number'); return; }
+    setLoading(true); setError('');
+    const res = await requestPhoneChange(newPhone);
+    if (res.success) setStep('otp');
+    else setError(res.error || 'Failed to send verification code');
+    setLoading(false);
+  };
+
+  const handleConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (code.length !== 6) { setError('Enter a 6-digit code'); return; }
+    setLoading(true); setError('');
+    const res = await confirmPhoneChange(code);
+    if (res.success) setStep('done');
+    else setError(res.error || 'Verification failed');
     setLoading(false);
   };
 
@@ -261,25 +275,62 @@ function PhoneSection({ phone, isOpen, onToggle }: {
             <p className="text-xs text-slate-500">{phone || 'Not set — required for password changes'}</p>
           </div>
         </div>
-        {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        <div className="flex items-center gap-2">
+          {phone && (
+            isVerified || step === 'done' ? (
+              <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Verified
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full">
+                <AlertTriangle className="w-3.5 h-3.5" /> Unverified
+              </span>
+            )
+          )}
+          {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        </div>
       </button>
 
       {isOpen && (
         <div className="px-6 pb-5 pt-1">
-          <form onSubmit={handleSave} className="space-y-3">
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Mobile Number</label>
-              <input type="tel" required placeholder="09123456789" value={phoneValue} onChange={e => setPhoneValue(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand/20" />
-              <p className="text-xs text-slate-400">Philippine mobile number format (e.g., 09123456789)</p>
+          {step === 'done' ? (
+            <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+              <CheckCircle2 className="w-5 h-5" />
+              <p className="text-sm font-medium">Phone number updated successfully!</p>
             </div>
-            {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
-            {success && <p className="text-xs text-emerald-600 font-medium">Phone number updated!</p>}
-            <button type="submit" disabled={loading}
-              className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-dark transition disabled:opacity-50">
-              {loading ? 'Saving...' : 'Save Phone'}
-            </button>
-          </form>
+          ) : step === 'otp' ? (
+            <form onSubmit={handleConfirm} className="space-y-3">
+              <p className="text-sm text-slate-600">
+                A verification code has been sent to your <strong>registered email address</strong>.
+                Enter it below to confirm the change.
+              </p>
+              <input type="text" maxLength={6} placeholder="123456" value={code} onChange={e => setCode(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm tracking-widest outline-none focus:border-brand focus:ring-1 focus:ring-brand/20" />
+              {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+              <div className="flex gap-2">
+                <button type="button" onClick={() => { setStep('form'); setCode(''); setError(''); }}
+                  className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition">Back</button>
+                <button type="submit" disabled={loading}
+                  className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-dark transition disabled:opacity-50">
+                  {loading ? 'Updating...' : 'Confirm Change'}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleRequestChange} className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-700">Mobile Number</label>
+                <input type="tel" required placeholder="09123456789" value={newPhone} onChange={e => setNewPhone(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand/20" />
+                <p className="text-xs text-slate-400">Philippine mobile number format (e.g., 09123456789)</p>
+              </div>
+              {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+              <button type="submit" disabled={loading}
+                className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-dark transition disabled:opacity-50">
+                {loading ? 'Sending Code...' : 'Send Verification Code'}
+              </button>
+            </form>
+          )}
         </div>
       )}
     </div>

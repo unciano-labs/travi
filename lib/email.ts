@@ -3,8 +3,9 @@ import { Resend } from 'resend';
 // Initialize Resend only if the API key is present
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-// The standard sender email for the platform
-const SENDER_EMAIL = 'Travi Support <noreply@travi.com>';
+// The standard sender email for the platform.
+// Note: If you don't have a verified domain on Resend, you must use 'onboarding@resend.dev'
+const SENDER_EMAIL = process.env.RESEND_FROM_EMAIL || 'Travi Support <onboarding@resend.dev>';
 
 export interface EmailParams {
   to: string;
