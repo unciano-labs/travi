@@ -336,4 +336,4 @@ Then review is rejected (403)
 
 ---
 
-*See [AGENTS.md](./AGENTS.md) for dev phases | [DATABASE.md](./DATABASE.md) for schema*
+*See [AGENTS.md](./AGENTS.md) for dev phases | [DATABASE.md](./DATABASE.md) for schema**
