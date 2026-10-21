@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import OrganizerOnboardingForm from '@/components/dashboard/OrganizerOnboardingForm';
+import CardBox from '@/components/ui/CardBox';
 
 export default async function OrganizerLayout({
   children,
@@ -36,11 +37,13 @@ export default async function OrganizerLayout({
   if (!organizerProfile) {
     return (
       <div className="max-w-3xl mx-auto py-8">
-        <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Set up your Organizer Profile</h2>
-          <p className="text-slate-600 mb-8">Before you can create tours, we need a few details about your business.</p>
+        <CardBox className="p-8">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground mb-2">Set up your Organizer Profile</h2>
+            <p className="text-bodytext">Before you can create tours, we need a few details about your business.</p>
+          </div>
           <OrganizerOnboardingForm />
-        </div>
+        </CardBox>
       </div>
     );
   }

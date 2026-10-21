@@ -2,8 +2,16 @@
 
 import { useState } from 'react';
 import { updateBookingStatus } from '@/actions/bookings';
-import { Search, Loader2, Calendar, MapPin, Users, Ticket, X, CheckCircle, XCircle } from 'lucide-react';
+import { Search, Loader2, Calendar, Users, Ticket, CheckCircle, XCircle } from 'lucide-react';
 import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
+import PageHeader from '@/components/ui/PageHeader';
+import CardBox from '@/components/ui/CardBox';
+import StatusBadge from '@/components/ui/StatusBadge';
+import EmptyState from '@/components/ui/EmptyState';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 interface Booking {
   id: string;
@@ -69,35 +77,34 @@ export default function OrganizerBookingsClient({ initialBookings }: OrganizerBo
     }
   };
 
+  const fieldLabel = 'text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1';
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-slate-900">Manage Bookings</h1>
-        
-        {/* Search Bar */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input 
-            type="text"
-            placeholder="Search bookings..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full sm:w-72 pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all shadow-sm"
-          />
-        </div>
-      </div>
-      
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <>
+      <PageHeader
+        title="Manage Bookings"
+        breadcrumbs={[{ title: 'Dashboard', href: '/dashboard/organizer' }, { title: 'Bookings' }]}
+        actions={
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Input
+              type="text"
+              aria-label="Search bookings"
+              placeholder="Search bookings..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="pl-10 bg-white"
+            />
+          </div>
+        }
+      />
+
+      <CardBox className="p-0 gap-0 overflow-hidden">
         {filteredBookings.length === 0 ? (
-           <div className="p-12 text-center">
-             <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-100">
-               <Ticket className="w-8 h-8 text-slate-300" />
-             </div>
-             <p className="text-slate-500 font-medium">No bookings found matching your search.</p>
-           </div>
+          <EmptyState icon={Ticket} title="No bookings found matching your search." />
         ) : (
           <>
             {/* Mobile View */}
@@ -108,17 +115,7 @@ export default function OrganizerBookingsClient({ initialBookings }: OrganizerBo
                   onClick={() => setSelectedBooking(b)}
                   headerTitle={b.user_profiles?.full_name || 'Anonymous'}
                   headerSubtitle={<span className="font-mono text-[10px]">ID: {b.id.split('-')[0]}...</span>}
-                  headerBadge={
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${
-                      b.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' : 
-                      b.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                      b.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                      b.status === 'canceled' ? 'bg-red-100 text-red-800' :
-                      'bg-slate-100 text-slate-800'
-                    }`}>
-                      {b.status}
-                    </span>
-                  }
+                  headerBadge={<StatusBadge status={b.status} />}
                   rows={[
                     {
                       label: 'Tour',
@@ -135,234 +132,223 @@ export default function OrganizerBookingsClient({ initialBookings }: OrganizerBo
                     },
                     {
                       label: 'Amount',
-                      value: <span className="text-emerald-600 font-bold">₱{(b.total_amount || 0).toLocaleString()}</span>
+                      value: <span className="text-successemphasis font-semibold">₱{(b.total_amount || 0).toLocaleString()}</span>
                     },
                     {
                       label: 'Booked On',
                       value: (
                         <div className="text-right">
                           <div>{new Date(b.created_at).toLocaleDateString()}</div>
-                          <div className="text-xs text-slate-500">{new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                          <div className="text-xs text-muted-foreground">{new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                         </div>
                       )
                     }
                   ]}
                   actions={
-                    <button 
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="xs"
+                      className="px-0"
                       onClick={(e) => { e.stopPropagation(); setSelectedBooking(b); }}
-                      className="text-xs font-bold text-brand hover:text-brand-dark hover:underline"
                     >
                       View Details
-                    </button>
+                    </Button>
                   }
                 />
               ))}
             </div>
 
             {/* Desktop View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
-                <tr>
-                  <th className="px-6 py-4">Booking ID</th>
-                  <th className="px-6 py-4">Traveler</th>
-                  <th className="px-6 py-4">Tour & Date</th>
-                  <th className="px-6 py-4">Amount</th>
-                  <th className="px-6 py-4">Booked On</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {paginatedBookings.map((b) => (
-                  <tr key={b.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 font-mono text-xs font-medium text-slate-500" title={b.id}>
-                      {b.id.split('-')[0]}...
-                    </td>
-                    <td className="px-6 py-4 font-bold text-slate-900">{b.user_profiles?.full_name || 'Anonymous'}</td>
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-slate-900 line-clamp-1">{b.tour_schedules?.tours?.title}</div>
-                      <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
-                        <Calendar className="w-3 h-3" />
-                        {b.tour_schedules?.start_date ? new Date(b.tour_schedules.start_date).toLocaleDateString() : 'N/A'} 
-                        <span className="mx-1">•</span>
-                        <Users className="w-3 h-3" />
-                        {b.seats} Pax
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-slate-900 font-bold tracking-tight">₱{(b.total_amount || 0).toLocaleString()}</td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-slate-900">{new Date(b.created_at).toLocaleDateString()}</div>
-                      <div className="text-xs text-slate-500">{new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${
-                        b.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' : 
-                        b.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                        b.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                        b.status === 'canceled' ? 'bg-red-100 text-red-800' :
-                        'bg-slate-100 text-slate-800'
-                      }`}>
-                        {b.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => setSelectedBooking(b)}
-                        className="text-xs font-bold text-brand hover:text-brand-dark hover:underline"
-                      >
-                        View Details
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="px-6">Booking ID</TableHead>
+                    <TableHead className="px-6">Traveler</TableHead>
+                    <TableHead className="px-6">Tour & Date</TableHead>
+                    <TableHead className="px-6">Amount</TableHead>
+                    <TableHead className="px-6">Booked On</TableHead>
+                    <TableHead className="px-6">Status</TableHead>
+                    <TableHead className="px-6 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedBookings.map((b) => (
+                    <TableRow key={b.id}>
+                      <TableCell className="px-6 font-mono text-xs font-medium text-muted-foreground" title={b.id}>
+                        {b.id.split('-')[0]}...
+                      </TableCell>
+                      <TableCell className="px-6 font-semibold text-foreground">{b.user_profiles?.full_name || 'Anonymous'}</TableCell>
+                      <TableCell className="px-6">
+                        <div className="font-semibold text-foreground line-clamp-1">{b.tour_schedules?.tours?.title}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                          <Calendar className="w-3 h-3" aria-hidden="true" />
+                          {b.tour_schedules?.start_date ? new Date(b.tour_schedules.start_date).toLocaleDateString() : 'N/A'} 
+                          <span className="mx-1">•</span>
+                          <Users className="w-3 h-3" aria-hidden="true" />
+                          {b.seats} Pax
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-6 text-foreground font-semibold tracking-tight">₱{(b.total_amount || 0).toLocaleString()}</TableCell>
+                      <TableCell className="px-6">
+                        <div className="text-sm font-medium text-foreground">{new Date(b.created_at).toLocaleDateString()}</div>
+                        <div className="text-xs text-muted-foreground">{new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                      </TableCell>
+                      <TableCell className="px-6">
+                        <StatusBadge status={b.status} />
+                      </TableCell>
+                      <TableCell className="px-6 text-right">
+                        <Button type="button" variant="lightprimary" size="xs" onClick={() => setSelectedBooking(b)}>
+                          View Details
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </>
         )}
 
         {/* Pagination Controls */}
         {totalPages > 1 && (
-          <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between text-sm">
-            <span className="text-slate-500 font-medium">
+          <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-4 text-sm">
+            <span className="text-muted-foreground font-medium">
               Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredBookings.length)} of {filteredBookings.length}
             </span>
             <div className="flex gap-2">
-              <button
+              <Button
+                type="button"
+                variant="neutral"
+                size="sm"
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(p => p - 1)}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 disabled:opacity-50 transition-colors"
               >
                 Previous
-              </button>
-              <button
+              </Button>
+              <Button
+                type="button"
+                variant="neutral"
+                size="sm"
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(p => p + 1)}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 disabled:opacity-50 transition-colors"
               >
                 Next
-              </button>
+              </Button>
             </div>
           </div>
         )}
-      </div>
+      </CardBox>
 
       {/* Details Modal */}
-      {selectedBooking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <h2 className="text-lg font-bold text-slate-900">Booking Details</h2>
-              <button onClick={() => setSelectedBooking(null)} className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              {/* Header Info */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-bold text-slate-900">{selectedBooking.user_profiles?.full_name || 'Anonymous Traveler'}</p>
-                  <p className="font-mono text-xs text-slate-500 mt-1">ID: {selectedBooking.id}</p>
-                </div>
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold capitalize ${
-                  selectedBooking.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' : 
-                  selectedBooking.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                  selectedBooking.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                  selectedBooking.status === 'canceled' ? 'bg-red-100 text-red-800' :
-                  'bg-slate-100 text-slate-800'
-                }`}>
-                  {selectedBooking.status}
-                </span>
-              </div>
+      <Dialog open={!!selectedBooking} onOpenChange={(open) => { if (!open) setSelectedBooking(null); }}>
+        <DialogContent className="max-w-lg" aria-describedby={undefined}>
+          {selectedBooking && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Booking Details</DialogTitle>
+              </DialogHeader>
 
-              {/* Grid Details */}
-              <div className="bg-slate-50 rounded-xl p-4 grid grid-cols-2 gap-4 border border-slate-100">
-                <div>
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Tour</span>
-                  <div className="font-medium text-slate-900 text-sm line-clamp-2">{selectedBooking.tour_schedules?.tours?.title}</div>
-                </div>
-                <div>
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Date</span>
-                  <div className="font-medium text-slate-900 text-sm">
-                    {selectedBooking.tour_schedules?.start_date ? new Date(selectedBooking.tour_schedules.start_date).toLocaleDateString() : 'N/A'}
+              <div className="space-y-6">
+                {/* Header Info */}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground">{selectedBooking.user_profiles?.full_name || 'Anonymous Traveler'}</p>
+                    <p className="font-mono text-xs text-muted-foreground mt-1 break-all">ID: {selectedBooking.id}</p>
                   </div>
+                  <StatusBadge status={selectedBooking.status} />
                 </div>
-                <div>
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Guests</span>
-                  <div className="font-medium text-slate-900 text-sm">{selectedBooking.seats} Pax</div>
-                </div>
-                <div>
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Total Amount</span>
-                  <div className="font-bold text-emerald-600 text-sm">₱{(selectedBooking.total_amount || 0).toLocaleString()}</div>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Booked On</span>
-                  <div className="font-medium text-slate-900 text-sm">
-                    {new Date(selectedBooking.created_at).toLocaleDateString()} at {new Date(selectedBooking.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                </div>
-              </div>
 
-              {/* Payment Details */}
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                <h3 className="text-sm font-bold text-slate-900 mb-3 border-b border-slate-200 pb-2">Payment Details</h3>
-                <div className="grid grid-cols-2 gap-4">
+                {/* Grid Details */}
+                <div className="bg-muted/50 rounded-lg p-4 grid grid-cols-2 gap-4 border border-border">
                   <div>
-                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Status</span>
-                    <div className="font-medium text-slate-900 text-sm capitalize">
-                      {selectedBooking.status === 'confirmed' || selectedBooking.status === 'completed' ? 'Paid' : selectedBooking.status}
+                    <span className={fieldLabel}>Tour</span>
+                    <div className="font-medium text-foreground text-sm line-clamp-2">{selectedBooking.tour_schedules?.tours?.title}</div>
+                  </div>
+                  <div>
+                    <span className={fieldLabel}>Date</span>
+                    <div className="font-medium text-foreground text-sm">
+                      {selectedBooking.tour_schedules?.start_date ? new Date(selectedBooking.tour_schedules.start_date).toLocaleDateString() : 'N/A'}
                     </div>
                   </div>
                   <div>
-                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Mode</span>
-                    <div className="font-medium text-slate-900 text-sm">
-                      {selectedBooking.paymongo_session_id ? 'Online (PayMongo)' : 'Manual / Cash'}
+                    <span className={fieldLabel}>Guests</span>
+                    <div className="font-medium text-foreground text-sm">{selectedBooking.seats} Pax</div>
+                  </div>
+                  <div>
+                    <span className={fieldLabel}>Total Amount</span>
+                    <div className="font-semibold text-successemphasis text-sm">₱{(selectedBooking.total_amount || 0).toLocaleString()}</div>
+                  </div>
+                  <div className="col-span-2">
+                    <span className={fieldLabel}>Booked On</span>
+                    <div className="font-medium text-foreground text-sm">
+                      {new Date(selectedBooking.created_at).toLocaleDateString()} at {new Date(selectedBooking.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
-                  {selectedBooking.booking_ref && (
-                    <div className="col-span-2 sm:col-span-1">
-                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Reference No.</span>
-                      <div className="font-mono text-slate-900 text-xs mt-0.5 break-all">{selectedBooking.booking_ref}</div>
-                    </div>
-                  )}
-                  {selectedBooking.status === 'confirmed' && selectedBooking.updated_at && (
-                    <div className="col-span-2 sm:col-span-1">
-                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Paid On</span>
-                      <div className="font-medium text-slate-900 text-sm">
-                        {new Date(selectedBooking.updated_at).toLocaleDateString()} at {new Date(selectedBooking.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+
+                {/* Payment Details */}
+                <div className="bg-muted/50 rounded-lg p-4 border border-border">
+                  <h3 className="text-sm font-semibold text-foreground mb-3 border-b border-border pb-2">Payment Details</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className={fieldLabel}>Status</span>
+                      <div className="font-medium text-foreground text-sm capitalize">
+                        {selectedBooking.status === 'confirmed' || selectedBooking.status === 'completed' ? 'Paid' : selectedBooking.status}
                       </div>
                     </div>
-                  )}
+                    <div>
+                      <span className={fieldLabel}>Mode</span>
+                      <div className="font-medium text-foreground text-sm">
+                        {selectedBooking.paymongo_session_id ? 'Online (PayMongo)' : 'Manual / Cash'}
+                      </div>
+                    </div>
+                    {selectedBooking.booking_ref && (
+                      <div className="col-span-2 sm:col-span-1">
+                        <span className={fieldLabel}>Reference No.</span>
+                        <div className="font-mono text-foreground text-xs mt-0.5 break-all">{selectedBooking.booking_ref}</div>
+                      </div>
+                    )}
+                    {selectedBooking.status === 'confirmed' && selectedBooking.updated_at && (
+                      <div className="col-span-2 sm:col-span-1">
+                        <span className={fieldLabel}>Paid On</span>
+                        <div className="font-medium text-foreground text-sm">
+                          {new Date(selectedBooking.updated_at).toLocaleDateString()} at {new Date(selectedBooking.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* Actions */}
               {selectedBooking.status === 'pending' && (
-                <div className="pt-2 flex items-center justify-end gap-3">
-                  <button 
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outlineerror"
                     onClick={() => handleUpdateStatus(selectedBooking.id, 'canceled')}
                     disabled={!!actionLoading}
-                    className="px-4 py-2.5 rounded-xl border border-red-200 text-red-600 font-bold text-sm hover:bg-red-50 transition-colors flex items-center gap-2 disabled:opacity-50"
                   >
-                    {actionLoading === `${selectedBooking.id}-canceled` ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                    {actionLoading === `${selectedBooking.id}-canceled` ? <Loader2 className="animate-spin" /> : <XCircle />}
                     Decline Request
-                  </button>
-                  <button 
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="success"
                     onClick={() => handleUpdateStatus(selectedBooking.id, 'confirmed')}
                     disabled={!!actionLoading}
-                    className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2 disabled:opacity-50"
                   >
-                    {actionLoading === `${selectedBooking.id}-confirmed` ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                    {actionLoading === `${selectedBooking.id}-confirmed` ? <Loader2 className="animate-spin" /> : <CheckCircle />}
                     Confirm Booking
-                  </button>
-                </div>
+                  </Button>
+                </DialogFooter>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

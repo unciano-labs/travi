@@ -25,15 +25,15 @@ export default function GenericMobileCard({
 }: GenericMobileCardProps) {
   return (
     <div 
-      className={`bg-white rounded-xl border border-slate-200 shadow-sm p-4 transition-colors ${onClick ? 'hover:border-brand/30 cursor-pointer' : ''}`}
+      className={`bg-white rounded-lg border border-border p-4 transition-colors ${onClick ? 'hover:border-primary/40 cursor-pointer' : ''}`}
       onClick={onClick}
     >
       {(headerTitle || headerBadge || headerSubtitle) && (
         <div className="mb-4">
           <div className="flex justify-between items-start gap-4">
             <div className="flex-1 min-w-0">
-              {headerTitle && <div className="font-bold text-slate-900 truncate">{headerTitle}</div>}
-              {headerSubtitle && <div className="text-xs text-slate-500 mt-1">{headerSubtitle}</div>}
+              {headerTitle && <div className="font-semibold text-foreground truncate">{headerTitle}</div>}
+              {headerSubtitle && <div className="text-xs text-muted-foreground mt-1">{headerSubtitle}</div>}
             </div>
             {headerBadge && <div className="flex-shrink-0">{headerBadge}</div>}
           </div>
@@ -43,10 +43,10 @@ export default function GenericMobileCard({
       <div className="grid grid-cols-2 gap-y-3 gap-x-4">
         {rows.map((row, idx) => (
           <div key={idx} className={row.fullWidth ? 'col-span-2' : 'col-span-2 sm:col-span-1'}>
-            <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+            <span className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
               {row.label}
             </span>
-            <div className="text-sm text-slate-700 font-medium break-words">
+            <div className="text-sm text-foreground font-medium break-words">
               {row.value}
             </div>
           </div>
@@ -54,7 +54,7 @@ export default function GenericMobileCard({
       </div>
 
       {actions && (
-        <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+        <div className="mt-4 pt-3 border-t border-border flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
           {actions}
         </div>
       )}

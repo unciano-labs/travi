@@ -54,7 +54,7 @@ export default function LocationPicker({
   };
 
   return (
-    <div className="h-64 w-full rounded-md overflow-hidden border border-gray-300 relative z-0">
+    <div className="h-64 w-full rounded-lg overflow-hidden border border-border relative z-0">
       <MapContainer 
         center={position || defaultCenter} 
         zoom={position ? 13 : 2} 
@@ -67,7 +67,7 @@ export default function LocationPicker({
         />
         <LocationMarker position={position} setPosition={handleSetPosition} />
       </MapContainer>
-      <div className="absolute top-2 right-2 z-[1000] bg-white px-2 py-1 text-xs rounded shadow-sm border border-gray-200 pointer-events-none">
+      <div className="absolute top-2 right-2 z-[1000] bg-white px-2 py-1 text-xs text-bodytext rounded-md shadow-sm border border-border pointer-events-none">
         Click map to set location
       </div>
     </div>

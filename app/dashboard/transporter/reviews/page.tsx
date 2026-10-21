@@ -1,6 +1,10 @@
-import { Star, MessageSquare, Bus, User, Calendar, ThumbsUp } from 'lucide-react';
+import { Star, MessageSquare, Bus } from 'lucide-react';
 import { getTransporterReviews } from '@/actions/transporter';
 import Image from 'next/image';
+import PageHeader from '@/components/ui/PageHeader';
+import CardBox from '@/components/ui/CardBox';
+import EmptyState from '@/components/ui/EmptyState';
+import { Progress } from '@/components/ui/progress';
 
 export default async function TransporterReviewsPage() {
   const { reviews, averageRating, reviewCount } = await getTransporterReviews();
@@ -14,145 +18,131 @@ export default async function TransporterReviewsPage() {
   });
 
   return (
-    <div className="space-y-8">
-      {/* Title */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Reviews & Reputation</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Monitor your customer feedback, star ratings, and service reputation from Tour Organizers and Travelers.
-        </p>
-      </div>
+    <>
+      <PageHeader
+        title="Reviews & Reputation"
+        description="Monitor your customer feedback, star ratings, and service reputation from Tour Organizers and Travelers."
+        breadcrumbs={[{ title: 'Dashboard', href: '/dashboard/transporter' }, { title: 'Reviews' }]}
+      />
 
-      {/* Ratings Overview Card */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-center items-center text-center space-y-3">
-          <div className="text-5xl font-extrabold text-slate-900 font-display">
+      <div className="grid grid-cols-12 gap-6">
+        {/* Ratings Overview Card */}
+        <CardBox className="col-span-12 items-center justify-center gap-3 text-center md:col-span-4">
+          <div className="text-5xl font-semibold text-foreground">
             {averageRating > 0 ? averageRating.toFixed(1) : '5.0'}
           </div>
           <div className="flex gap-1">
             {[1, 2, 3, 4, 5].map((star) => (
               <Star
                 key={star}
-                className={`w-6 h-6 ${
+                className={`size-6 ${
                   star <= Math.round(averageRating || 5)
-                    ? 'fill-coral text-coral'
-                    : 'fill-slate-100 text-slate-200'
+                    ? 'fill-warning text-warning'
+                    : 'fill-muted text-border'
                 }`}
               />
             ))}
           </div>
-          <p className="text-xs font-semibold text-slate-500">
+          <p className="text-xs font-semibold text-muted-foreground">
             Based on {reviewCount} customer review{reviewCount === 1 ? '' : 's'}
           </p>
-        </div>
+        </CardBox>
 
         {/* Rating Breakdown Bars */}
-        <div className="md:col-span-2 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-2.5 flex flex-col justify-center">
+        <CardBox className="col-span-12 justify-center gap-3 md:col-span-8">
           {[5, 4, 3, 2, 1].map((stars) => {
             const count = ratingCounts[stars] || 0;
             const percentage = reviewCount > 0 ? Math.round((count / reviewCount) * 100) : stars === 5 ? 100 : 0;
 
             return (
               <div key={stars} className="flex items-center gap-3 text-xs">
-                <div className="flex items-center gap-1 w-14 text-slate-600 font-semibold">
+                <div className="flex w-14 items-center gap-1 font-semibold text-bodytext">
                   <span>{stars}</span>
-                  <Star className="w-3.5 h-3.5 fill-coral text-coral" />
+                  <Star className="size-3.5 fill-warning text-warning" />
                 </div>
-                <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-coral rounded-full transition-all duration-500"
-                    style={{ width: `${percentage}%` }}
-                  ></div>
-                </div>
-                <span className="w-10 text-right text-slate-400 font-medium">
+                <Progress value={percentage} variant="warning" className="h-2.5 flex-1" aria-label={`${stars} star reviews`} />
+                <span className="w-10 text-right font-medium text-muted-foreground">
                   {count}
                 </span>
               </div>
             );
           })}
-        </div>
-      </div>
+        </CardBox>
 
-      {/* Reviews List */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-bold text-slate-900">Recent Customer Reviews</h2>
+        {/* Reviews List */}
+        <div className="col-span-12 space-y-4">
+          <h5 className="card-title">Recent Customer Reviews</h5>
 
-        {reviews.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-sm max-w-lg mx-auto space-y-4">
-            <div className="w-16 h-16 bg-coral/10 text-coral rounded-2xl flex items-center justify-center mx-auto">
-              <MessageSquare className="w-8 h-8" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">No reviews yet</h3>
-              <p className="text-sm text-slate-500 mt-1">
-                When you complete transport bookings, tour organizers and travelers will leave feedback here.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {reviews.map((r: any) => {
-              const reviewerName = r.reviewer?.full_name || 'Verified Traveler';
-              const avatar = r.reviewer?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(reviewerName)}&background=0EA5E9&color=fff`;
+          {reviews.length === 0 ? (
+            <CardBox>
+              <EmptyState
+                icon={MessageSquare}
+                title="No reviews yet"
+                description="When you complete transport bookings, tour organizers and travelers will leave feedback here."
+              />
+            </CardBox>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              {reviews.map((r: any) => {
+                const reviewerName = r.reviewer?.full_name || 'Verified Traveler';
+                const avatar = r.reviewer?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(reviewerName)}&background=5d87ff&color=fff`;
 
-              return (
-                <div
-                  key={r.id}
-                  className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm hover:shadow-md transition-all space-y-4 flex flex-col justify-between"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-3">
-                        <Image
-                          src={avatar}
-                          alt={reviewerName}
-                          width={40}
-                          height={40}
-                          className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-100"
-                        />
-                        <div>
-                          <h4 className="font-bold text-slate-900 text-sm">{reviewerName}</h4>
-                          <span className="text-xs text-slate-400">
-                            {new Date(r.created_at).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                            })}
-                          </span>
+                return (
+                  <CardBox key={r.id} className="justify-between gap-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <Image
+                            src={avatar}
+                            alt={reviewerName}
+                            width={40}
+                            height={40}
+                            className="size-10 rounded-full object-cover"
+                          />
+                          <div>
+                            <h6 className="text-sm font-semibold text-foreground">{reviewerName}</h6>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(r.created_at).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              })}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-0.5" aria-label={`${r.rating} out of 5 stars`}>
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`size-4 ${
+                                star <= r.rating
+                                  ? 'fill-warning text-warning'
+                                  : 'fill-muted text-border'
+                              }`}
+                            />
+                          ))}
                         </div>
                       </div>
 
-                      <div className="flex gap-0.5">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            className={`w-4 h-4 ${
-                              star <= r.rating
-                                ? 'fill-coral text-coral'
-                                : 'fill-slate-100 text-slate-200'
-                            }`}
-                          />
-                        ))}
+                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-bodytext">
+                        &ldquo;{r.comment || 'Smooth, on-time, and comfortable ride. Highly recommended!'}&rdquo;
+                      </p>
+                    </div>
+
+                    {r.vehicle?.name && (
+                      <div className="flex items-center gap-1.5 border-t border-border pt-3 text-xs text-muted-foreground">
+                        <Bus className="size-3.5" />
+                        <span>Vehicle: <strong className="text-foreground">{r.vehicle.name}</strong></span>
                       </div>
-                    </div>
-
-                    <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
-                      &ldquo;{r.comment || 'Smooth, on-time, and comfortable ride. Highly recommended!'}&rdquo;
-                    </p>
-                  </div>
-
-                  {r.vehicle?.name && (
-                    <div className="pt-3 border-t border-slate-100 flex items-center gap-1.5 text-xs text-slate-500">
-                      <Bus className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Vehicle: <strong className="text-slate-700">{r.vehicle.name}</strong></span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+                    )}
+                  </CardBox>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

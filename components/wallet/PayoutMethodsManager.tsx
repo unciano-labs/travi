@@ -1,7 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { CreditCard, Wallet, Plus, Star, Trash2 } from 'lucide-react';
+import { CreditCard, Wallet, Plus, Star, Trash2, ChevronDown, Loader2 } from 'lucide-react';
+import CardBox from '@/components/ui/CardBox';
+import EmptyState from '@/components/ui/EmptyState';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input, NativeSelect } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { SavedPayoutMethod, savePayoutMethod, deletePayoutMethod, setDefaultPayoutMethod } from '@/actions/wallet';
 import { sendPayoutOtp, verifyPayoutOtp } from '@/actions/otp';
 
@@ -111,71 +117,73 @@ export default function PayoutMethodsManager({ walletId, methods }: { walletId: 
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+    <CardBox className="gap-0 overflow-hidden p-0">
+      <div className="flex items-center justify-between gap-4 border-b border-border px-6 py-4">
         <div>
-          <h3 className="text-lg font-semibold text-slate-900">Payout Methods</h3>
-          <p className="text-sm text-slate-500">Manage where you want to receive your earnings.</p>
+          <h5 className="card-title">Payout Methods</h5>
+          <p className="text-sm text-muted-foreground">Manage where you want to receive your earnings.</p>
         </div>
         {!isAdding && (
-          <button 
-            onClick={() => setIsAdding(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-dark transition"
-          >
-            <Plus className="w-4 h-4" />
+          <Button type="button" size="sm" onClick={() => setIsAdding(true)}>
+            <Plus />
             Add Method
-          </button>
+          </Button>
         )}
       </div>
 
       <div className="p-6">
         {isAdding && (
-          <form onSubmit={handleAdd} className="bg-slate-50 rounded-lg p-5 border border-slate-200 mb-6 space-y-4">
-            <h4 className="font-semibold text-brand-navy">{otpStep ? 'Security Verification' : 'New Payout Method'}</h4>
+          <form onSubmit={handleAdd} className="mb-6 space-y-4 rounded-lg border border-border bg-muted/50 p-5">
+            <h6 className="font-semibold text-foreground">{otpStep ? 'Security Verification' : 'New Payout Method'}</h6>
             
             {otpStep ? (
               <div className="space-y-4">
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-bodytext">
                   We've sent a 6-digit verification code to your email. Please enter it below to confirm adding this payout method.
                 </p>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">Verification Code</label>
-                  <input 
+                <div className="space-y-2">
+                  <Label htmlFor="payout-otp">Verification Code</Label>
+                  <Input 
+                    id="payout-otp"
                     type="text" 
                     required 
                     maxLength={6}
                     placeholder="123456"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand/20 tracking-widest"
+                    className="bg-white tracking-widest"
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value)}
                   />
                 </div>
                 {otpError && (
-                  <p className="text-xs text-red-500 font-medium">{otpError}</p>
+                  <p className="text-xs font-medium text-error">{otpError}</p>
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">Type</label>
-                <select 
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand/20"
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                <Label htmlFor="payout-type">Type</Label>
+                <NativeSelect 
+                  id="payout-type"
+                  className="bg-white"
                   value={type} 
                   onChange={(e) => setType(e.target.value as 'bank' | 'gcash' | 'maya')}
                 >
                   <option value="bank">Bank Transfer</option>
                   <option value="gcash">GCash</option>
                   <option value="maya">Maya</option>
-                </select>
+                </NativeSelect>
               </div>
 
               {type === 'bank' && (
-                <div className="space-y-1 relative">
-                  <label className="text-sm font-medium text-slate-700">Bank</label>
+                <div className="relative space-y-2">
+                  <Label htmlFor="payout-bank">Bank</Label>
                   <button 
+                    id="payout-bank"
                     type="button"
+                    aria-haspopup="listbox"
+                    aria-expanded={bankDropdownOpen}
                     onClick={() => setBankDropdownOpen(!bankDropdownOpen)}
-                    className="w-full flex items-center justify-between rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none bg-white focus:border-brand focus:ring-1 focus:ring-brand/20"
+                    className="flex h-10 w-full items-center justify-between rounded-lg border border-border bg-white px-3 py-2 text-sm text-foreground outline-none focus-visible:border-primary"
                   >
                     {bankName ? (
                       <div className="flex items-center gap-2">
@@ -183,19 +191,19 @@ export default function PayoutMethodsManager({ walletId, methods }: { walletId: 
                         <img 
                           src={`https://logo.clearbit.com/${PH_BANKS.find(b => b.name === bankName)?.domain || 'bdo.com.ph'}`} 
                           alt={bankName} 
-                          className="w-5 h-5 rounded-full object-contain bg-slate-100"
+                          className="h-5 w-5 rounded-full bg-muted object-contain"
                           onError={(e) => { e.currentTarget.style.display = 'none'; }}
                         />
                         <span className="truncate">{bankName}</span>
                       </div>
                     ) : (
-                      <span className="text-slate-400">Select a bank</span>
+                      <span className="text-muted-foreground">Select a bank</span>
                     )}
-                    <span className="text-slate-400">▼</span>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
                   </button>
                   
                   {bankDropdownOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-20 max-h-60 overflow-y-auto">
+                    <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-60 overflow-y-auto rounded-lg border border-border bg-white shadow-lg">
                       {PH_BANKS.map((bank) => (
                         <button
                           key={bank.code}
@@ -204,16 +212,16 @@ export default function PayoutMethodsManager({ walletId, methods }: { walletId: 
                             setBankName(bank.name);
                             setBankDropdownOpen(false);
                           }}
-                          className="flex items-center gap-3 w-full text-left px-3 py-2 hover:bg-slate-50 transition border-b border-slate-50 last:border-0"
+                          className="flex w-full items-center gap-3 border-b border-border px-3 py-2 text-left transition last:border-0 hover:bg-lightprimary/40"
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img 
                             src={`https://logo.clearbit.com/${bank.domain}`} 
                             alt={bank.name} 
-                            className="w-6 h-6 rounded-full object-contain bg-slate-100 border border-slate-200"
+                            className="h-6 w-6 rounded-full border border-border bg-muted object-contain"
                             onError={(e) => { e.currentTarget.style.display = 'none'; }}
                           />
-                          <span className="text-sm font-medium text-slate-700 truncate">{bank.name}</span>
+                          <span className="truncate text-sm font-medium text-bodytext">{bank.name}</span>
                         </button>
                       ))}
                     </div>
@@ -221,25 +229,27 @@ export default function PayoutMethodsManager({ walletId, methods }: { walletId: 
                 </div>
               )}
               
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">Account Name</label>
-                <input 
+              <div className="space-y-2">
+                <Label htmlFor="payout-account-name">Account Name</Label>
+                <Input 
+                  id="payout-account-name"
                   type="text" 
                   required 
                   placeholder="John Doe"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand/20"
+                  className="bg-white"
                   value={accountName}
                   onChange={(e) => setAccountName(e.target.value)}
                 />
               </div>
               
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">Account Number</label>
-                <input 
+              <div className="space-y-2">
+                <Label htmlFor="payout-account-number">Account Number</Label>
+                <Input 
+                  id="payout-account-number"
                   type="text" 
                   required 
                   placeholder={type === 'bank' ? "0123456789" : "09123456789"}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand/20"
+                  className="bg-white"
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
                 />
@@ -249,42 +259,41 @@ export default function PayoutMethodsManager({ walletId, methods }: { walletId: 
             )}
 
             <div className="flex justify-end gap-3 pt-2">
-              <button 
+              <Button 
                 type="button" 
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   setIsAdding(false);
                   setBankDropdownOpen(false);
                   setOtpStep(false);
                   setOtpCode('');
                 }}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition"
               >
                 Cancel
-              </button>
-              <button 
+              </Button>
+              <Button 
                 type="submit" 
+                size="sm"
                 disabled={loading === 'add' || loading === 'otp'}
-                className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-dark transition disabled:opacity-50"
               >
+                {(loading === 'add' || loading === 'otp') && <Loader2 className="animate-spin" />}
                 {loading === 'add' ? 'Saving...' : loading === 'otp' ? 'Sending OTP...' : otpStep ? 'Verify & Save' : 'Next'}
-              </button>
+              </Button>
             </div>
           </form>
         )}
 
         <div className="space-y-3">
           {methods.length === 0 && !isAdding ? (
-            <div className="text-center py-8 text-slate-500">
-              <CreditCard className="w-8 h-8 mx-auto mb-3 text-slate-300" />
-              <p>No payout methods saved yet.</p>
-            </div>
+            <EmptyState icon={CreditCard} title="No payout methods saved yet." className="py-8" />
           ) : (
             methods.map((method) => (
-              <div key={method.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors bg-white">
+              <div key={method.id} className="flex items-center justify-between rounded-lg border border-border bg-white p-4 transition-colors hover:border-primary/40">
                 <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden border border-slate-100 ${
+                  <div className={`flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-border ${
                     method.type === 'bank' ? 'bg-white' :
-                    method.type === 'gcash' ? 'bg-blue-50 text-blue-500' : 'bg-green-100 text-green-600'
+                    method.type === 'gcash' ? 'bg-lightprimary text-primary' : 'bg-lightsuccess text-success'
                   }`}>
                     {method.type === 'bank' ? (
                       <>
@@ -292,29 +301,29 @@ export default function PayoutMethodsManager({ walletId, methods }: { walletId: 
                         <img 
                           src={`https://logo.clearbit.com/${PH_BANKS.find(b => b.name === method.details.bankName)?.domain || 'bank.com'}`}
                           alt={method.details.bankName}
-                          className="w-full h-full object-contain p-1"
+                          className="h-full w-full object-contain p-1"
                           onError={(e) => { 
                              e.currentTarget.style.display = 'none'; 
-                             e.currentTarget.parentElement!.innerHTML = '<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path></svg>';
+                             e.currentTarget.parentElement!.innerHTML = '<svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path></svg>';
                           }}
                         />
                       </>
                     ) : (
-                      <Wallet className="w-5 h-5" />
+                      <Wallet className="h-5 w-5" />
                     )}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium text-slate-900">
+                      <p className="font-medium text-foreground">
                         {method.type === 'bank' ? method.details.bankName : method.type.toUpperCase()}
                       </p>
                       {method.isDefault && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 uppercase tracking-wide">
+                        <Badge variant="lightPrimary" className="px-2 py-0.5 text-[10px] uppercase tracking-wide">
                           Default
-                        </span>
+                        </Badge>
                       )}
                     </div>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-muted-foreground">
                       {method.details.accountName} • •••• {method.details.accountNumber.slice(-4)}
                     </p>
                   </div>
@@ -322,29 +331,35 @@ export default function PayoutMethodsManager({ walletId, methods }: { walletId: 
                 
                 <div className="flex items-center gap-2">
                   {!method.isDefault && (
-                    <button
+                    <Button
+                      type="button"
+                      variant="ghostwarning"
+                      size="iconsm"
                       onClick={() => handleSetDefault(method.id)}
                       disabled={loading === method.id}
-                      className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition tooltip-trigger"
                       title="Set as Default"
+                      aria-label="Set as Default"
                     >
-                      <Star className="w-4 h-4" />
-                    </button>
+                      <Star />
+                    </Button>
                   )}
-                  <button
+                  <Button
+                    type="button"
+                    variant="ghosterror"
+                    size="iconsm"
                     onClick={() => handleDelete(method.id)}
                     disabled={loading === method.id}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
                     title="Remove"
+                    aria-label="Remove"
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                    <Trash2 />
+                  </Button>
                 </div>
               </div>
             ))
           )}
         </div>
       </div>
-    </div>
+    </CardBox>
   );
 }

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 
 @theme inline {
@@ -15,6 +16,95 @@
 
   --shadow-card: 0 10px 30px -12px rgb(2 6 23 / 0.14);
   --shadow-lift: 0 20px 48px -16px rgb(2 6 23 / 0.28);
+
+  /* Dashboard theme (ported from reference/tailwind-admin-reactjs-free) */
+  --font-dashboard: var(--font-dashboard), ui-sans-serif, system-ui, sans-serif;
+  --shadow-dashboard: 0 1px 4px rgb(133 146 173 / 0.2);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+
+  --color-info: var(--info);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-dark: var(--dark);
+  --color-bodytext: var(--bodytext);
+  --color-lightprimary: var(--lightprimary);
+  --color-lightsecondary: var(--lightsecondary);
+  --color-lightsuccess: var(--lightsuccess);
+  --color-lighterror: var(--lighterror);
+  --color-lightinfo: var(--lightinfo);
+  --color-lightwarning: var(--lightwarning);
+  --color-primaryemphasis: var(--primary-emphasis);
+  --color-secondaryemphasis: var(--secondary-emphasis);
+  --color-warningemphasis: var(--warning-emphasis);
+  --color-erroremphasis: var(--error-emphasis);
+  --color-successemphasis: var(--success-emphasis);
+  --color-infoemphasis: var(--info-emphasis);
+}
+
+:root {
+  --white: #ffffff;
+  --dark: #1c2536;
+  --background: var(--white);
+  --foreground: var(--dark);
+  --card: var(--white);
+  --card-foreground: var(--dark);
+  --popover: var(--white);
+  --popover-foreground: var(--dark);
+  --primary: #5d87ff;
+  --primary-foreground: var(--white);
+  --secondary: #49beff;
+  --secondary-foreground: var(--white);
+  --muted: #f5f5f5;
+  --muted-foreground: #5a6a85;
+  --accent: var(--lightprimary);
+  --accent-foreground: var(--primary);
+  --destructive: var(--error);
+  --border: #dfe5ef;
+  --input: #e5e7eb;
+  --ring: var(--lightprimary);
+  --sidebar: var(--white);
+  --sidebar-foreground: #2a3547;
+
+  --info: #8754ec;
+  --success: #13deb9;
+  --warning: #f6b51e;
+  --error: #ef4444;
+  --bodytext: #5a6a85;
+
+  --lightprimary: color-mix(in oklab, var(--primary) 12%, transparent);
+  --lightsecondary: color-mix(in oklab, var(--secondary) 12%, transparent);
+  --lightsuccess: color-mix(in oklab, var(--success) 12%, transparent);
+  --lightwarning: color-mix(in oklab, var(--warning) 12%, transparent);
+  --lighterror: color-mix(in oklab, var(--error) 12%, transparent);
+  --lightinfo: color-mix(in oklab, var(--info) 12%, transparent);
+
+  --primary-emphasis: color-mix(in oklab, var(--primary) 80%, black);
+  --secondary-emphasis: color-mix(in oklab, var(--secondary) 80%, black);
+  --success-emphasis: color-mix(in oklab, var(--success) 80%, black);
+  --warning-emphasis: color-mix(in oklab, var(--warning) 80%, black);
+  --error-emphasis: color-mix(in oklab, var(--error) 80%, black);
+  --info-emphasis: color-mix(in oklab, var(--info) 80%, black);
 }
 
 @layer base {
@@ -36,6 +126,30 @@
     background: #0EA5E9;
     color: #fff;
   }
+}
+
+/* Dashboard shell base styles. Scoped to .tw-admin so the landing page is untouched. */
+@layer base {
+  .tw-admin {
+    @apply font-dashboard text-sm text-bodytext bg-background;
+  }
+  .tw-admin *, .tw-admin ::before, .tw-admin ::after {
+    border-color: var(--color-border);
+  }
+  .tw-admin :is(h1, h2, h3, h4, h5, h6) {
+    @apply text-foreground font-semibold;
+  }
+  .tw-admin input::placeholder, .tw-admin textarea::placeholder {
+    @apply text-muted-foreground/70;
+  }
+}
+
+@utility card-title {
+  @apply text-lg font-semibold text-foreground;
+}
+
+@utility bg-hover {
+  @apply hover:bg-lightprimary;
 }
 
 @layer utilities {
@@ -70,3 +184,22 @@
     animation: spin-slow 18s linear infinite;
   }
 }
+
+/* react-big-calendar theme overrides (dashboard calendars, wrapped in .calendar-container) */
+.calendar-container .rbc-calendar { font-family: inherit; font-size: 0.85rem; color: var(--color-bodytext); }
+.calendar-container .rbc-month-view,
+.calendar-container .rbc-time-view,
+.calendar-container .rbc-agenda-view,
+.calendar-container .rbc-header,
+.calendar-container .rbc-day-bg + .rbc-day-bg,
+.calendar-container .rbc-month-row + .rbc-month-row { border-color: var(--color-border); }
+.calendar-container .rbc-month-view, .calendar-container .rbc-time-view { border-radius: 0.5rem; overflow: hidden; }
+.calendar-container .rbc-header { padding: 0.5rem 0; font-weight: 600; color: var(--color-foreground); }
+.calendar-container .rbc-off-range-bg { background-color: var(--color-muted); }
+.calendar-container .rbc-today { background-color: var(--color-lightprimary); }
+.calendar-container .rbc-event { box-shadow: none; }
+.calendar-container .rbc-toolbar .rbc-toolbar-label { font-weight: 600; color: var(--color-foreground); }
+.calendar-container .rbc-toolbar button { border-radius: 0.375rem; border-color: var(--color-border); color: var(--color-bodytext); font-weight: 500; }
+.calendar-container .rbc-toolbar button:hover { background-color: var(--color-lightprimary); color: var(--color-primary); }
+.calendar-container .rbc-toolbar button:active,
+.calendar-container .rbc-toolbar button.rbc-active { background-color: var(--color-primary); border-color: var(--color-primary); color: var(--white); box-shadow: none; }

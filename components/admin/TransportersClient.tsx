@@ -1,9 +1,19 @@
 'use client';
 
 import { useState } from 'react';
+import type React from 'react';
 import { Search, Loader2, Check, X, Building, User, Phone, MapPin, AlignLeft, Calendar, Star, Bus } from 'lucide-react';
 import { approveTransporter, rejectTransporter } from '@/actions/admin';
 import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
+import PageHeader from '@/components/ui/PageHeader';
+import CardBox from '@/components/ui/CardBox';
+import StatusBadge from '@/components/ui/StatusBadge';
+import EmptyState from '@/components/ui/EmptyState';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Transporter {
   id: string;
@@ -77,55 +87,62 @@ export default function TransportersClient({ initialTransporters }: Transporters
     }
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-slate-900">Manage Transporters</h1>
-        
-        {/* Search Bar */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input 
-            type="text"
-            placeholder="Search transporters..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full sm:w-72 pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all shadow-sm"
-          />
-        </div>
-      </div>
+  const detailItem = (icon: React.ReactNode, label: string, value: React.ReactNode, className = '') => (
+    <div className={`col-span-2 ${className}`}>
+      <span className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {icon} {label}
+      </span>
+      <div className="text-sm font-medium text-foreground">{value}</div>
+    </div>
+  );
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        {filtered.length === 0 ? (
-          <div className="p-12 text-center text-slate-500 font-medium">
-            No transporters found matching your search.
+  return (
+    <>
+      <PageHeader
+        title="Manage Transporters"
+        breadcrumbs={[{ title: 'Admin', href: '/admin' }, { title: 'Transporters' }]}
+      />
+
+      <CardBox className="gap-0 overflow-hidden p-0">
+        <div className="flex flex-col gap-4 border-b border-border px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h5 className="card-title">Transporters</h5>
+            <p className="text-sm text-muted-foreground">{filtered.length} of {transporters.length} transporters</p>
           </div>
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input
+              type="text"
+              aria-label="Search transporters"
+              placeholder="Search transporters..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-10 sm:w-72"
+            />
+          </div>
+        </div>
+
+        {filtered.length === 0 ? (
+          <EmptyState icon={Bus} title="No transporters found matching your search." />
         ) : (
           <>
             {/* Mobile View */}
-            <div className="block md:hidden p-4 space-y-4">
+            <div className="block space-y-4 p-4 md:hidden">
               {paginated.map((trp) => (
                 <LazyMobileCard
                   key={trp.id}
                   onClick={() => setSelectedTrp(trp)}
                   headerTitle={trp.transporter_type === 'company' ? trp.company_name : trp.display_name}
                   headerSubtitle={trp.user_profiles?.email || 'No email'}
-                  headerBadge={
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${
-                      trp.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 
-                      trp.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                      'bg-amber-100 text-amber-800'
-                    }`}>
-                      {trp.status}
-                    </span>
-                  }
+                  headerBadge={<StatusBadge status={trp.status} />}
                   rows={[
                     {
                       label: 'Type',
-                      value: <div className="flex items-center gap-1.5 capitalize"><User className="w-3.5 h-3.5"/>{trp.transporter_type}</div>
+                      value: <div className="flex items-center gap-1.5 capitalize"><User className="size-3.5" />{trp.transporter_type}</div>
                     },
                     {
                       label: 'Vehicles',
@@ -133,241 +150,200 @@ export default function TransportersClient({ initialTransporters }: Transporters
                     },
                     {
                       label: 'Rating',
-                      value: <div className="flex items-center gap-1 text-slate-900 font-bold"><Star className="w-3.5 h-3.5 text-amber-400 fill-current" />{trp.average_rating > 0 ? Number(trp.average_rating).toFixed(1) : 'New'}</div>
+                      value: <div className="flex items-center gap-1 font-semibold text-foreground"><Star className="size-3.5 fill-current text-warning" />{trp.average_rating > 0 ? Number(trp.average_rating).toFixed(1) : 'New'}</div>
                     },
                     {
                       label: 'Areas',
-                      value: <div className="truncate max-w-[150px]">{trp.service_areas?.join(', ') || 'None'}</div>
+                      value: <div className="max-w-[150px] truncate">{trp.service_areas?.join(', ') || 'None'}</div>
                     }
                   ]}
                   actions={
-                    <button 
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="xs"
+                      className="h-auto px-0"
                       onClick={(e) => { e.stopPropagation(); setSelectedTrp(trp); }}
-                      className="text-xs font-bold text-brand hover:text-brand-dark hover:underline"
                     >
                       View Details
-                    </button>
+                    </Button>
                   }
                 />
               ))}
             </div>
 
             {/* Desktop View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
-                <tr>
-                  <th className="px-6 py-4">Name / Company</th>
-                  <th className="px-6 py-4">Type</th>
-                  <th className="px-6 py-4">Service Areas</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-center">Vehicles</th>
-                  <th className="px-6 py-4 text-center">Rating</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {paginated.map((trp) => (
-                  <tr key={trp.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-slate-900">{trp.transporter_type === 'company' ? trp.company_name : trp.display_name}</div>
-                      <div className="text-slate-500 text-xs mt-0.5">{trp.user_profiles?.email || 'No email'}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-slate-600">
-                        {trp.transporter_type === 'company' ? <Building className="w-4 h-4" /> : <User className="w-4 h-4" />}
-                        <span className="capitalize font-medium">{trp.transporter_type}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-slate-600 max-w-[200px] truncate" title={trp.service_areas?.join(', ')}>
-                        {trp.service_areas?.join(', ') || 'None'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${
-                        trp.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 
-                        trp.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                        'bg-amber-100 text-amber-800'
-                      }`}>
-                        {trp.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className="inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded-md bg-slate-100 text-xs font-bold text-slate-700">
-                        {trp.activeVehicles || 0}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-1 text-slate-900 font-bold">
-                        <Star className="w-4 h-4 text-amber-400 fill-current" />
-                        {trp.average_rating > 0 ? Number(trp.average_rating).toFixed(1) : 'New'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => setSelectedTrp(trp)}
-                        className="text-xs font-bold text-brand hover:text-brand-dark hover:underline"
-                      >
-                        View Details
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="px-6">Name / Company</TableHead>
+                    <TableHead className="px-6">Type</TableHead>
+                    <TableHead className="px-6">Service Areas</TableHead>
+                    <TableHead className="px-6">Status</TableHead>
+                    <TableHead className="px-6 text-center">Vehicles</TableHead>
+                    <TableHead className="px-6 text-center">Rating</TableHead>
+                    <TableHead className="px-6 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginated.map((trp) => (
+                    <TableRow key={trp.id}>
+                      <TableCell className="px-6">
+                        <div className="font-semibold text-foreground">{trp.transporter_type === 'company' ? trp.company_name : trp.display_name}</div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">{trp.user_profiles?.email || 'No email'}</div>
+                      </TableCell>
+                      <TableCell className="px-6">
+                        <div className="flex items-center gap-2">
+                          {trp.transporter_type === 'company' ? <Building className="size-4" /> : <User className="size-4" />}
+                          <span className="font-medium capitalize">{trp.transporter_type}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-6">
+                        <div className="max-w-[200px] truncate" title={trp.service_areas?.join(', ')}>
+                          {trp.service_areas?.join(', ') || 'None'}
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-6">
+                        <StatusBadge status={trp.status} />
+                      </TableCell>
+                      <TableCell className="px-6 text-center">
+                        <Badge variant="gray">{trp.activeVehicles || 0}</Badge>
+                      </TableCell>
+                      <TableCell className="px-6">
+                        <div className="flex items-center justify-center gap-1 font-semibold text-foreground">
+                          <Star className="size-4 fill-current text-warning" />
+                          {trp.average_rating > 0 ? Number(trp.average_rating).toFixed(1) : 'New'}
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-6 text-right">
+                        <Button type="button" variant="lightprimary" size="xs" onClick={() => setSelectedTrp(trp)}>
+                          View Details
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </>
         )}
-        
+
         {/* Pagination Controls */}
         {totalPages > 1 && (
-          <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between text-sm">
-            <span className="text-slate-500 font-medium">
+          <div className="flex items-center justify-between border-t border-border px-6 py-4 text-sm">
+            <span className="font-medium text-muted-foreground">
               Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} of {filtered.length}
             </span>
             <div className="flex gap-2">
-              <button
+              <Button
+                type="button"
+                variant="neutral"
+                size="sm"
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(p => p - 1)}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 disabled:opacity-50 transition-colors"
               >
                 Previous
-              </button>
-              <button
+              </Button>
+              <Button
+                type="button"
+                variant="neutral"
+                size="sm"
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(p => p + 1)}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 disabled:opacity-50 transition-colors"
               >
                 Next
-              </button>
+              </Button>
             </div>
           </div>
         )}
-      </div>
+      </CardBox>
 
       {/* Details Modal */}
-      {selectedTrp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <h2 className="text-lg font-bold text-slate-900">Transporter Details</h2>
-              <button onClick={() => setSelectedTrp(null)} className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              {/* Header Info */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-lg font-bold text-slate-900">{selectedTrp.transporter_type === 'company' ? selectedTrp.company_name : selectedTrp.display_name}</p>
-                  <p className="text-sm font-medium text-slate-500 mt-1">{selectedTrp.user_profiles?.email}</p>
-                </div>
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold capitalize ${
-                  selectedTrp.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 
-                  selectedTrp.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                  'bg-amber-100 text-amber-800'
-                }`}>
-                  {selectedTrp.status}
-                </span>
-              </div>
+      <Dialog open={!!selectedTrp} onOpenChange={(open) => { if (!open) setSelectedTrp(null); }}>
+        <DialogContent className="max-w-lg">
+          {selectedTrp && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Transporter Details</DialogTitle>
+                <DialogDescription className="sr-only">Profile, fleet and approval status for this transporter.</DialogDescription>
+              </DialogHeader>
 
-              {/* Grid Details */}
-              <div className="bg-slate-50 rounded-xl p-4 grid grid-cols-2 gap-4 border border-slate-100">
-                <div className="col-span-2 sm:col-span-1">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                    <User className="w-3.5 h-3.5" /> Type
-                  </span>
-                  <div className="font-medium text-slate-900 text-sm capitalize">{selectedTrp.transporter_type}</div>
+              <div className="space-y-6">
+                {/* Header Info */}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-lg font-semibold text-foreground">{selectedTrp.transporter_type === 'company' ? selectedTrp.company_name : selectedTrp.display_name}</p>
+                    <p className="mt-1 text-sm font-medium text-muted-foreground">{selectedTrp.user_profiles?.email}</p>
+                  </div>
+                  <StatusBadge status={selectedTrp.status} />
                 </div>
-                <div className="col-span-2 sm:col-span-1">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                    <Calendar className="w-3.5 h-3.5" /> Applied On
-                  </span>
-                  <div className="font-medium text-slate-900 text-sm">{new Date(selectedTrp.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
-                </div>
-                <div className="col-span-2 sm:col-span-1">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                    <Bus className="w-3.5 h-3.5" /> Active Vehicles
-                  </span>
-                  <div className="font-bold text-slate-900 text-sm">{selectedTrp.activeVehicles || 0}</div>
-                </div>
-                <div className="col-span-2 sm:col-span-1">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                    <Star className="w-3.5 h-3.5" /> Rating
-                  </span>
-                  <div className="font-bold text-slate-900 text-sm">{selectedTrp.average_rating > 0 ? Number(selectedTrp.average_rating).toFixed(1) : 'No Ratings'} ({selectedTrp.review_count} reviews)</div>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                    <MapPin className="w-3.5 h-3.5" /> Service Areas
-                  </span>
-                  <div className="font-medium text-slate-900 text-sm">{selectedTrp.service_areas?.join(', ') || 'None'}</div>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                    <Phone className="w-3.5 h-3.5" /> Phone
-                  </span>
-                  <div className="font-medium text-slate-900 text-sm">{selectedTrp.phone || 'N/A'}</div>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                    <AlignLeft className="w-3.5 h-3.5" /> Description
-                  </span>
-                  <div className="font-medium text-slate-900 text-sm">{selectedTrp.description || 'N/A'}</div>
+
+                {/* Grid Details */}
+                <div className="grid grid-cols-2 gap-4 rounded-lg border border-border bg-muted/50 p-4">
+                  {detailItem(<User className="size-3.5" />, 'Type', <span className="capitalize">{selectedTrp.transporter_type}</span>, 'sm:col-span-1')}
+                  {detailItem(<Calendar className="size-3.5" />, 'Applied On', new Date(selectedTrp.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }), 'sm:col-span-1')}
+                  {detailItem(<Bus className="size-3.5" />, 'Active Vehicles', <span className="font-semibold">{selectedTrp.activeVehicles || 0}</span>, 'sm:col-span-1')}
+                  {detailItem(<Star className="size-3.5" />, 'Rating', <span className="font-semibold">{selectedTrp.average_rating > 0 ? Number(selectedTrp.average_rating).toFixed(1) : 'No Ratings'} ({selectedTrp.review_count} reviews)</span>, 'sm:col-span-1')}
+                  {detailItem(<MapPin className="size-3.5" />, 'Service Areas', selectedTrp.service_areas?.join(', ') || 'None')}
+                  {detailItem(<Phone className="size-3.5" />, 'Phone', selectedTrp.phone || 'N/A')}
+                  {detailItem(<AlignLeft className="size-3.5" />, 'Description', selectedTrp.description || 'N/A')}
                 </div>
               </div>
 
               {/* Actions */}
-              <div className="pt-2 flex items-center justify-end gap-3">
+              <DialogFooter>
                 {selectedTrp.status === 'pending' && (
                   <>
-                    <button 
+                    <Button
+                      type="button"
+                      variant="outlineerror"
                       onClick={() => handleReject(selectedTrp.id)}
                       disabled={!!actionLoading}
-                      className="px-4 py-2.5 rounded-xl border border-red-200 text-red-600 font-bold text-sm hover:bg-red-50 transition-colors flex items-center gap-2 disabled:opacity-50"
                     >
-                      {actionLoading === `${selectedTrp.id}-reject` ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                      {actionLoading === `${selectedTrp.id}-reject` ? <Loader2 className="animate-spin" /> : <X />}
                       Reject
-                    </button>
-                    <button 
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="success"
                       onClick={() => handleApprove(selectedTrp.id)}
                       disabled={!!actionLoading}
-                      className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2 disabled:opacity-50"
                     >
-                      {actionLoading === `${selectedTrp.id}-approve` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                      {actionLoading === `${selectedTrp.id}-approve` ? <Loader2 className="animate-spin" /> : <Check />}
                       Approve
-                    </button>
+                    </Button>
                   </>
                 )}
-                
+
                 {selectedTrp.status === 'approved' && (
-                  <button 
+                  <Button
+                    type="button"
+                    variant="outlineerror"
                     onClick={() => handleReject(selectedTrp.id)}
                     disabled={!!actionLoading}
-                    className="px-4 py-2.5 rounded-xl border border-red-200 text-red-600 font-bold text-sm hover:bg-red-50 transition-colors flex items-center gap-2 disabled:opacity-50"
                   >
-                    {actionLoading === `${selectedTrp.id}-reject` ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                    {actionLoading === `${selectedTrp.id}-reject` ? <Loader2 className="animate-spin" /> : <X />}
                     Deactivate
-                  </button>
+                  </Button>
                 )}
-                
+
                 {selectedTrp.status === 'rejected' && (
-                  <button 
+                  <Button
+                    type="button"
+                    variant="success"
                     onClick={() => handleApprove(selectedTrp.id)}
                     disabled={!!actionLoading}
-                    className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2 disabled:opacity-50"
                   >
-                    {actionLoading === `${selectedTrp.id}-approve` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    {actionLoading === `${selectedTrp.id}-approve` ? <Loader2 className="animate-spin" /> : <Check />}
                     Activate
-                  </button>
+                  </Button>
                 )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

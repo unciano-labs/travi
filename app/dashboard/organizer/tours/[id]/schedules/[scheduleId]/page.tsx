@@ -3,6 +3,14 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Users, CalendarDays, Receipt } from 'lucide-react';
 import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
+import PageHeader from '@/components/ui/PageHeader';
+import CardBox from '@/components/ui/CardBox';
+import StatCard from '@/components/ui/StatCard';
+import EmptyState from '@/components/ui/EmptyState';
+import StatusBadge from '@/components/ui/StatusBadge';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export default async function ScheduleBookingsPage(props: {
   params: Promise<{ id: string, scheduleId: string }>
@@ -87,61 +95,70 @@ export default async function ScheduleBookingsPage(props: {
   const start = new Date(schedule.start_date);
   const end = new Date(schedule.end_date);
 
+  const fillPercent = schedule.capacity > 0 ? Math.round((totalBooked / schedule.capacity) * 100) : 0;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href={`/dashboard/organizer/tours/${id}/edit?tab=schedules`} className="p-2 text-slate-400 hover:text-slate-900 transition-colors bg-white rounded-lg border border-slate-200">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Schedule Bookings</h1>
-            <p className="text-slate-600">Tour: <span className="font-semibold text-slate-900">{(schedule.tours as any).title}</span></p>
-          </div>
-        </div>
-      </div>
+    <>
+      <PageHeader
+        title="Schedule Bookings"
+        description={<>Tour: <span className="font-semibold text-foreground">{(schedule.tours as any).title}</span></>}
+        breadcrumbs={[
+          { title: 'Dashboard', href: '/dashboard/organizer' },
+          { title: 'My Tours', href: '/dashboard/organizer/tours' },
+          { title: 'Schedules', href: `/dashboard/organizer/tours/${id}/edit?tab=schedules` },
+          { title: 'Bookings' },
+        ]}
+        actions={
+          <Button asChild variant="neutral">
+            <Link href={`/dashboard/organizer/tours/${id}/edit?tab=schedules`}>
+              <ArrowLeft />
+              Back to Schedules
+            </Link>
+          </Button>
+        }
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center">
-            <CalendarDays className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="text-sm font-medium text-slate-500 mb-0.5">Dates</div>
-            <div className="font-bold text-slate-900">
-              {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - {end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-coral-50 text-coral-600 rounded-lg flex items-center justify-center">
-            <Users className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="text-sm font-medium text-slate-500 mb-0.5">Capacity</div>
-            <div className="font-bold text-slate-900">
-              {totalBooked} / {schedule.capacity} Booked
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center">
-            <Receipt className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="text-sm font-medium text-slate-500 mb-0.5">Total Revenue</div>
-            <div className="font-bold text-slate-900">
-              ₱{bookings.reduce((acc, b) => b.status === 'confirmed' || b.status === 'completed' ? acc + Number(b.total_amount) : acc, 0).toLocaleString()}
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <StatCard
+          title="Dates"
+          icon={CalendarDays}
+          tone="primary"
+          value={<>{start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - {end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>}
+        />
+        <StatCard
+          title="Capacity"
+          icon={Users}
+          tone="warning"
+          value={<>{totalBooked} / {schedule.capacity} Booked</>}
+        />
+        <StatCard
+          title="Total Revenue"
+          icon={Receipt}
+          tone="success"
+          value={<>₱{bookings.reduce((acc, b) => b.status === 'confirmed' || b.status === 'completed' ? acc + Number(b.total_amount) : acc, 0).toLocaleString()}</>}
+        />
       </div>
       
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <CardBox className="p-0 gap-0 overflow-hidden">
+        <div className="px-6 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h5 className="card-title">Bookings</h5>
+            <p className="text-sm text-muted-foreground">Travelers booked on this schedule</p>
+          </div>
+          <div className="w-full sm:w-56">
+            <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
+              <span>Seats filled</span>
+              <span className="font-medium text-foreground">{fillPercent}%</span>
+            </div>
+            <Progress
+              value={fillPercent}
+              variant={fillPercent >= 100 ? 'warning' : 'primary'}
+              aria-label={`${totalBooked} of ${schedule.capacity} seats booked`}
+            />
+          </div>
+        </div>
         {bookings.length === 0 ? (
-           <div className="p-8 text-center text-slate-500">No bookings have been made for this schedule yet.</div>
+          <EmptyState icon={Users} title="No bookings have been made for this schedule yet." />
         ) : (
           <>
             {/* Mobile View */}
@@ -151,16 +168,7 @@ export default async function ScheduleBookingsPage(props: {
                   key={b.id}
                   headerTitle={b.user_profiles?.full_name || 'Anonymous'}
                   headerSubtitle={<span className="font-mono text-[10px]">ID: {b.id.split('-')[0]}...</span>}
-                  headerBadge={
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
-                      b.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' : 
-                      b.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                      b.status === 'canceled' ? 'bg-red-100 text-red-800' :
-                      'bg-slate-100 text-slate-800'
-                    }`}>
-                      {b.status}
-                    </span>
-                  }
+                  headerBadge={<StatusBadge status={b.status} />}
                   rows={[
                     {
                       label: 'Email',
@@ -173,7 +181,7 @@ export default async function ScheduleBookingsPage(props: {
                     },
                     {
                       label: 'Amount',
-                      value: <span className="font-medium text-emerald-600">₱{(b.total_amount || 0).toLocaleString()}</span>
+                      value: <span className="font-medium text-successemphasis">₱{(b.total_amount || 0).toLocaleString()}</span>
                     },
                     {
                       label: 'Booked On',
@@ -185,51 +193,44 @@ export default async function ScheduleBookingsPage(props: {
             </div>
 
             {/* Desktop View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
-              <tr>
-                <th className="px-6 py-4">Booking ID</th>
-                <th className="px-6 py-4">Traveler</th>
-                <th className="px-6 py-4">Seats</th>
-                <th className="px-6 py-4">Total Amount</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Booked On</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {bookings.map((b) => (
-                <tr key={b.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-mono text-xs font-medium text-slate-500" title={b.id}>
-                    {b.id.split('-')[0]}...
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="font-medium text-slate-900">{b.user_profiles?.full_name || 'Anonymous'}</div>
-                    <div className="text-xs text-slate-500">{b.user_profiles?.email}</div>
-                  </td>
-                  <td className="px-6 py-4 font-medium text-slate-900">{b.seats} Pax</td>
-                  <td className="px-6 py-4 text-slate-900 font-medium">₱{(b.total_amount || 0).toLocaleString()}</td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
-                      b.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' : 
-                      b.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                      b.status === 'canceled' ? 'bg-red-100 text-red-800' :
-                      'bg-slate-100 text-slate-800'
-                    }`}>
-                      {b.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-slate-500">
-                    {new Date(b.created_at).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="px-6">Booking ID</TableHead>
+                    <TableHead className="px-6">Traveler</TableHead>
+                    <TableHead className="px-6">Seats</TableHead>
+                    <TableHead className="px-6">Total Amount</TableHead>
+                    <TableHead className="px-6">Status</TableHead>
+                    <TableHead className="px-6">Booked On</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {bookings.map((b) => (
+                    <TableRow key={b.id}>
+                      <TableCell className="px-6 font-mono text-xs font-medium text-muted-foreground" title={b.id}>
+                        {b.id.split('-')[0]}...
+                      </TableCell>
+                      <TableCell className="px-6">
+                        <div className="font-medium text-foreground">{b.user_profiles?.full_name || 'Anonymous'}</div>
+                        <div className="text-xs text-muted-foreground">{b.user_profiles?.email}</div>
+                      </TableCell>
+                      <TableCell className="px-6 font-medium text-foreground">{b.seats} Pax</TableCell>
+                      <TableCell className="px-6 font-medium text-foreground">₱{(b.total_amount || 0).toLocaleString()}</TableCell>
+                      <TableCell className="px-6">
+                        <StatusBadge status={b.status} />
+                      </TableCell>
+                      <TableCell className="px-6 text-muted-foreground">
+                        {new Date(b.created_at).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </>
         )}
-      </div>
-    </div>
+      </CardBox>
+    </>
   );
 }

@@ -1,8 +1,52 @@
-import { Bus, CalendarCheck, Map, Star, Clock, Plus, Calendar, Inbox, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Bus, CalendarCheck, Map, Star, Clock, Plus, Calendar, Inbox, ArrowRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
+import CardBox from '@/components/ui/CardBox';
+import WelcomeBanner from '@/components/ui/WelcomeBanner';
+import StatCard from '@/components/ui/StatCard';
+import StatusBadge from '@/components/ui/StatusBadge';
+import Timeline, { type TimelineItem } from '@/components/ui/Timeline';
+import EmptyState from '@/components/ui/EmptyState';
+import BarChart from '@/components/ui/charts/BarChart';
+import DonutChart from '@/components/ui/charts/DonutChart';
+import { Button } from '@/components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
+interface RecentRequest {
+  id: string;
+  pickup_location: string;
+  dropoff_location: string;
+  pickup_datetime: string;
+  seats_required: number | null;
+  estimated_price: number | string | null;
+  status: string;
+  created_at: string;
+  organizer: { company_name: string | null; display_name: string | null } | null;
+  vehicle: { name: string | null; vehicle_type: string | null } | null;
+}
+
+const STATUS_TONE: Record<string, TimelineItem['tone']> = {
+  pending: 'warning',
+  accepted: 'success',
+  completed: 'primary',
+  declined: 'error',
+  canceled: 'error',
+};
+
+function formatPickupDate(value: string) {
+  return new Date(value).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+function organizerName(r: RecentRequest) {
+  return r.organizer?.company_name || r.organizer?.display_name || 'Tour Organizer';
+}
 
 export default async function TransporterDashboard() {
   const supabase = await createClient();
@@ -82,237 +126,263 @@ export default async function TransporterDashboard() {
   const activeVehiclesCount = vehiclesRes.count || 0;
   const pendingRequestsCount = pendingRes.count || 0;
   const upcomingTripsCount = upcomingRes.count || 0;
-  const recentRequests = recentRequestsRes.data || [];
+  const recentRequests = (recentRequestsRes.data || []) as unknown as RecentRequest[];
   const serviceAreasCount = profile.service_areas?.length || 0;
   const averageRating = Number(profile.average_rating) || 0;
 
   const title = profile.company_name || profile.display_name || 'Transporter Dashboard';
 
+  // Chart data, aggregated on the server from the rows fetched above.
+  const chronological = [...recentRequests].reverse();
+  const requestValueCategories = chronological.map((r) =>
+    new Date(r.pickup_datetime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  );
+  const requestValueSeries = [
+    { name: 'Estimated Price', data: chronological.map((r) => Number(r.estimated_price) || 0) },
+  ];
+  const pipelineTotal = pendingRequestsCount + upcomingTripsCount;
+
+  const timelineItems: TimelineItem[] = recentRequests.map((r) => ({
+    key: r.id,
+    time: new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    title: organizerName(r),
+    subtitle: `${r.pickup_location} → ${r.dropoff_location}`,
+    tone: STATUS_TONE[r.status] ?? 'secondary',
+  }));
+
   return (
-    <div className="space-y-8">
-      {/* Top Banner / Welcome */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 to-brand-navy p-6 md:p-8 rounded-3xl text-white shadow-lg">
-        <div>
-          <div className="flex items-center gap-2 text-coral text-xs font-extrabold uppercase tracking-wider mb-2">
-            <span>Transporter Fleet Operations</span>
-          </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight font-display">{title}</h1>
-          <p className="text-slate-300 text-sm mt-1 max-w-xl">
-            {profile.description || 'Welcome to your fleet command center. Manage vehicles, dates, and tour organizer bookings in real-time.'}
-          </p>
-        </div>
-
-        {/* Quick Action Buttons */}
-        <div className="flex flex-wrap items-center gap-3 shrink-0">
-          <Link
-            href="/dashboard/transporter/vehicles"
-            className="flex items-center gap-2 bg-coral hover:bg-coral/90 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-coral/20 transition-all"
-          >
-            <Plus className="w-4 h-4" /> Add Vehicle
-          </Link>
-          <Link
-            href="/dashboard/transporter/availability"
-            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-4 py-2.5 rounded-xl backdrop-blur-md transition-all"
-          >
-            <Calendar className="w-4 h-4" /> Block Dates
-          </Link>
-        </div>
+    <div className="grid grid-cols-12 gap-6">
+      {/* Welcome */}
+      <div className="col-span-12">
+        <WelcomeBanner
+          name={title}
+          subtitle={profile.description || 'Welcome to your fleet command center. Manage vehicles, dates, and tour organizer bookings in real-time.'}
+          actions={
+            <>
+              <Button asChild size="sm">
+                <Link href="/dashboard/transporter/vehicles">
+                  <Plus /> Add Vehicle
+                </Link>
+              </Button>
+              <Button asChild size="sm" variant="neutral">
+                <Link href="/dashboard/transporter/availability">
+                  <Calendar /> Block Dates
+                </Link>
+              </Button>
+            </>
+          }
+        />
       </div>
 
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex items-start gap-4">
-          <div className="p-3 bg-coral/10 text-coral rounded-xl">
-            <Bus className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Fleet</p>
-            <p className="text-2xl font-extrabold text-slate-900 mt-1">{activeVehiclesCount}</p>
-            <span className="text-xs text-slate-500 mt-0.5 inline-block">Ready for bookings</span>
-          </div>
-        </div>
+      {/* KPI Cards */}
+      <div className="col-span-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Active Fleet"
+          value={activeVehiclesCount}
+          icon={Bus}
+          tone="primary"
+          hint="Ready for bookings"
+          href="/dashboard/transporter/vehicles"
+        />
+        <StatCard
+          title="Pending Requests"
+          value={pendingRequestsCount}
+          icon={Clock}
+          tone="warning"
+          hint="Requires review"
+          href="/dashboard/transporter/requests"
+        />
+        <StatCard
+          title="Upcoming Trips"
+          value={upcomingTripsCount}
+          icon={CalendarCheck}
+          tone="secondary"
+          hint="Confirmed schedule"
+          href="/dashboard/transporter/requests"
+        />
+        <StatCard
+          title="Rating & Reviews"
+          value={
+            <>
+              {averageRating > 0 ? averageRating.toFixed(1) : '5.0'}{' '}
+              <span className="text-xs font-medium text-muted-foreground">({profile.review_count || 0})</span>
+            </>
+          }
+          icon={Star}
+          tone="success"
+          hint="Customer satisfaction"
+          href="/dashboard/transporter/reviews"
+        />
+      </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex items-start gap-4">
-          <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
-            <Clock className="w-6 h-6" />
-          </div>
+      {/* Recent request value */}
+      <div className="col-span-12 flex lg:col-span-8">
+        <CardBox>
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pending Requests</p>
-            <p className="text-2xl font-extrabold text-slate-900 mt-1">{pendingRequestsCount}</p>
-            <span className="text-xs text-slate-500 mt-0.5 inline-block">Requires review</span>
+            <h5 className="card-title">Recent Request Value</h5>
+            <p className="text-sm text-muted-foreground">Estimated price of your latest transport requests, by pickup date</p>
           </div>
-        </div>
+          {recentRequests.length === 0 ? (
+            <EmptyState icon={Inbox} title="No transport requests received yet." />
+          ) : (
+            <BarChart categories={requestValueCategories} series={requestValueSeries} valuePrefix="₱" height={300} />
+          )}
+        </CardBox>
+      </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex items-start gap-4">
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-            <CalendarCheck className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Upcoming Trips</p>
-            <p className="text-2xl font-extrabold text-slate-900 mt-1">{upcomingTripsCount}</p>
-            <span className="text-xs text-slate-500 mt-0.5 inline-block">Confirmed schedule</span>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex items-start gap-4">
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-            <Star className="w-6 h-6 fill-emerald-500 text-emerald-500" />
-          </div>
-          <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Rating & Reviews</p>
-            <div className="flex items-center gap-1.5 mt-1">
-              <p className="text-2xl font-extrabold text-slate-900">
-                {averageRating > 0 ? averageRating.toFixed(1) : '5.0'}
-              </p>
-              <span className="text-xs text-slate-400 font-medium">({profile.review_count || 0})</span>
+      {/* Pipeline + coverage */}
+      <div className="col-span-12 flex flex-col gap-6 lg:col-span-4">
+        <CardBox>
+          <div className="grid grid-cols-12 items-center gap-4">
+            <div className="col-span-7 flex flex-col">
+              <h5 className="card-title mb-4">Request Pipeline</h5>
+              <h4 className="mb-2 text-xl font-semibold text-foreground">{pipelineTotal}</h4>
+              <p className="text-sm text-muted-foreground">Open & confirmed trips</p>
+              <div className="mt-4 flex flex-wrap items-center gap-4">
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="size-2.5 rounded-full bg-warning" aria-hidden="true" /> Pending
+                </span>
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="size-2.5 rounded-full bg-secondary" aria-hidden="true" /> Upcoming
+                </span>
+              </div>
             </div>
-            <span className="text-xs text-slate-500 mt-0.5 inline-block">Customer satisfaction</span>
+            <div className="col-span-5 flex justify-center">
+              {pipelineTotal > 0 ? (
+                <DonutChart
+                  labels={['Pending', 'Upcoming']}
+                  series={[pendingRequestsCount, upcomingTripsCount]}
+                  colors={['var(--color-warning)', 'var(--color-secondary)']}
+                  height={150}
+                  width={150}
+                />
+              ) : (
+                <span className="flex size-24 items-center justify-center rounded-full border-8 border-muted text-xs text-muted-foreground">
+                  0
+                </span>
+              )}
+            </div>
           </div>
-        </div>
+        </CardBox>
+
+        <CardBox>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h5 className="card-title mb-4">Fleet Coverage</h5>
+              <h4 className="mb-2 text-xl font-semibold text-foreground">{serviceAreasCount}</h4>
+              <p className="text-sm text-muted-foreground">
+                Service area{serviceAreasCount === 1 ? '' : 's'} · {activeVehiclesCount} active vehicle{activeVehiclesCount === 1 ? '' : 's'}
+              </p>
+            </div>
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-secondary text-white">
+              <Map className="size-6" aria-hidden="true" />
+            </span>
+          </div>
+        </CardBox>
       </div>
 
-      {/* Recent Requests Section */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+      {/* Recent activity timeline */}
+      <div className="col-span-12 lg:col-span-4">
+        <CardBox className="h-full">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Recent Transport Requests</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Latest trip booking requests received from Tour Organizers.</p>
+            <h5 className="card-title">Recent Activity</h5>
+            <p className="text-sm text-muted-foreground">Latest requests received</p>
           </div>
-          <Link
-            href="/dashboard/transporter/requests"
-            className="inline-flex items-center gap-1 text-xs font-bold text-coral hover:text-coral/80 transition-colors"
-          >
-            <span>View All Inbox</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
+          {timelineItems.length === 0 ? (
+            <EmptyState title="No transport requests received yet." />
+          ) : (
+            <Timeline items={timelineItems} />
+          )}
+        </CardBox>
+      </div>
 
-        {recentRequests.length === 0 ? (
-          <div className="p-12 text-center text-slate-500 space-y-3">
-            <Inbox className="w-10 h-10 text-slate-300 mx-auto" />
-            <p className="text-sm font-medium">No transport requests received yet.</p>
-            <p className="text-xs text-slate-400">Make sure your vehicles are active and availability is set to attract Tour Organizers.</p>
+      {/* Recent Requests table */}
+      <div className="col-span-12 flex lg:col-span-8">
+        <CardBox className="gap-0 overflow-hidden p-0">
+          <div className="flex items-center justify-between gap-4 border-b border-border px-6 py-4">
+            <div>
+              <h5 className="card-title">Recent Transport Requests</h5>
+              <p className="text-sm text-muted-foreground">Latest trip booking requests received from Tour Organizers.</p>
+            </div>
+            <Button asChild variant="ghostprimary" size="sm">
+              <Link href="/dashboard/transporter/requests">
+                <span>View All Inbox</span>
+                <ArrowRight />
+              </Link>
+            </Button>
           </div>
-        ) : (
-          <>
-            {/* Mobile View */}
-            <div className="block md:hidden p-4 space-y-4">
-              {recentRequests.map((r: any) => {
-                const isPending = r.status === 'pending';
-                const isAccepted = r.status === 'accepted';
-                const isCompleted = r.status === 'completed';
-                return (
+
+          {recentRequests.length === 0 ? (
+            <EmptyState
+              icon={Inbox}
+              title="No transport requests received yet."
+              description="Make sure your vehicles are active and availability is set to attract Tour Organizers."
+            />
+          ) : (
+            <>
+              {/* Mobile View */}
+              <div className="block space-y-4 p-4 md:hidden">
+                {recentRequests.map((r) => (
                   <LazyMobileCard
                     key={r.id}
-                    headerTitle={r.organizer?.company_name || r.organizer?.display_name || 'Tour Organizer'}
-                    headerSubtitle={<span className="font-mono text-[10px]">Route: <span className="text-slate-600">{r.pickup_location} → {r.dropoff_location}</span></span>}
-                    headerBadge={
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${
-                        isPending ? 'bg-amber-100 text-amber-800' : 
-                        isAccepted ? 'bg-blue-100 text-blue-800' : 
-                        isCompleted ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {r.status.toUpperCase()}
+                    headerTitle={organizerName(r)}
+                    headerSubtitle={
+                      <span className="font-mono text-[10px]">
+                        Route: <span className="text-bodytext">{r.pickup_location} → {r.dropoff_location}</span>
                       </span>
                     }
+                    headerBadge={<StatusBadge status={r.status} />}
                     rows={[
-                      {
-                        label: 'Vehicle',
-                        value: r.vehicle?.name || 'Any Available',
-                        fullWidth: true
-                      },
-                      {
-                        label: 'Pickup Date',
-                        value: new Date(r.pickup_datetime).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                          timeZone: 'UTC'
-                        })
-                      }
+                      { label: 'Vehicle', value: r.vehicle?.name || 'Any Available', fullWidth: true },
+                      { label: 'Pickup Date', value: formatPickupDate(r.pickup_datetime) },
                     ]}
                     actions={
-                      <Link
-                        href="/dashboard/transporter/requests"
-                        className="text-xs font-bold text-coral hover:underline"
-                      >
+                      <Link href="/dashboard/transporter/requests" className="text-xs font-semibold text-primary hover:underline">
                         Manage
                       </Link>
                     }
                   />
-                );
-              })}
-            </div>
+                ))}
+              </div>
 
-            {/* Desktop View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold text-xs uppercase tracking-wider">
-                <tr>
-                  <th className="px-6 py-4">Organizer</th>
-                  <th className="px-6 py-4">Vehicle Requested</th>
-                  <th className="px-6 py-4">Pickup Date</th>
-                  <th className="px-6 py-4">Route</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {recentRequests.map((r: any) => {
-                  const isPending = r.status === 'pending';
-                  const isAccepted = r.status === 'accepted';
-                  const isCompleted = r.status === 'completed';
-
-                  return (
-                    <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="px-6 py-4 font-bold text-slate-900">
-                        {r.organizer?.company_name || r.organizer?.display_name || 'Tour Organizer'}
-                      </td>
-                      <td className="px-6 py-4 text-slate-600 font-medium">
-                        {r.vehicle?.name || 'Any Available'}
-                      </td>
-                      <td className="px-6 py-4 text-slate-600">
-                        {new Date(r.pickup_datetime).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                          timeZone: 'UTC'
-                        })}
-                      </td>
-                      <td className="px-6 py-4 text-slate-600 text-xs max-w-xs truncate">
-                        {r.pickup_location} → {r.dropoff_location}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                            isPending
-                              ? 'bg-amber-100 text-amber-800'
-                              : isAccepted
-                              ? 'bg-blue-100 text-blue-800'
-                              : isCompleted
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-slate-100 text-slate-600'
-                          }`}
-                        >
-                          {r.status.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <Link
-                          href="/dashboard/transporter/requests"
-                          className="text-xs font-bold text-coral hover:underline"
-                        >
-                          Manage
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            </div>
-          </>
-        )}
+              {/* Desktop View */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="px-6">Organizer</TableHead>
+                      <TableHead>Vehicle Requested</TableHead>
+                      <TableHead>Pickup Date</TableHead>
+                      <TableHead>Route</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="px-6 text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentRequests.map((r) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="px-6 font-semibold text-foreground">{organizerName(r)}</TableCell>
+                        <TableCell className="font-medium">{r.vehicle?.name || 'Any Available'}</TableCell>
+                        <TableCell>{formatPickupDate(r.pickup_datetime)}</TableCell>
+                        <TableCell className="max-w-xs truncate text-xs">
+                          {r.pickup_location} → {r.dropoff_location}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={r.status} />
+                        </TableCell>
+                        <TableCell className="px-6 text-right">
+                          <Link href="/dashboard/transporter/requests" className="text-xs font-semibold text-primary hover:underline">
+                            Manage
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </CardBox>
       </div>
     </div>
   );

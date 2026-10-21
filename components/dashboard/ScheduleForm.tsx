@@ -3,12 +3,21 @@
 import { useState, useRef, useEffect } from 'react';
 import { createSchedule, updateSchedule, deleteSchedule } from '@/actions/schedules';
 import { getAvailableVehicles, toggleFavoriteVehicle } from '@/actions/vehicles';
-import { Plus, Edit2, X, Trash2, Search, Heart, MapPin } from 'lucide-react';
+import { Plus, Edit2, X, Trash2, Search, Heart, AlertCircle, Loader2 } from 'lucide-react';
 import { DayPicker, DateRange } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { format, parseISO } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import ConfirmModal from '@/components/ui/ConfirmModal';
+import CardBox from '@/components/ui/CardBox';
+import EmptyState from '@/components/ui/EmptyState';
+import StatusBadge from '@/components/ui/StatusBadge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input, NativeSelect } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function ScheduleForm({ tourId, basePrice, initialData }: { tourId: string, basePrice?: number, initialData?: any }) {
   const [error, setError] = useState<string | null>(null);
@@ -183,110 +192,113 @@ export default function ScheduleForm({ tourId, basePrice, initialData }: { tourI
     setShowDeleteModal(true);
   };
 
+  const transportLocked = initialData?.transport_booking?.status === 'accepted' || initialData?.transport_booking?.status === 'completed';
+
   return (
     <>
-    <form ref={formRef} action={handleSubmit} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-          {isEdit ? <Edit2 className="w-5 h-5 text-coral-600" /> : <Plus className="w-5 h-5 text-coral-600" />} 
+    <form ref={formRef} action={handleSubmit}>
+    <CardBox>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h5 className="card-title flex items-center gap-2">
+          {isEdit ? <Edit2 className="w-5 h-5 text-primary" /> : <Plus className="w-5 h-5 text-primary" />} 
           {isEdit ? 'Edit Schedule' : 'Add New Schedule'}
-        </h2>
+        </h5>
         {isEdit && (
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={promptDelete} className="text-red-500 hover:text-red-700 flex items-center gap-1 text-sm font-medium">
-              <Trash2 className="w-4 h-4" /> Delete
-            </button>
-            <button type="button" onClick={cancelEdit} className="text-slate-400 hover:text-slate-600 flex items-center gap-1 text-sm font-medium">
-              <X className="w-4 h-4" /> Cancel
-            </button>
+          <div className="flex items-center gap-1">
+            <Button type="button" variant="ghosterror" size="xs" onClick={promptDelete}>
+              <Trash2 /> Delete
+            </Button>
+            <Button type="button" variant="ghost" size="xs" onClick={cancelEdit} className="text-muted-foreground">
+              <X /> Cancel
+            </Button>
           </div>
         )}
       </div>
       
       {error && (
-        <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm">
-          {error}
-        </div>
+        <Alert variant="lighterror">
+          <AlertCircle />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
       
-      <div className="border border-slate-200 rounded-lg p-4 bg-white flex flex-col items-center">
-        <label className="block text-sm font-medium text-slate-700 mb-2 w-full text-left">
+      <div
+        className="border border-border rounded-lg p-4 bg-white flex flex-col items-center overflow-x-auto"
+        style={{ '--rdp-accent-color': 'var(--color-primary)', '--rdp-accent-background-color': 'var(--color-lightprimary)' } as React.CSSProperties}
+      >
+        <Label className="mb-2 w-full flex-wrap text-left">
           Date Range
           {range?.from && (
-            <span className="ml-2 font-normal text-slate-500">
+            <span className="font-normal text-muted-foreground">
               ({format(range.from, 'MMM d, yyyy')} {range.to ? `- ${format(range.to, 'MMM d, yyyy')}` : ''})
             </span>
           )}
-        </label>
+        </Label>
         <DayPicker
           mode="range"
           defaultMonth={range?.from || new Date()}
           selected={range}
           onSelect={setRange}
           modifiersClassNames={{
-            selected: 'bg-coral text-white',
-            range_middle: 'bg-coral/10 text-coral',
-            range_start: 'bg-coral text-white rounded-l-md',
-            range_end: 'bg-coral text-white rounded-r-md'
+            selected: 'bg-primary text-white',
+            range_middle: 'bg-lightprimary text-primary',
+            range_start: 'bg-primary text-white rounded-l-md',
+            range_end: 'bg-primary text-white rounded-r-md'
           }}
         />
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Capacity</label>
-          <input type="number" name="capacity" value={capacity} onChange={e => setCapacity(e.target.value)} required min="1" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="Seats e.g. 12" />
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-1 gap-6">
+        <div className="space-y-2">
+          <Label htmlFor="schedule-capacity">Capacity</Label>
+          <Input id="schedule-capacity" type="number" name="capacity" value={capacity} onChange={e => setCapacity(e.target.value)} required min="1" placeholder="Seats e.g. 12" />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Original Price (₱)</label>
-          <input type="number" step="0.01" name="original_price" min="0" defaultValue={initialData?.original_price || ''} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="Compare-at price" />
+        <div className="space-y-2">
+          <Label htmlFor="schedule-original-price">Original Price (₱)</Label>
+          <Input id="schedule-original-price" type="number" step="0.01" name="original_price" min="0" defaultValue={initialData?.original_price || ''} placeholder="Compare-at price" />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Selling Price (₱)</label>
-          <input type="number" step="0.01" name="price_per_person" min="0" defaultValue={initialData?.price_per_person || ''} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder={basePrice ? `Default: ₱${basePrice}` : "Optional override"} />
+        <div className="space-y-2">
+          <Label htmlFor="schedule-price">Selling Price (₱)</Label>
+          <Input id="schedule-price" type="number" step="0.01" name="price_per_person" min="0" defaultValue={initialData?.price_per_person || ''} placeholder={basePrice ? `Default: ₱${basePrice}` : "Optional override"} />
         </div>
       </div>
       
-      <div className="border border-slate-200 rounded-lg p-4 bg-white space-y-3">
-        <label className="block text-sm font-medium text-slate-700">Transport Requirement</label>
-        <select name="transport_type" value={transportType} onChange={e => setTransportType(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none bg-white">
+      <div className="border border-border rounded-lg p-4 bg-white space-y-3">
+        <Label htmlFor="schedule-transport-type">Transport Requirement</Label>
+        <NativeSelect id="schedule-transport-type" name="transport_type" value={transportType} onChange={e => setTransportType(e.target.value)}>
           <option value="none">None (Travelers meet at location)</option>
           <option value="self_provided">Self-provided (We will provide the transport)</option>
           <option value="external_transporter">External Transporter (Need to book a vehicle)</option>
-        </select>
+        </NativeSelect>
         {transportType === 'external_transporter' && (
-          <div className="mt-4 pt-4 border-t border-slate-100 space-y-6">
+          <div className="mt-4 pt-4 border-t border-border space-y-6">
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Pickup Location</label>
-                    <input type="text" value={pickupLocation} onChange={e => setPickupLocation(e.target.value)} disabled={initialData?.transport_booking?.status === 'accepted' || initialData?.transport_booking?.status === 'completed'} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none disabled:bg-slate-50 disabled:text-slate-500" placeholder="e.g., Airport Terminal 1" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="schedule-pickup-location">Pickup Location</Label>
+                    <Input id="schedule-pickup-location" type="text" value={pickupLocation} onChange={e => setPickupLocation(e.target.value)} disabled={transportLocked} placeholder="e.g., Airport Terminal 1" />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Dropoff Location</label>
-                    <input type="text" value={dropoffLocation} onChange={e => setDropoffLocation(e.target.value)} disabled={initialData?.transport_booking?.status === 'accepted' || initialData?.transport_booking?.status === 'completed'} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none disabled:bg-slate-50 disabled:text-slate-500" placeholder="e.g., Hotel Name" />
+                  <div className="space-y-2">
+                    <Label htmlFor="schedule-dropoff-location">Dropoff Location</Label>
+                    <Input id="schedule-dropoff-location" type="text" value={dropoffLocation} onChange={e => setDropoffLocation(e.target.value)} disabled={transportLocked} placeholder="e.g., Hotel Name" />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Pickup Time</label>
-                    <input type="time" value={pickupTime} onChange={e => setPickupTime(e.target.value)} disabled={initialData?.transport_booking?.status === 'accepted' || initialData?.transport_booking?.status === 'completed'} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none disabled:bg-slate-50 disabled:text-slate-500" />
+                  <div className="space-y-2">
+                    <Label htmlFor="schedule-pickup-time">Pickup Time</Label>
+                    <Input id="schedule-pickup-time" type="time" value={pickupTime} onChange={e => setPickupTime(e.target.value)} disabled={transportLocked} />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Return Time (Optional)</label>
-                    <input type="time" value={returnTime} onChange={e => setReturnTime(e.target.value)} disabled={initialData?.transport_booking?.status === 'accepted' || initialData?.transport_booking?.status === 'completed'} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none disabled:bg-slate-50 disabled:text-slate-500" />
+                  <div className="space-y-2">
+                    <Label htmlFor="schedule-return-time">Return Time (Optional)</Label>
+                    <Input id="schedule-return-time" type="time" value={returnTime} onChange={e => setReturnTime(e.target.value)} disabled={transportLocked} />
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Vehicle Selection</h3>
-                    {(initialData?.transport_booking?.status !== 'accepted' && initialData?.transport_booking?.status !== 'completed') && (
-                      <button 
-                        type="button" 
-                        onClick={() => setIsVehicleModalOpen(true)}
-                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors"
-                      >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Vehicle Selection</h3>
+                    {!transportLocked && (
+                      <Button type="button" variant="lightprimary" size="sm" onClick={() => setIsVehicleModalOpen(true)}>
                         {selectedVehicle ? 'Change Vehicle' : 'Select Vehicle'}
-                      </button>
+                      </Button>
                     )}
                   </div>
                   
@@ -299,15 +311,15 @@ export default function ScheduleForm({ tourId, basePrice, initialData }: { tourI
                       
                       if (!v) {
                         return (
-                          <div className="p-4 rounded-xl border-2 border-coral-500 bg-coral-50 flex items-center justify-between">
+                          <div className="p-4 rounded-lg border border-primary bg-lightprimary flex items-center justify-between">
                             <div>
-                              <h4 className="font-bold text-slate-900">Selected Vehicle</h4>
-                              <p className="text-sm text-slate-600">ID: {selectedVehicle}</p>
+                              <h4 className="font-semibold text-foreground">Selected Vehicle</h4>
+                              <p className="text-sm text-bodytext">ID: {selectedVehicle}</p>
                             </div>
-                            {(initialData?.transport_booking?.status !== 'accepted' && initialData?.transport_booking?.status !== 'completed') && (
-                              <button type="button" onClick={() => setSelectedVehicle(null)} className="p-2 text-slate-400 hover:text-red-500 transition-colors rounded-full">
-                                <X className="w-5 h-5" />
-                              </button>
+                            {!transportLocked && (
+                              <Button type="button" variant="ghosterror" size="iconsm" shape="pill" onClick={() => setSelectedVehicle(null)} aria-label="Remove selected vehicle">
+                                <X />
+                              </Button>
                             )}
                           </div>
                         );
@@ -318,80 +330,70 @@ export default function ScheduleForm({ tourId, basePrice, initialData }: { tourI
                         : null;
                         
                       return (
-                        <div className="p-4 rounded-xl border-2 border-coral-500 bg-coral-50 flex items-start justify-between relative">
-                          <div className="flex items-center gap-4">
+                        <div className="p-4 rounded-lg border border-primary bg-lightprimary flex items-start justify-between gap-2 relative">
+                          <div className="flex items-center gap-4 min-w-0">
                             {v.photos && v.photos.length > 0 ? (
-                              <div className="w-16 h-16 rounded-md bg-white overflow-hidden shrink-0 border border-coral-200 shadow-sm">
+                              <div className="w-16 h-16 rounded-md bg-white overflow-hidden shrink-0 border border-border">
                                 <img src={v.photos[0]} alt="Vehicle" className="w-full h-full object-cover" />
                               </div>
                             ) : (
-                              <div className="w-16 h-16 rounded-md bg-white flex items-center justify-center shrink-0 border border-coral-200 shadow-sm">
+                              <div className="w-16 h-16 rounded-md bg-white flex items-center justify-center shrink-0 border border-border">
                                 <span className="text-2xl">🚐</span>
                               </div>
                             )}
-                            <div>
-                              <div className="flex items-center gap-3">
-                                <h4 className="font-bold text-slate-900">{v.name}</h4>
-                                {bookingStatus === 'accepted' ? <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold shadow-sm">✅ Accepted</span> :
-                                 bookingStatus === 'declined' ? <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-bold shadow-sm">❌ Declined</span> :
-                                 bookingStatus === 'pending' ? <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold shadow-sm">⏳ Pending</span> :
-                                 <span className="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-bold shadow-sm">Draft Selection</span>}
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h4 className="font-semibold text-foreground">{v.name}</h4>
+                                {bookingStatus === 'accepted' ? <StatusBadge status="accepted" label="✅ Accepted" /> :
+                                 bookingStatus === 'declined' ? <StatusBadge status="declined" label="❌ Declined" /> :
+                                 bookingStatus === 'pending' ? <StatusBadge status="pending" label="⏳ Pending" /> :
+                                 <StatusBadge status="draft" label="Draft Selection" />}
                               </div>
-                              <p className="text-sm text-slate-600 font-medium">{v.transporter?.display_name || v.transporter?.company_name}</p>
-                              <div className="flex gap-2 mt-1.5">
-                                <span className="text-xs bg-white border border-coral-100 text-coral-700 px-2 py-0.5 rounded-full font-bold">{v.vehicle_type}</span>
-                                <span className="text-xs bg-white border border-coral-100 text-coral-700 px-2 py-0.5 rounded-full font-bold">💺 {v.seat_capacity} Seats</span>
+                              <p className="text-sm text-bodytext font-medium">{v.transporter?.display_name || v.transporter?.company_name}</p>
+                              <div className="flex flex-wrap gap-2 mt-1.5">
+                                <Badge variant="outline" className="bg-white">{v.vehicle_type}</Badge>
+                                <Badge variant="outline" className="bg-white">💺 {v.seat_capacity} Seats</Badge>
                               </div>
                             </div>
                           </div>
-                          {(initialData?.transport_booking?.status !== 'accepted' && initialData?.transport_booking?.status !== 'completed') && (
-                            <button 
-                              type="button" 
-                              onClick={() => setSelectedVehicle(null)} 
-                              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors rounded-full shrink-0"
-                            >
-                              <X className="w-5 h-5" />
-                            </button>
+                          {!transportLocked && (
+                            <Button type="button" variant="ghosterror" size="iconsm" shape="pill" onClick={() => setSelectedVehicle(null)} className="shrink-0" aria-label="Remove selected vehicle">
+                              <X />
+                            </Button>
                           )}
                         </div>
                       );
                     })()
                   ) : (
-                    <div className="text-center p-6 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
-                      <p className="text-sm text-slate-500">No vehicle selected. Please select a vehicle for external transport.</p>
+                    <div className="text-center p-6 border-2 border-dashed border-border rounded-lg bg-muted/50">
+                      <p className="text-sm text-muted-foreground">No vehicle selected. Please select a vehicle for external transport.</p>
                     </div>
                   )}
                 </div>
 
                 {/* Vehicle Selection Modal */}
-                {isVehicleModalOpen && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden max-h-[90vh] flex flex-col">
-                      <div className="flex items-center justify-between p-6 border-b border-slate-100">
-                        <div>
-                          <h2 className="text-xl font-bold text-slate-900">Select a Vehicle</h2>
-                          <p className="text-sm text-slate-500 mt-1">Available vehicles for {capacity} passengers</p>
-                        </div>
-                        <button type="button" onClick={() => setIsVehicleModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
-                          <X className="w-5 h-5" />
-                        </button>
-                      </div>
+                <Dialog open={isVehicleModalOpen} onOpenChange={(o) => { if (!o) setIsVehicleModalOpen(false); }}>
+                  <DialogContent className="max-w-3xl p-0 gap-0 flex flex-col">
+                    <DialogHeader className="px-6 py-5 border-b border-border">
+                      <DialogTitle className="text-xl">Select a Vehicle</DialogTitle>
+                      <DialogDescription>Available vehicles for {capacity} passengers</DialogDescription>
+                    </DialogHeader>
 
-                      <div className="p-6 overflow-y-auto flex-1 bg-slate-50/50">
+                    <div className="p-6 overflow-y-auto flex-1 bg-muted/30">
                         {!range?.from || !range?.to || !capacity ? (
                           <div className="text-center py-8">
-                            <p className="text-slate-500">Please fill in the date range and capacity to see available vehicles.</p>
+                            <p className="text-muted-foreground">Please fill in the date range and capacity to see available vehicles.</p>
                           </div>
                         ) : loadingVehicles ? (
                           <div className="flex justify-center py-12">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coral-500"></div>
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" aria-label="Loading vehicles" />
                           </div>
                         ) : vehicles.length === 0 ? (
-                          <div className="text-center py-12">
-                            <Search className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                            <p className="text-slate-600 font-medium">No vehicles found</p>
-                            <p className="text-sm text-slate-500 mt-1">There are no vehicles with enough capacity available for these dates.</p>
-                          </div>
+                          <EmptyState
+                            icon={Search}
+                            title="No vehicles found"
+                            description="There are no vehicles with enough capacity available for these dates."
+                          />
                         ) : (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {vehicles.map((v) => (
@@ -401,46 +403,50 @@ export default function ScheduleForm({ tourId, basePrice, initialData }: { tourI
                                   setSelectedVehicle(v.id);
                                   setIsVehicleModalOpen(false);
                                 }}
-                                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedVehicle === v.id ? 'border-coral-500 bg-coral-50 shadow-md' : 'border-slate-200 hover:border-coral-200 bg-white shadow-sm'}`}
+                                className={`p-4 rounded-lg border cursor-pointer transition-all ${selectedVehicle === v.id ? 'border-primary bg-lightprimary ring-1 ring-primary/20' : 'border-border hover:border-primary/40 bg-white'}`}
                               >
                                 <div className="flex justify-between items-start mb-3">
                                   <div className="flex items-center gap-3">
                                     {v.photos && v.photos.length > 0 ? (
-                                      <div className="w-16 h-16 rounded-lg bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                                      <div className="w-16 h-16 rounded-lg bg-muted overflow-hidden shrink-0 border border-border">
                                         <img src={v.photos[0]} alt={v.name} className="w-full h-full object-cover" />
                                       </div>
                                     ) : (
-                                      <div className="w-16 h-16 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200">
+                                      <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center shrink-0 border border-border">
                                         <span className="text-2xl">🚐</span>
                                       </div>
                                     )}
-                                    <h4 className="font-bold text-slate-900 text-lg">{v.name}</h4>
+                                    <h4 className="font-semibold text-foreground text-lg">{v.name}</h4>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <button 
+                                    <Button 
                                       type="button"
+                                      variant={v.is_favorite ? 'lighterror' : 'ghost'}
+                                      size="iconsm"
+                                      shape="pill"
                                       onClick={(e) => handleToggleFavorite(e, v.id)} 
-                                      className={`p-1.5 rounded-full transition-colors ${v.is_favorite ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                      className={v.is_favorite ? '' : 'text-muted-foreground'}
                                       title={v.is_favorite ? "Remove from favorites" : "Add to favorites"}
+                                      aria-label={v.is_favorite ? "Remove from favorites" : "Add to favorites"}
                                     >
-                                      <Heart className={`w-5 h-5 ${v.is_favorite ? 'fill-current' : ''}`} />
-                                    </button>
+                                      <Heart className={`size-5 ${v.is_favorite ? 'fill-current' : ''}`} />
+                                    </Button>
                                   </div>
                                 </div>
-                                <div className="text-sm text-slate-600 space-y-2 mb-4">
+                                <div className="text-sm text-bodytext space-y-2 mb-4">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-xs font-bold px-2 py-1 bg-slate-100 text-slate-600 rounded-md uppercase tracking-wider">
+                                    <Badge variant="gray" className="rounded-md uppercase tracking-wider">
                                       {v.vehicle_type}
-                                    </span>
+                                    </Badge>
                                     <span>•</span>
                                     <span>💺 {v.seat_capacity} Seats</span>
                                   </div>
                                   <p className="flex items-center gap-2">🏢 {v.transporter.display_name || v.transporter.company_name}</p>
-                                  {v.rate_per_day && <p className="font-medium text-slate-900">💰 ₱{v.rate_per_day}/day</p>}
+                                  {v.rate_per_day && <p className="font-medium text-foreground">💰 ₱{v.rate_per_day}/day</p>}
                                 </div>
                                 
-                                <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
-                                  <span className={`text-sm font-bold ${selectedVehicle === v.id ? 'text-coral-600' : 'text-slate-500'}`}>
+                                <div className="pt-3 border-t border-border flex items-center justify-end">
+                                  <span className={`text-sm font-semibold ${selectedVehicle === v.id ? 'text-primary' : 'text-muted-foreground'}`}>
                                     {selectedVehicle === v.id ? 'Selected' : 'Select'}
                                   </span>
                                 </div>
@@ -448,22 +454,23 @@ export default function ScheduleForm({ tourId, basePrice, initialData }: { tourI
                             ))}
                           </div>
                         )}
-                      </div>
                     </div>
-                  </div>
-                )}
+                  </DialogContent>
+                </Dialog>
               </>
           </div>
         )}
       </div>
       
-      <button 
+      <Button 
         type="submit" 
         disabled={loading || !range?.from || !range?.to}
-        className="w-full bg-coral hover:bg-coral-dark text-white font-bold py-2.5 px-4 rounded-lg transition-colors disabled:opacity-70"
+        className="w-full"
       >
+        {loading && <Loader2 className="animate-spin" />}
         {loading ? (isEdit ? 'Updating...' : 'Adding...') : (isEdit ? 'Update Schedule' : 'Add Schedule')}
-      </button>
+      </Button>
+    </CardBox>
     </form>
     
     <ConfirmModal 

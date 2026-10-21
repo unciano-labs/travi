@@ -13,8 +13,6 @@ export default async function AdminNotificationsPage() {
   const notifications = await getAllNotifications();
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <NotificationsClient initialData={notifications} />
-    </div>
+    <NotificationsClient initialData={notifications} />
   );
 }
