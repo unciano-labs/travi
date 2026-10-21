@@ -2,7 +2,14 @@
 
 import { useState } from 'react';
 import { cancelBookingAsTraveler, openDispute } from '@/actions/bookings';
-import { XCircle, AlertCircle } from 'lucide-react';
+import { XCircle, AlertCircle, Ticket } from 'lucide-react';
+import CardBox from '@/components/ui/CardBox';
+import EmptyState from '@/components/ui/EmptyState';
+import StatusBadge from '@/components/ui/StatusBadge';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 type Booking = {
   id: string;
@@ -56,92 +63,123 @@ export default function TravelerBookingsClient({ initialBookings }: { initialBoo
     }
   };
 
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      {initialBookings.length === 0 ? (
-        <div className="p-8 text-center text-slate-500">You haven't booked any tours yet.</div>
-      ) : (
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
-            <tr>
-              <th className="px-6 py-4">Booking ID</th>
-              <th className="px-6 py-4">Tour Package</th>
-              <th className="px-6 py-4">Travel Date</th>
-              <th className="px-6 py-4">Total Amount</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {initialBookings.map((b) => {
-              const isPastDate = b.tour_schedules?.start_date ? new Date(b.tour_schedules.start_date) <= new Date() : false;
-              const canCancel = (b.status === 'pending' || b.status === 'confirmed') && !isPastDate;
-              // Can only dispute if tour has passed but dispute is not resolved/already open.
-              const canDispute = b.status === 'confirmed' && b.dispute_status === 'none' && isPastDate; 
-              
-              return (
-                <tr key={b.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-mono text-xs font-medium text-slate-500" title={b.id}>
-                    {b.id.split('-')[0]}...
-                  </td>
-                  <td className="px-6 py-4 font-medium text-slate-900">
-                    {b.tour_schedules?.tours?.title}
-                    <div className="text-xs text-slate-500 font-normal mt-1">{b.seats} Pax</div>
-                  </td>
-                  <td className="px-6 py-4 text-slate-600">
-                    {b.tour_schedules?.start_date ? new Date(b.tour_schedules.start_date).toLocaleDateString() : 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 text-slate-900 font-medium">₱{(b.total_amount || 0).toLocaleString()}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col gap-1">
-                      <span className={`inline-flex items-center w-fit px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
-                        b.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' : 
-                        b.status === 'completed' ? 'bg-slate-100 text-slate-800' :
-                        b.status === 'canceled' || b.status === 'refunded' ? 'bg-red-100 text-red-800' :
-                        'bg-amber-100 text-amber-800'
-                      }`}>
-                        {b.status}
-                      </span>
-                      {b.dispute_status !== 'none' && (
-                        <span className="inline-flex items-center w-fit px-2.5 py-0.5 rounded-full text-xs font-medium capitalize bg-orange-100 text-orange-800">
-                          Dispute: {b.dispute_status.replace('_', ' ')}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      {canCancel && (
-                        <button
-                          onClick={() => handleCancel(b.id)}
-                          disabled={loading === b.id}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 rounded-md hover:bg-red-100 transition-colors disabled:opacity-50"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                          Cancel
-                        </button>
-                      )}
-                      {canDispute && (
-                        <button
-                          onClick={() => handleOpenDispute(b.id)}
-                          disabled={loading === b.id}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-700 bg-orange-50 rounded-md hover:bg-orange-100 transition-colors disabled:opacity-50"
-                        >
-                          <AlertCircle className="w-3.5 h-3.5" />
-                          Dispute
-                        </button>
-                      )}
-                      {!canCancel && !canDispute && (
-                        <span className="text-xs text-slate-400 font-medium px-3 py-1.5">—</span>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+  const getFlags = (b: Booking) => {
+    const isPastDate = b.tour_schedules?.start_date ? new Date(b.tour_schedules.start_date) <= new Date() : false;
+    const canCancel = (b.status === 'pending' || b.status === 'confirmed') && !isPastDate;
+    // Can only dispute if tour has passed but dispute is not resolved/already open.
+    const canDispute = b.status === 'confirmed' && b.dispute_status === 'none' && isPastDate;
+    return { canCancel, canDispute };
+  };
+
+  const renderStatus = (b: Booking) => (
+    <div className="flex flex-col gap-1">
+      <StatusBadge status={b.status} className="w-fit" />
+      {b.dispute_status !== 'none' && (
+        <Badge variant="lightWarning" className="w-fit">
+          Dispute: {b.dispute_status.replace('_', ' ')}
+        </Badge>
       )}
     </div>
+  );
+
+  const renderActions = (b: Booking) => {
+    const { canCancel, canDispute } = getFlags(b);
+    return (
+      <div className="flex justify-end gap-2">
+        {canCancel && (
+          <Button
+            type="button"
+            variant="lighterror"
+            size="xs"
+            onClick={() => handleCancel(b.id)}
+            disabled={loading === b.id}
+          >
+            <XCircle className="size-3.5" />
+            Cancel
+          </Button>
+        )}
+        {canDispute && (
+          <Button
+            type="button"
+            variant="lightwarning"
+            size="xs"
+            onClick={() => handleOpenDispute(b.id)}
+            disabled={loading === b.id}
+          >
+            <AlertCircle className="size-3.5" />
+            Dispute
+          </Button>
+        )}
+        {!canCancel && !canDispute && (
+          <span className="px-3 py-1.5 text-xs font-medium text-muted-foreground">—</span>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <CardBox className="gap-0 overflow-hidden p-0">
+      <div className="border-b border-border px-6 py-4">
+        <h5 className="card-title">All Bookings</h5>
+        <p className="text-sm text-muted-foreground">Cancel upcoming trips or open a dispute after your tour.</p>
+      </div>
+      {initialBookings.length === 0 ? (
+        <EmptyState icon={Ticket} title="You haven't booked any tours yet." />
+      ) : (
+        <>
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50 hover:bg-muted/50">
+                  <TableHead className="px-6">Booking ID</TableHead>
+                  <TableHead>Tour Package</TableHead>
+                  <TableHead>Travel Date</TableHead>
+                  <TableHead>Total Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="px-6 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {initialBookings.map((b) => (
+                  <TableRow key={b.id}>
+                    <TableCell className="px-6 font-mono text-xs font-medium text-muted-foreground" title={b.id}>
+                      {b.id.split('-')[0]}...
+                    </TableCell>
+                    <TableCell className="font-semibold text-foreground">
+                      {b.tour_schedules?.tours?.title}
+                      <div className="mt-1 text-xs font-normal text-muted-foreground">{b.seats} Pax</div>
+                    </TableCell>
+                    <TableCell>
+                      {b.tour_schedules?.start_date ? new Date(b.tour_schedules.start_date).toLocaleDateString() : 'N/A'}
+                    </TableCell>
+                    <TableCell className="font-semibold text-foreground">₱{(b.total_amount || 0).toLocaleString()}</TableCell>
+                    <TableCell>{renderStatus(b)}</TableCell>
+                    <TableCell className="px-6 text-right">{renderActions(b)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="space-y-3 p-4 md:hidden">
+            {initialBookings.map((b) => {
+              const { canCancel, canDispute } = getFlags(b);
+              return (
+                <LazyMobileCard
+                  key={b.id}
+                  headerTitle={b.tour_schedules?.tours?.title}
+                  headerSubtitle={`${b.id.split('-')[0]}... · ${b.seats} Pax`}
+                  headerBadge={renderStatus(b)}
+                  rows={[
+                    { label: 'Travel Date', value: b.tour_schedules?.start_date ? new Date(b.tour_schedules.start_date).toLocaleDateString() : 'N/A' },
+                    { label: 'Total Amount', value: `₱${(b.total_amount || 0).toLocaleString()}` },
+                  ]}
+                  actions={canCancel || canDispute ? renderActions(b) : undefined}
+                />
+              );
+            })}
+          </div>
+        </>
+      )}
+    </CardBox>
   );
 }

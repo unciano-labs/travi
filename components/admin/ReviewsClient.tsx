@@ -1,7 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { EyeOff, Star } from 'lucide-react';
+import { EyeOff, Star, MessageSquare } from 'lucide-react';
+import CardBox from '@/components/ui/CardBox';
+import StatusBadge from '@/components/ui/StatusBadge';
+import EmptyState from '@/components/ui/EmptyState';
+import { Button } from '@/components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 type Review = {
   id: string;
@@ -15,6 +20,19 @@ type Review = {
   reviewer: { full_name: string; email: string };
   target_name: string;
 };
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function Rating({ value }: { value: number }) {
+  return (
+    <div className="flex items-center gap-1 text-warning">
+      <Star className="w-4 h-4 fill-current" aria-hidden="true" />
+      <span className="font-medium text-bodytext">{value}</span>
+    </div>
+  );
+}
 
 export default function ReviewsClient({ initialReviews }: { initialReviews: Review[] }) {
   const [reviews, setReviews] = useState<Review[]>(initialReviews);
@@ -44,126 +62,103 @@ export default function ReviewsClient({ initialReviews }: { initialReviews: Revi
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      {/* Desktop View */}
-      <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
-            <tr>
-              <th className="py-4 px-6">Reviewer</th>
-              <th className="py-4 px-6">Target</th>
-              <th className="py-4 px-6">Rating</th>
-              <th className="py-4 px-6 w-1/3">Comment</th>
-              <th className="py-4 px-6">Status</th>
-              <th className="py-4 px-6 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {reviews.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="py-12 text-center text-slate-500">
-                  No reviews found.
-                </td>
-              </tr>
-            ) : (
-              reviews.map((review) => (
-                <tr key={review.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="py-4 px-6">
-                    <div className="font-medium text-slate-900">{review.reviewer.full_name}</div>
-                    <div className="text-slate-500 text-xs">{review.reviewer.email}</div>
-                    <div className="text-slate-400 text-xs mt-1">{new Date(review.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
-                  </td>
-                  <td className="py-4 px-6 text-slate-600">
-                    {review.target_name}
-                    <div className="text-xs text-slate-400 mt-0.5">
-                      {review.tour_id ? 'Tour' : 'Transport'}
-                    </div>
-                  </td>
-                  <td className="py-4 px-6">
-                    <div className="flex items-center gap-1 text-amber-500">
-                      <Star className="w-4 h-4 fill-current" />
-                      <span className="font-medium text-slate-700">{review.rating}</span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-6 text-slate-600">
-                    <p className="line-clamp-2">{review.comment}</p>
-                  </td>
-                  <td className="py-4 px-6">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        review.status === 'published'
-                          ? 'bg-green-100 text-green-800'
-                          : review.status === 'hidden'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-slate-100 text-slate-800'
-                      }`}
-                    >
-                      {review.status}
-                    </span>
-                  </td>
-                  <td className="py-4 px-6 text-right">
-                    {review.status !== 'hidden' && (
-                      <button
-                        onClick={() => handleHide(review.id)}
-                        disabled={isProcessing === review.id}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        <EyeOff className="w-4 h-4" />
-                        Hide
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+    <CardBox className="p-0 gap-0 overflow-hidden">
+      <div className="px-6 py-4 border-b border-border">
+        <h5 className="card-title">All Reviews</h5>
+        <p className="text-sm text-muted-foreground">{reviews.length} review{reviews.length === 1 ? '' : 's'}</p>
       </div>
 
-      {/* Mobile View */}
-      <div className="md:hidden divide-y divide-slate-100">
-        {reviews.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">No reviews found.</div>
-        ) : (
-          reviews.map((review) => (
-            <div key={review.id} className="p-4 space-y-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="font-medium text-slate-900">{review.reviewer.full_name}</div>
-                  <div className="text-slate-500 text-sm">{review.target_name} ({review.tour_id ? 'Tour' : 'Transport'})</div>
-                  <div className="text-slate-400 text-xs mt-0.5">{new Date(review.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+      {reviews.length === 0 ? (
+        <EmptyState icon={MessageSquare} title="No reviews found." />
+      ) : (
+        <>
+          {/* Desktop View */}
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="px-6">Reviewer</TableHead>
+                  <TableHead className="px-6">Target</TableHead>
+                  <TableHead className="px-6">Rating</TableHead>
+                  <TableHead className="px-6 w-1/3">Comment</TableHead>
+                  <TableHead className="px-6">Status</TableHead>
+                  <TableHead className="px-6 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {reviews.map((review) => (
+                  <TableRow key={review.id}>
+                    <TableCell className="px-6 py-4">
+                      <h6 className="text-sm font-semibold text-foreground">{review.reviewer.full_name}</h6>
+                      <p className="text-muted-foreground text-xs font-medium">{review.reviewer.email}</p>
+                      <p className="text-muted-foreground text-xs mt-1">{formatDate(review.created_at)}</p>
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
+                      {review.target_name}
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {review.tour_id ? 'Tour' : 'Transport'}
+                      </div>
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
+                      <Rating value={review.rating} />
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
+                      <p className="line-clamp-2">{review.comment}</p>
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
+                      <StatusBadge status={review.status} />
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-right">
+                      {review.status !== 'hidden' && (
+                        <Button
+                          type="button"
+                          variant="ghosterror"
+                          size="sm"
+                          onClick={() => handleHide(review.id)}
+                          disabled={isProcessing === review.id}
+                        >
+                          <EyeOff aria-hidden="true" />
+                          Hide
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Mobile View */}
+          <div className="md:hidden divide-y divide-border">
+            {reviews.map((review) => (
+              <div key={review.id} className="p-4 space-y-4">
+                <div className="flex justify-between items-start gap-3">
+                  <div>
+                    <div className="font-semibold text-foreground">{review.reviewer.full_name}</div>
+                    <div className="text-muted-foreground text-sm">{review.target_name} ({review.tour_id ? 'Tour' : 'Transport'})</div>
+                    <div className="text-muted-foreground text-xs mt-0.5">{formatDate(review.created_at)}</div>
+                  </div>
+                  <StatusBadge status={review.status} />
                 </div>
-                <span
-                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    review.status === 'published'
-                      ? 'bg-green-100 text-green-800'
-                      : review.status === 'hidden'
-                      ? 'bg-red-100 text-red-800'
-                      : 'bg-slate-100 text-slate-800'
-                  }`}
-                >
-                  {review.status}
-                </span>
+                <Rating value={review.rating} />
+                <p className="text-bodytext text-sm">{review.comment}</p>
+                {review.status !== 'hidden' && (
+                  <Button
+                    type="button"
+                    variant="lighterror"
+                    className="w-full"
+                    onClick={() => handleHide(review.id)}
+                    disabled={isProcessing === review.id}
+                  >
+                    <EyeOff aria-hidden="true" />
+                    Hide Review
+                  </Button>
+                )}
               </div>
-              <div className="flex items-center gap-1 text-amber-500">
-                <Star className="w-4 h-4 fill-current" />
-                <span className="font-medium text-slate-700">{review.rating}</span>
-              </div>
-              <p className="text-slate-600 text-sm">{review.comment}</p>
-              {review.status !== 'hidden' && (
-                <button
-                  onClick={() => handleHide(review.id)}
-                  disabled={isProcessing === review.id}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
-                >
-                  <EyeOff className="w-4 h-4" />
-                  Hide Review
-                </button>
-              )}
-            </div>
-          ))
-        )}
-      </div>
-    </div>
+            ))}
+          </div>
+        </>
+      )}
+    </CardBox>
   );
 }

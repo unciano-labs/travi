@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import OrganizerProfileForm from '@/components/dashboard/OrganizerProfileForm';
 import AccountSecurityManager from '@/components/dashboard/AccountSecurityManager';
+import PageHeader from '@/components/ui/PageHeader';
+import CardBox from '@/components/ui/CardBox';
 
 export default async function OrganizerProfilePage() {
   const supabase = await createClient();
@@ -34,19 +36,27 @@ export default async function OrganizerProfilePage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <h1 className="text-2xl font-bold text-slate-900">Organizer Profile</h1>
-
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <OrganizerProfileForm profile={profile} />
-      </div>
-
-      <AccountSecurityManager
-        email={userProfile.email}
-        phone={userProfile.phone}
-        emailVerifiedAt={userProfile.email_verified_at}
-        phoneVerifiedAt={userProfile.phone_verified_at}
+    <>
+      <PageHeader
+        title="Organizer Profile"
+        breadcrumbs={[{ title: 'Dashboard', href: '/dashboard/organizer' }, { title: 'Profile' }]}
       />
-    </div>
+      <div className="grid grid-cols-12 gap-6">
+        <div className="col-span-12 lg:col-span-8">
+          <CardBox>
+            <OrganizerProfileForm profile={profile} />
+          </CardBox>
+        </div>
+
+        <div className="col-span-12 lg:col-span-8">
+          <AccountSecurityManager
+            email={userProfile.email}
+            phone={userProfile.phone}
+            emailVerifiedAt={userProfile.email_verified_at}
+            phoneVerifiedAt={userProfile.phone_verified_at}
+          />
+        </div>
+      </div>
+    </>
   );
 }

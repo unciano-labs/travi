@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import TransporterOnboardingForm from '@/components/dashboard/TransporterOnboardingForm';
+import CardBox from '@/components/ui/CardBox';
 
 export default async function TransporterLayout({
   children,
@@ -35,12 +36,14 @@ export default async function TransporterLayout({
   // No profile yet -> Show Onboarding Form
   if (!transporterProfile) {
     return (
-      <div className="max-w-3xl mx-auto py-8">
-        <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Set up your Transporter Profile</h2>
-          <p className="text-slate-600 mb-8">Before you can list vehicles and accept transport requests, we need a few details about your service.</p>
+      <div className="mx-auto max-w-3xl py-8">
+        <CardBox className="p-8">
+          <div>
+            <h2 className="mb-2 text-2xl font-semibold text-foreground">Set up your Transporter Profile</h2>
+            <p className="text-bodytext">Before you can list vehicles and accept transport requests, we need a few details about your service.</p>
+          </div>
           <TransporterOnboardingForm />
-        </div>
+        </CardBox>
       </div>
     );
   }

@@ -2,7 +2,7 @@
 # Database Schema, Status Definitions & Business Rules
 
 > Stack: Supabase (PostgreSQL) + Row Level Security
-> See also: [AGENTS.md](./AGENTS.md) | [API.md](./API.md)
+> See also: [AGENTS.md](../AGENTS.md) | [API.md](./API.md)
 
 ---
 
@@ -579,4 +579,4 @@ supabase/migrations/
 
 ---
 
-*See [AGENTS.md](./AGENTS.md) for dev phases | [API.md](./API.md) for API spec*
+*See [AGENTS.md](../AGENTS.md) for dev phases | [API.md](./API.md) for API spec*

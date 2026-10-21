@@ -1,5 +1,10 @@
 import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { PlatformSettingsForm } from '@/components/admin/PlatformSettingsForm';
+import PageHeader from '@/components/ui/PageHeader';
+import CardBox from '@/components/ui/CardBox';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export default async function SettingsPage() {
   const { user, supabase } = await requireSession();
@@ -12,42 +17,55 @@ export default async function SettingsPage() {
     .single();
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Platform Settings</h1>
-      </div>
+    <>
+      <PageHeader
+        title="Platform Settings"
+        breadcrumbs={[{ title: 'Admin', href: '/admin' }, { title: 'Settings' }]}
+      />
 
-      <PlatformSettingsForm initialSettings={settings || {}} />
+      <div className="grid grid-cols-12 gap-6">
+        <div className="col-span-12 lg:col-span-7">
+          <PlatformSettingsForm initialSettings={settings || {}} />
+        </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 max-w-2xl mt-8">
-        <h2 className="text-lg font-medium text-slate-900 mb-4">Admin Profile</h2>
-        <form className="space-y-5" action={async () => {
-          'use server';
-          // Stub for password update
-        }}>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-            <input 
-              type="email" 
-              defaultValue={user.email}
-              disabled
-              className="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
-            <input 
-              type="password" 
-              name="password"
-              placeholder="••••••••"
-              className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-navy/20"
-            />
-          </div>
-          <button className="bg-brand-navy text-white px-5 py-2.5 rounded-lg font-medium hover:bg-brand-navy/90 transition-colors">
-            Save Changes
-          </button>
-        </form>
+        <div className="col-span-12 lg:col-span-5">
+          <CardBox className="h-full">
+            <div>
+              <h5 className="card-title">Admin Profile</h5>
+              <p className="text-sm text-muted-foreground">Your sign-in details.</p>
+            </div>
+            <form className="space-y-5" action={async () => {
+              'use server';
+              // Stub for password update
+            }}>
+              <div className="space-y-2">
+                <Label htmlFor="admin-email">Email Address</Label>
+                <Input
+                  id="admin-email"
+                  type="email"
+                  defaultValue={user.email}
+                  disabled
+                  className="bg-muted/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="admin-password">New Password</Label>
+                <Input
+                  id="admin-password"
+                  type="password"
+                  name="password"
+                  placeholder="••••••••"
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button type="submit">
+                  Save Changes
+                </Button>
+              </div>
+            </form>
+          </CardBox>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

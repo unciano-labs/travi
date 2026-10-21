@@ -1,6 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import StatusBadge from '@/components/ui/StatusBadge';
+import { Button } from '@/components/ui/button';
+import { Input, NativeSelect } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 type OrganizerProfile = {
   id: string;
@@ -33,117 +39,105 @@ export default function OrganizerProfileForm({ profile }: { profile: OrganizerPr
   }
 
   return (
-    <form className="space-y-5" onSubmit={handleSubmit}>
-      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-        <h2 className="text-lg font-medium text-slate-800">Business Details</h2>
-        <div className="flex items-center space-x-2">
-          <span className="text-sm font-medium text-slate-500">Status:</span>
-          <span className={`px-2.5 py-1 text-xs font-semibold rounded-full capitalize ${
-            profile.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
-            profile.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-            'bg-red-100 text-red-700'
-          }`}>
-            {profile.status}
-          </span>
+    <form className="space-y-6" onSubmit={handleSubmit}>
+      <div className="flex items-center justify-between gap-4 pb-4 border-b border-border">
+        <h5 className="card-title">Business Details</h5>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-muted-foreground">Status:</span>
+          <StatusBadge status={profile.status} />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Company / Legal Name</label>
-          <input 
-            type="text" 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <Label htmlFor="org-companyName">Company / Legal Name</Label>
+          <Input
+            id="org-companyName"
+            type="text"
             name="companyName"
             defaultValue={profile.company_name || ''}
-            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-white"
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Display Name</label>
-          <input 
-            type="text" 
+        <div className="space-y-2">
+          <Label htmlFor="org-displayName">Display Name</Label>
+          <Input
+            id="org-displayName"
+            type="text"
             name="displayName"
             defaultValue={profile.display_name}
-            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-white"
           />
         </div>
-      </div>
-      
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Organizer Type</label>
-          <select
+
+        <div className="space-y-2">
+          <Label htmlFor="org-organizerType">Organizer Type</Label>
+          <NativeSelect
+            id="org-organizerType"
             name="organizerType"
             defaultValue={profile.organizer_type}
-            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-white appearance-none"
           >
             <option value="individual">Individual</option>
             <option value="company">Company</option>
-          </select>
+          </NativeSelect>
         </div>
-        
-        <div className="flex items-center mt-7">
-          <label className="flex items-center cursor-pointer">
-            <input 
-              type="checkbox" 
+
+        <div className="flex items-center md:mt-7">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
               name="providesTransport"
               defaultChecked={profile.provides_transport}
-              className="w-5 h-5 rounded border-slate-300 text-coral focus:ring-coral"
+              className="size-4 accent-primary"
             />
-            <span className="ml-2 text-sm font-medium text-slate-700">Provides Transport?</span>
+            <span className="text-sm font-medium text-foreground">Provides Transport?</span>
           </label>
         </div>
-      </div>
-      
-      <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Business Description</label>
-        <textarea 
-          name="description"
-          rows={4}
-          defaultValue={profile.description || ''}
-          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-white"
-        />
-      </div>
 
-      <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
-        <textarea 
-          name="address"
-          rows={2}
-          defaultValue={profile.address || ''}
-          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-white"
-        />
-      </div>
-      
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Contact Email</label>
-          <input 
-            type="email" 
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="org-description">Business Description</Label>
+          <Textarea
+            id="org-description"
+            name="description"
+            rows={4}
+            defaultValue={profile.description || ''}
+          />
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="org-address">Address</Label>
+          <Textarea
+            id="org-address"
+            name="address"
+            rows={2}
+            defaultValue={profile.address || ''}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="org-email">Contact Email</Label>
+          <Input
+            id="org-email"
+            type="email"
             defaultValue={userProfile?.email || ''}
             disabled
-            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-500"
+            className="bg-muted/50 text-muted-foreground"
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Contact Phone</label>
-          <input 
-            type="tel" 
+        <div className="space-y-2">
+          <Label htmlFor="org-phone">Contact Phone</Label>
+          <Input
+            id="org-phone"
+            type="tel"
             name="phone"
             defaultValue={profile.phone}
-            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-white"
           />
         </div>
       </div>
-      
-      <div className="pt-4 border-t border-slate-100">
-        <button 
-          type="submit"
-          disabled={loading}
-          className="bg-coral text-white px-5 py-2.5 rounded-lg font-medium hover:bg-coral/90 transition-colors disabled:opacity-50"
-        >
+
+      <div className="flex justify-end gap-3 pt-4 border-t border-border">
+        <Button type="submit" disabled={loading}>
+          {loading && <Loader2 className="animate-spin" />}
           {loading ? 'Saving...' : 'Save Profile'}
-        </button>
+        </Button>
       </div>
     </form>
   );

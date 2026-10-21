@@ -1,6 +1,7 @@
 import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { PayoutsClient } from '@/components/admin/PayoutsClient';
+import PageHeader from '@/components/ui/PageHeader';
 
 export default async function AdminPayoutsPage() {
   const { user } = await requireSession();
@@ -24,13 +25,14 @@ export default async function AdminPayoutsPage() {
     .order('created_at', { ascending: false });
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Payout Requests</h1>
-        <p className="text-slate-500 mt-2">Manage and process partner withdrawals.</p>
-      </div>
+    <>
+      <PageHeader
+        title="Payout Requests"
+        description="Manage and process partner withdrawals."
+        breadcrumbs={[{ title: 'Admin', href: '/admin' }, { title: 'Payouts' }]}
+      />
 
       <PayoutsClient initialPayouts={payouts || []} />
-    </div>
+    </>
   );
 }

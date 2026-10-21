@@ -1,5 +1,9 @@
 import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { WalletClient } from '@/components/dashboard/WalletClient';
+import PageHeader from '@/components/ui/PageHeader';
+import CardBox from '@/components/ui/CardBox';
+import EmptyState from '@/components/ui/EmptyState';
+import { Wallet } from 'lucide-react';
 
 export default async function WalletPage() {
   const { user, profile, supabase } = await requireSession();
@@ -37,15 +41,20 @@ export default async function WalletPage() {
     .order('created_at', { ascending: false });
 
   if (!wallet) {
-    return <div>Error loading wallet. Please contact support.</div>;
+    return (
+      <CardBox>
+        <EmptyState icon={Wallet} title="Error loading wallet. Please contact support." />
+      </CardBox>
+    );
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Digital Wallet</h1>
-        <p className="text-slate-500 mt-2">Manage your earnings, view transaction history, and request payouts.</p>
-      </div>
+    <div>
+      <PageHeader
+        title="Digital Wallet"
+        description="Manage your earnings, view transaction history, and request payouts."
+        breadcrumbs={[{ title: 'Dashboard', href: '/dashboard/organizer' }, { title: 'Wallet' }]}
+      />
 
       <WalletClient 
         wallet={wallet} 

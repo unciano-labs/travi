@@ -4,6 +4,12 @@ import { useState } from 'react';
 import { updateTransporterProfile } from '@/actions/transporter';
 import { Loader2, CheckCircle2, AlertCircle, Star, Phone, Mail, Building, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import StatusBadge from '@/components/ui/StatusBadge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 type TransporterProfile = {
   id: string;
@@ -52,57 +58,52 @@ export default function TransporterProfileForm({ profile }: { profile: Transport
     }
   }
 
+  const typeOptionClass = (active: boolean) =>
+    `flex items-center gap-3 rounded-lg border p-4 cursor-pointer transition-colors focus-within:ring-2 focus-within:ring-primary/40 ${
+      active
+        ? 'border-primary bg-lightprimary text-primary'
+        : 'border-border bg-white text-bodytext hover:bg-lightprimary/40'
+    }`;
+
   return (
     <form className="space-y-6" onSubmit={handleSubmit}>
       {/* Top Reputation & Status Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+      <div className="flex flex-col justify-between gap-3 border-b border-border pb-4 sm:flex-row sm:items-center">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Business Details</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Manage your public information and operational contact info.</p>
+          <h5 className="card-title">Business Details</h5>
+          <p className="text-sm text-muted-foreground">Manage your public information and operational contact info.</p>
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 text-xs">
-            <Star className="w-4 h-4 fill-coral text-coral" />
-            <span className="font-bold text-slate-900">{Number(profile.average_rating || 5).toFixed(1)}</span>
-            <span className="text-slate-400">({profile.review_count || 0})</span>
+          <div className="flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-3 py-1.5 text-xs">
+            <Star className="size-4 fill-warning text-warning" />
+            <span className="font-semibold text-foreground">{Number(profile.average_rating || 5).toFixed(1)}</span>
+            <span className="text-muted-foreground">({profile.review_count || 0})</span>
           </div>
 
-          <span className={`px-3 py-1 text-xs font-bold rounded-full capitalize ${
-            profile.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
-            profile.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-            'bg-red-100 text-red-800'
-          }`}>
-            {profile.status}
-          </span>
+          <StatusBadge status={profile.status === 'approved' || profile.status === 'pending' ? profile.status : 'rejected'} label={profile.status} />
         </div>
       </div>
 
       {successMsg && (
-        <div className="p-4 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-100 text-sm font-medium flex items-center gap-2 animate-fade-in">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-          <span>{successMsg}</span>
-        </div>
+        <Alert variant="lightsuccess">
+          <CheckCircle2 />
+          <AlertDescription>{successMsg}</AlertDescription>
+        </Alert>
       )}
 
       {errorMsg && (
-        <div className="p-4 bg-red-50 text-red-800 rounded-xl border border-red-100 text-sm font-medium flex items-center gap-2 animate-fade-in">
-          <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
+        <Alert variant="lighterror">
+          <AlertCircle />
+          <AlertDescription>{errorMsg}</AlertDescription>
+        </Alert>
       )}
 
       {/* Transporter Type Radio */}
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-          Transporter Account Type
-        </label>
+      <fieldset className="space-y-2">
+        <legend className="mb-2 text-sm font-medium text-foreground">Transporter Account Type</legend>
         <div className="grid grid-cols-2 gap-4">
-          <label className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
-            transporterType === 'individual'
-              ? 'border-coral bg-coral/5 text-coral ring-1 ring-coral'
-              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-          }`}>
+          <label className={typeOptionClass(transporterType === 'individual')}>
             <input
               type="radio"
               name="transporterType"
@@ -111,18 +112,14 @@ export default function TransporterProfileForm({ profile }: { profile: Transport
               onChange={() => setTransporterType('individual')}
               className="sr-only"
             />
-            <User className="w-5 h-5 shrink-0" />
+            <User className="size-5 shrink-0" />
             <div>
-              <div className="text-sm font-bold">Individual Driver</div>
-              <div className="text-xs text-slate-500 font-normal">Independent vehicle owner</div>
+              <div className="text-sm font-semibold">Individual Driver</div>
+              <div className="text-xs font-normal text-muted-foreground">Independent vehicle owner</div>
             </div>
           </label>
 
-          <label className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
-            transporterType === 'company'
-              ? 'border-coral bg-coral/5 text-coral ring-1 ring-coral'
-              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-          }`}>
+          <label className={typeOptionClass(transporterType === 'company')}>
             <input
               type="radio"
               name="transporterType"
@@ -131,117 +128,104 @@ export default function TransporterProfileForm({ profile }: { profile: Transport
               onChange={() => setTransporterType('company')}
               className="sr-only"
             />
-            <Building className="w-5 h-5 shrink-0" />
+            <Building className="size-5 shrink-0" />
             <div>
-              <div className="text-sm font-bold">Transport Fleet Company</div>
-              <div className="text-xs text-slate-500 font-normal">Registered company with multiple vehicles</div>
+              <div className="text-sm font-semibold">Transport Fleet Company</div>
+              <div className="text-xs font-normal text-muted-foreground">Registered company with multiple vehicles</div>
             </div>
           </label>
         </div>
-      </div>
+      </fieldset>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         {transporterType === 'company' && (
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Registered Company Name *
-            </label>
-            <input 
-              type="text" 
+          <div className="space-y-2">
+            <Label htmlFor="tp-companyName">Registered Company Name *</Label>
+            <Input
+              id="tp-companyName"
+              type="text"
               name="companyName"
               required={transporterType === 'company'}
               placeholder="e.g. Palawan Express Transport Co."
               defaultValue={profile.company_name || ''}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-slate-50 text-slate-900 text-sm font-medium transition-all"
             />
           </div>
         )}
 
-        <div className={transporterType === 'individual' ? 'sm:col-span-2' : ''}>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Public Display Name *
-          </label>
-          <input 
-            type="text" 
+        <div className={`space-y-2 ${transporterType === 'individual' ? 'sm:col-span-2' : ''}`}>
+          <Label htmlFor="tp-displayName">Public Display Name *</Label>
+          <Input
+            id="tp-displayName"
+            type="text"
             name="displayName"
             required
             placeholder="e.g. Kuya John Van Rentals"
             defaultValue={profile.display_name}
-            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-slate-50 text-slate-900 text-sm font-medium transition-all"
           />
         </div>
       </div>
 
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Business Description & Overview
-        </label>
-        <textarea 
+      <div className="space-y-2">
+        <Label htmlFor="tp-description">Business Description & Overview</Label>
+        <Textarea
+          id="tp-description"
           name="description"
           rows={3}
           placeholder="Briefly describe your fleet, years of experience, and service safety standards..."
           defaultValue={profile.description || ''}
-          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-slate-50 text-slate-900 text-sm transition-all"
         />
       </div>
-      
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Service Areas & Coverage
-        </label>
-        <input 
-          type="text" 
+
+      <div className="space-y-2">
+        <Label htmlFor="tp-serviceAreas">Service Areas & Coverage</Label>
+        <Input
+          id="tp-serviceAreas"
+          type="text"
           name="serviceAreas"
           placeholder="Cebu City, Mactan, Oslob, Moalboal"
           defaultValue={(profile.service_areas || []).join(', ')}
-          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-slate-50 text-slate-900 text-sm transition-all"
+          aria-describedby="tp-serviceAreas-hint"
         />
-        <p className="mt-1.5 text-xs text-slate-400">Comma-separated cities or regions where you can accept trip bookings.</p>
+        <p id="tp-serviceAreas-hint" className="text-xs text-muted-foreground">Comma-separated cities or regions where you can accept trip bookings.</p>
       </div>
-      
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Contact Email (Account)
-          </label>
+
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="tp-email">Contact Email (Account)</Label>
           <div className="relative">
-            <input 
-              type="email" 
+            <Input
+              id="tp-email"
+              type="email"
               defaultValue={userProfile?.email || ''}
               disabled
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-500 text-sm cursor-not-allowed"
+              className="bg-muted pl-10 text-muted-foreground"
             />
-            <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+            <Mail className="absolute left-3.5 top-3 size-4 text-muted-foreground" aria-hidden="true" />
           </div>
         </div>
 
-        <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Contact Phone Number *
-          </label>
+        <div className="space-y-2">
+          <Label htmlFor="tp-phone">Contact Phone Number *</Label>
           <div className="relative">
-            <input 
-              type="tel" 
+            <Input
+              id="tp-phone"
+              type="tel"
               name="phone"
               required
               placeholder="+63 912 345 6789"
               defaultValue={profile.phone}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-slate-50 text-slate-900 text-sm transition-all"
+              className="pl-10"
             />
-            <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+            <Phone className="absolute left-3.5 top-3 size-4 text-muted-foreground" aria-hidden="true" />
           </div>
         </div>
       </div>
-      
-      <div className="pt-4 border-t border-slate-100 flex justify-end">
-        <button 
-          type="submit"
-          disabled={loading}
-          className="flex items-center gap-2 bg-coral hover:bg-coral/90 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-md shadow-coral/20 hover:shadow-lg transition-all disabled:opacity-50"
-        >
-          {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+
+      <div className="flex justify-end gap-3 border-t border-border pt-4">
+        <Button type="submit" disabled={loading}>
+          {loading && <Loader2 className="animate-spin" />}
           Save Profile Changes
-        </button>
+        </Button>
       </div>
     </form>
   );

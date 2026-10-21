@@ -4,10 +4,18 @@ import { useState, useEffect } from 'react';
 import { createTour, updateTour } from '@/actions/tours';
 import { getAvailableVehicles } from '@/actions/vehicles';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Image as ImageIcon, MapPin } from 'lucide-react';
+import { ArrowLeft, Image as ImageIcon, MapPin, AlertCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { ItineraryBuilder, ItineraryDay } from './ItineraryBuilder';
 import { createClient } from '@/lib/supabase/browser';
+import PageHeader from '@/components/ui/PageHeader';
+import CardBox from '@/components/ui/CardBox';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input, NativeSelect } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import dynamic from 'next/dynamic';
 const LocationPicker = dynamic(() => import('./LocationPicker'), { ssr: false });
 
@@ -171,47 +179,60 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
     // if successful, server action will redirect
   }
 
+  const segClass = (active: boolean) =>
+    `flex-1 text-sm font-medium py-1.5 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${active ? 'bg-primary text-white shadow-sm' : 'text-bodytext hover:bg-lightprimary hover:text-primary'}`;
+  const formatClass = (active: boolean) =>
+    `flex flex-col items-start p-3 border rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${active ? 'border-primary bg-lightprimary ring-1 ring-primary/20' : 'border-border hover:border-primary/40'}`;
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <>
       {!isEdit && (
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard/organizer/tours" className="p-2 text-slate-400 hover:text-slate-900 transition-colors bg-white rounded-lg border border-slate-200">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Create New Tour</h1>
-            <p className="text-slate-600">Draft a new tour package for travelers to book.</p>
-          </div>
-        </div>
+        <PageHeader
+          title="Create New Tour"
+          description="Draft a new tour package for travelers to book."
+          breadcrumbs={[
+            { title: 'Dashboard', href: '/dashboard/organizer' },
+            { title: 'My Tours', href: '/dashboard/organizer/tours' },
+            { title: 'New Tour' },
+          ]}
+          actions={
+            <Button asChild variant="neutral">
+              <Link href="/dashboard/organizer/tours">
+                <ArrowLeft />
+                Back to Tours
+              </Link>
+            </Button>
+          }
+        />
       )}
 
-
-      <form action={handleSubmit} className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-sm space-y-8">
+      <form action={handleSubmit} className="max-w-4xl mx-auto flex flex-col gap-6">
         {error && (
-          <div className="bg-red-50 text-red-600 p-4 rounded-lg text-sm">
-            {error}
-          </div>
+          <Alert variant="lighterror">
+            <AlertCircle />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
-        <div className="space-y-4">
-          <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2">1. Basic Details</h2>
+        <CardBox>
+          <h5 className="card-title">1. Basic Details</h5>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Tour Images</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="md:col-span-2 space-y-2">
+              <Label>Tour Images</Label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {imageUrls.map((url, idx) => (
-                  <div key={idx} className="aspect-[4/3] bg-slate-100 rounded-lg border border-slate-200 overflow-hidden relative group">
+                  <div key={idx} className="aspect-[4/3] bg-muted rounded-lg border border-border overflow-hidden relative group">
                     <img src={url} alt={`Tour Image ${idx + 1}`} className="w-full h-full object-cover" />
                     {url === (coverImageUrl || imageUrls[0]) ? (
-                      <div className="absolute top-2 left-2 bg-coral text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm">
+                      <Badge variant="primary" className="absolute top-2 left-2 rounded-md px-2 py-1 text-[10px] font-semibold uppercase">
                         COVER
-                      </div>
+                      </Badge>
                     ) : (
                       <button
                         type="button"
                         onClick={() => setCoverImageUrl(url)}
-                        className="absolute top-2 left-2 bg-slate-900/70 hover:bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-2 left-2 bg-dark/70 hover:bg-dark text-white text-[10px] font-semibold px-2 py-1 rounded-md shadow-sm opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                       >
                         SET COVER
                       </button>
@@ -219,96 +240,78 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
                     <button
                       type="button"
                       onClick={() => removeImage(idx)}
-                      className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label={`Remove image ${idx + 1}`}
+                      className="absolute top-2 right-2 w-6 h-6 bg-error hover:bg-erroremphasis text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                     >
                       &times;
                     </button>
                     <input type="hidden" name="imageUrls" value={url} />
                   </div>
                 ))}
-                <div className="aspect-[4/3] bg-slate-50 rounded-lg border-2 border-dashed border-slate-300 flex flex-col items-center justify-center overflow-hidden relative hover:bg-slate-100 transition-colors">
-                  <ImageIcon className="w-6 h-6 text-slate-400 mb-2" />
-                  <span className="text-xs text-slate-500 font-medium">Add Image</span>
-                  {uploading && <div className="absolute inset-0 bg-white/70 flex items-center justify-center text-sm font-medium">Uploading...</div>}
+                <div className="aspect-[4/3] bg-muted/50 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden relative hover:bg-lightprimary hover:border-primary/40 transition-colors">
+                  <ImageIcon className="w-6 h-6 text-primary mb-2" />
+                  <span className="text-xs text-muted-foreground font-medium">Add Image</span>
+                  {uploading && (
+                    <div className="absolute inset-0 bg-white/70 flex items-center justify-center gap-2 text-sm font-medium text-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin text-primary" /> Uploading...
+                    </div>
+                  )}
                   <input 
                     type="file" 
                     accept="image/*" 
                     multiple
+                    aria-label="Add tour images"
                     onChange={handleImageUpload} 
                     className="absolute inset-0 opacity-0 cursor-pointer"
                   />
                 </div>
               </div>
-              <p className="text-xs text-slate-500 mt-2">Recommended: 4:3 or 16:9 ratio, max 2MB. Hover an image to set it as cover.</p>
+              <p className="text-xs text-muted-foreground">Recommended: 4:3 or 16:9 ratio, max 2MB. Hover an image to set it as cover.</p>
               <input type="hidden" name="coverImageUrl" value={coverImageUrl || (imageUrls.length > 0 ? imageUrls[0] : '')} />
             </div>
 
-            <div className="md:col-span-1">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Tour Title</label>
-              <input type="text" name="title" defaultValue={initialData?.title} required className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="e.g. Ultimate El Nido Island Hopping" />
+            <div className="md:col-span-1 space-y-2">
+              <Label htmlFor="tour-title">Tour Title</Label>
+              <Input id="tour-title" type="text" name="title" defaultValue={initialData?.title} required placeholder="e.g. Ultimate El Nido Island Hopping" />
             </div>
 
-            <div className="md:col-span-1">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
-              <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+            <div className="md:col-span-1 space-y-2">
+              <Label>Status</Label>
+              <div className="flex gap-1 bg-muted/50 p-1 rounded-lg border border-border" role="group" aria-label="Status">
                 <input type="hidden" name="status" value={status} />
-                <button
-                  type="button"
-                  onClick={() => setStatus('draft')}
-                  className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${status === 'draft' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
-                >
+                <button type="button" onClick={() => setStatus('draft')} aria-pressed={status === 'draft'} className={segClass(status === 'draft')}>
                   Draft
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setStatus('published')}
-                  className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${status === 'published' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
-                >
+                <button type="button" onClick={() => setStatus('published')} aria-pressed={status === 'published'} className={segClass(status === 'published')}>
                   Published
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setStatus('archived')}
-                  className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${status === 'archived' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
-                >
+                <button type="button" onClick={() => setStatus('archived')} aria-pressed={status === 'archived'} className={segClass(status === 'archived')}>
                   Archived
                 </button>
               </div>
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Tour Format</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="md:col-span-2 space-y-2">
+              <Label>Tour Format</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" role="group" aria-label="Tour Format">
                 <input type="hidden" name="format" value={format} />
-                <button
-                  type="button"
-                  onClick={() => setFormat('joiner')}
-                  className={`flex flex-col items-start p-3 border rounded-xl transition-all ${format === 'joiner' ? 'border-coral bg-coral/5 ring-1 ring-coral/20' : 'border-slate-200 hover:border-slate-300'}`}
-                >
-                  <span className={`font-bold text-sm ${format === 'joiner' ? 'text-coral' : 'text-slate-700'}`}>Public Joiner</span>
-                  <span className="text-xs text-slate-500 text-left mt-1">Travelers share the tour. Multiple bookings until capacity is full.</span>
+                <button type="button" onClick={() => setFormat('joiner')} aria-pressed={format === 'joiner'} className={formatClass(format === 'joiner')}>
+                  <span className={`font-semibold text-sm ${format === 'joiner' ? 'text-primary' : 'text-foreground'}`}>Public Joiner</span>
+                  <span className="text-xs text-muted-foreground text-left mt-1">Travelers share the tour. Multiple bookings until capacity is full.</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setFormat('private')}
-                  className={`flex flex-col items-start p-3 border rounded-xl transition-all ${format === 'private' ? 'border-coral bg-coral/5 ring-1 ring-coral/20' : 'border-slate-200 hover:border-slate-300'}`}
-                >
-                  <span className={`font-bold text-sm ${format === 'private' ? 'text-coral' : 'text-slate-700'}`}>Private Group</span>
-                  <span className="text-xs text-slate-500 text-left mt-1">Exclusive. One booking blocks the entire schedule capacity.</span>
+                <button type="button" onClick={() => setFormat('private')} aria-pressed={format === 'private'} className={formatClass(format === 'private')}>
+                  <span className={`font-semibold text-sm ${format === 'private' ? 'text-primary' : 'text-foreground'}`}>Private Group</span>
+                  <span className="text-xs text-muted-foreground text-left mt-1">Exclusive. One booking blocks the entire schedule capacity.</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setFormat('solo')}
-                  className={`flex flex-col items-start p-3 border rounded-xl transition-all ${format === 'solo' ? 'border-coral bg-coral/5 ring-1 ring-coral/20' : 'border-slate-200 hover:border-slate-300'}`}
-                >
-                  <span className={`font-bold text-sm ${format === 'solo' ? 'text-coral' : 'text-slate-700'}`}>Solo / Couple</span>
-                  <span className="text-xs text-slate-500 text-left mt-1">Fixed package specifically priced for 1-2 people.</span>
+                <button type="button" onClick={() => setFormat('solo')} aria-pressed={format === 'solo'} className={formatClass(format === 'solo')}>
+                  <span className={`font-semibold text-sm ${format === 'solo' ? 'text-primary' : 'text-foreground'}`}>Solo / Couple</span>
+                  <span className="text-xs text-muted-foreground text-left mt-1">Fixed package specifically priced for 1-2 people.</span>
                 </button>
               </div>
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Themes (Select up to 3)</label>
+            <div className="md:col-span-2 space-y-2">
+              <Label>Themes (Select up to 3)</Label>
               <div className="flex flex-wrap gap-2">
                 {themes.map(t => <input key={t} type="hidden" name="themes" value={t} />)}
                 {availableThemes.map(theme => {
@@ -318,10 +321,11 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
                       key={theme.id}
                       type="button"
                       onClick={() => toggleTheme(theme.id)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all border ${
+                      aria-pressed={isSelected}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                         isSelected 
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                          ? 'bg-lightsuccess text-successemphasis border-success/30' 
+                          : 'bg-white text-bodytext border-border hover:bg-lightprimary hover:text-primary hover:border-primary/40'
                       }`}
                     >
                       {theme.label}
@@ -331,9 +335,10 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
               </div>
             </div>
             
-            <div className="md:col-span-1">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Province</label>
-              <select 
+            <div className="md:col-span-1 space-y-2">
+              <Label htmlFor="tour-province">Province</Label>
+              <NativeSelect 
+                id="tour-province"
                 name="province" 
                 required 
                 value={selectedProvinceName}
@@ -344,7 +349,6 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
                   setSelectedProvinceCode(prov?.code || '');
                   setSelectedCityName('');
                 }}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none bg-white"
               >
                 <option value="" disabled>Select Province</option>
                 {provinces.map(p => (
@@ -354,18 +358,18 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
                 {selectedProvinceName && provinces.length === 0 && (
                    <option value={selectedProvinceName}>{selectedProvinceName}</option>
                 )}
-              </select>
+              </NativeSelect>
             </div>
 
-            <div className="md:col-span-1">
-              <label className="block text-sm font-medium text-slate-700 mb-1">City / Municipality</label>
-              <select 
+            <div className="md:col-span-1 space-y-2">
+              <Label htmlFor="tour-city">City / Municipality</Label>
+              <NativeSelect 
+                id="tour-city"
                 name="city" 
                 required 
                 value={selectedCityName}
                 onChange={(e) => setSelectedCityName(e.target.value)}
                 disabled={!selectedProvinceCode && !initialData?.city}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none bg-white disabled:opacity-50 disabled:bg-slate-50"
               >
                 <option value="" disabled>Select City</option>
                 {cities.map((c: any) => (
@@ -375,13 +379,13 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
                 {selectedCityName && cities.length === 0 && (
                    <option value={selectedCityName}>{selectedCityName}</option>
                 )}
-              </select>
+              </NativeSelect>
             </div>
             
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Specific Address / Meetup Point</label>
-              <input type="text" name="location" defaultValue={initialData?.location} required className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none mb-3" placeholder="e.g. Lio Beach, El Nido" />
-              <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2"><MapPin className="w-4 h-4"/> Pinpoint on Map (Optional)</label>
+            <div className="md:col-span-2 space-y-2">
+              <Label htmlFor="tour-location">Specific Address / Meetup Point</Label>
+              <Input id="tour-location" type="text" name="location" defaultValue={initialData?.location} required className="mb-3" placeholder="e.g. Lio Beach, El Nido" />
+              <Label><MapPin className="w-4 h-4 text-primary"/> Pinpoint on Map (Optional)</Label>
               <LocationPicker 
                 initialLatitude={latitude} 
                 initialLongitude={longitude} 
@@ -391,57 +395,54 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
               <input type="hidden" name="longitude" value={longitude || ''} />
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-              <textarea name="description" defaultValue={initialData?.description} required rows={4} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="Describe what makes this tour special..." />
+            <div className="md:col-span-2 space-y-2">
+              <Label htmlFor="tour-description">Description</Label>
+              <Textarea id="tour-description" name="description" defaultValue={initialData?.description} required rows={4} placeholder="Describe what makes this tour special..." />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tour-price">Price per Person (₱)</Label>
+              <Input id="tour-price" type="number" name="pricePerPerson" defaultValue={initialData?.price_per_person} required min="1" step="0.01" placeholder="1500" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tour-duration">Duration (Days)</Label>
+              <Input id="tour-duration" type="number" name="durationDays" defaultValue={initialData?.duration_days} required min="1" placeholder="1" />
             </div>
           </div>
-        </div>
+        </CardBox>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Price per Person (₱)</label>
-              <input type="number" name="pricePerPerson" defaultValue={initialData?.price_per_person} required min="1" step="0.01" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="1500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Duration (Days)</label>
-              <input type="number" name="durationDays" defaultValue={initialData?.duration_days} required min="1" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="1" />
-            </div>
-          </div>
-        </div>
-
-
-        <div className="space-y-4 pt-4">
-          <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2">4. Itinerary</h2>
+        <CardBox>
+          <h5 className="card-title">4. Itinerary</h5>
           <ItineraryBuilder initialDays={initialData?.tour_itineraries || []} />
-        </div>
+        </CardBox>
 
-        <div className="space-y-4 pt-4">
-          <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2">5. Accommodation & Travel</h2>
+        <CardBox>
+          <h5 className="card-title">5. Accommodation & Travel</h5>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Travel Time Info</label>
-              <input type="text" name="travelTimeInfo" defaultValue={initialData?.travel_time_info} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none" placeholder="e.g. 2 hours boat ride from town proper" />
+          <div className="grid grid-cols-1 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="tour-travel-time">Travel Time Info</Label>
+              <Input id="tour-travel-time" type="text" name="travelTimeInfo" defaultValue={initialData?.travel_time_info} placeholder="e.g. 2 hours boat ride from town proper" />
             </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Accommodation Details (Optional)</label>
-              <textarea name="accommodationDetails" defaultValue={initialData?.accommodation_details || ''} rows={3} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral outline-none resize-none"></textarea>
+            <div className="space-y-2">
+              <Label htmlFor="tour-accommodation">Accommodation Details (Optional)</Label>
+              <Textarea id="tour-accommodation" name="accommodationDetails" defaultValue={initialData?.accommodation_details || ''} rows={3} className="resize-none"></Textarea>
             </div>
           </div>
-        </div>
+        </CardBox>
 
-        <div className="pt-6 border-t border-slate-200 flex justify-end gap-3">
-          <Link href="/dashboard/organizer/tours" className="px-6 py-3 text-slate-600 font-medium hover:bg-slate-50 rounded-lg transition-colors">
-            Cancel
-          </Link>
-          <button type="submit" disabled={loading} className="bg-coral hover:bg-coral/90 text-white px-8 py-3 rounded-lg font-medium transition-colors disabled:opacity-50">
+        <div className="flex justify-end gap-3">
+          <Button asChild variant="neutral" size="lg">
+            <Link href="/dashboard/organizer/tours">
+              Cancel
+            </Link>
+          </Button>
+          <Button type="submit" size="lg" disabled={loading}>
+            {loading && <Loader2 className="animate-spin" />}
             {loading ? 'Saving...' : 'Save Tour'}
-          </button>
+          </Button>
         </div>
       </form>
-    </div>
+    </>
   );
 }

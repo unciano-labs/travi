@@ -1,6 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 type Profile = {
   id: string;
@@ -10,7 +14,7 @@ type Profile = {
 
 export default function TravelerProfileForm({ profile }: { profile: Profile }) {
   const [loading, setLoading] = useState(false);
-  
+
   // Basic split for first/last name
   const names = profile.full_name ? profile.full_name.split(' ') : ['', ''];
   const defaultFirstName = names[0] || '';
@@ -24,46 +28,44 @@ export default function TravelerProfileForm({ profile }: { profile: Profile }) {
   }
 
   return (
-    <form className="space-y-5" onSubmit={handleSubmit}>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
-          <input 
-            type="text" 
+    <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="traveler-firstName">First Name</Label>
+          <Input
+            id="traveler-firstName"
+            type="text"
             name="firstName"
             defaultValue={defaultFirstName}
-            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-white"
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Last Name</label>
-          <input 
-            type="text" 
+        <div className="space-y-2">
+          <Label htmlFor="traveler-lastName">Last Name</Label>
+          <Input
+            id="traveler-lastName"
+            type="text"
             name="lastName"
             defaultValue={defaultLastName}
-            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-white"
           />
         </div>
       </div>
-      
-      <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-        <input 
-          type="email" 
+
+      <div className="space-y-2">
+        <Label htmlFor="traveler-email">Email Address</Label>
+        <Input
+          id="traveler-email"
+          type="email"
           defaultValue={profile.email}
           disabled
-          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-500"
+          className="bg-muted/50"
         />
       </div>
-      
-      <div className="pt-4 border-t border-slate-100">
-        <button 
-          type="submit"
-          disabled={loading}
-          className="bg-coral text-white px-5 py-2.5 rounded-lg font-medium hover:bg-coral/90 transition-colors disabled:opacity-50"
-        >
+
+      <div className="flex justify-end gap-3 border-t border-border pt-4">
+        <Button type="submit" disabled={loading}>
+          {loading && <Loader2 className="animate-spin" />}
           {loading ? 'Saving...' : 'Save Profile'}
-        </button>
+        </Button>
       </div>
     </form>
   );

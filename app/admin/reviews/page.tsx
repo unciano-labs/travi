@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import ReviewsClient from '@/components/admin/ReviewsClient';
 import { requireSession, assertRole } from '@/lib/auth-helpers';
+import PageHeader from '@/components/ui/PageHeader';
 
 export default async function ReviewsPage() {
   const { user } = await requireSession();
@@ -57,12 +58,13 @@ export default async function ReviewsPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Reviews & Moderation</h1>
-      </div>
-      
+    <>
+      <PageHeader
+        title="Reviews & Moderation"
+        breadcrumbs={[{ title: 'Admin', href: '/admin' }, { title: 'Reviews' }]}
+      />
+
       <ReviewsClient initialReviews={formattedReviews} />
-    </div>
+    </>
   );
 }

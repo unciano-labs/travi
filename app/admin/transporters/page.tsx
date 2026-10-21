@@ -1,7 +1,11 @@
+import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { createAdminClient } from '@/lib/supabase/admin';
 import TransportersClient from '@/components/admin/TransportersClient';
 
 export default async function TransportersPage() {
+  const { user } = await requireSession();
+  await assertRole(user.id, 'admin');
+
   const admin = createAdminClient({ admin: true });
 
   const { data: transporters } = await admin

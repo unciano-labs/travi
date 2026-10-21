@@ -4,9 +4,13 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { 
-  Bell, Check, Map, Users, CreditCard, Bus, UserPlus, FileCheck 
+  Bell, Check, Map, Users, CreditCard, Bus, UserPlus 
 } from 'lucide-react';
 import { markNotificationAsRead, markAllNotificationsAsRead } from '@/actions/notifications';
+import PageHeader from '@/components/ui/PageHeader';
+import CardBox from '@/components/ui/CardBox';
+import EmptyState from '@/components/ui/EmptyState';
+import { Button } from '@/components/ui/button';
 
 interface Notification {
   id: string;
@@ -46,79 +50,77 @@ export default function NotificationsClient({ initialData }: { initialData: Noti
 
   const getIcon = (type: string) => {
     switch (type) {
-      case 'account_created': return <UserPlus className="w-5 h-5 text-indigo-500" />;
-      case 'organizer_created': return <Users className="w-5 h-5 text-blue-500" />;
-      case 'transporter_created': return <Bus className="w-5 h-5 text-emerald-500" />;
-      case 'tour_created': return <Map className="w-5 h-5 text-orange-500" />;
-      case 'booking_created': return <CreditCard className="w-5 h-5 text-green-500" />;
-      default: return <Bell className="w-5 h-5 text-slate-500" />;
+      case 'account_created': return <UserPlus className="size-5 text-info" />;
+      case 'organizer_created': return <Users className="size-5 text-primary" />;
+      case 'transporter_created': return <Bus className="size-5 text-success" />;
+      case 'tour_created': return <Map className="size-5 text-warning" />;
+      case 'booking_created': return <CreditCard className="size-5 text-secondary" />;
+      default: return <Bell className="size-5 text-muted-foreground" />;
     }
   };
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Notifications</h1>
-          <p className="text-slate-500 mt-1">You have {unreadCount} unread message{unreadCount !== 1 ? 's' : ''}</p>
-        </div>
-        
-        {unreadCount > 0 && (
-          <button
+    <>
+      <PageHeader
+        title="Notifications"
+        description={`You have ${unreadCount} unread message${unreadCount !== 1 ? 's' : ''}`}
+        breadcrumbs={[{ title: 'Admin', href: '/admin' }, { title: 'Notifications' }]}
+        actions={unreadCount > 0 && (
+          <Button
+            type="button"
+            variant="neutral"
             onClick={handleMarkAllAsRead}
             disabled={isMarkingAll}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 hover:text-slate-900 transition-colors disabled:opacity-50"
           >
-            <Check className="w-4 h-4" />
+            <Check />
             Mark all as read
-          </button>
+          </Button>
         )}
-      </div>
+      />
 
-      {notifications.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-          <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Bell className="w-8 h-8 text-slate-300" />
-          </div>
-          <h3 className="text-lg font-bold text-slate-900 mb-1">All Caught Up!</h3>
-          <p className="text-slate-500">You don't have any notifications yet.</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-          <ul className="divide-y divide-slate-100">
+      <CardBox className="gap-0 overflow-hidden p-0">
+        {notifications.length === 0 ? (
+          <EmptyState
+            icon={Bell}
+            title="All Caught Up!"
+            description="You don't have any notifications yet."
+          />
+        ) : (
+          <ul className="divide-y divide-border">
             {notifications.map((notification) => (
               <li key={notification.id}>
                 <button
+                  type="button"
                   onClick={() => handleNotificationClick(notification)}
-                  className={`w-full text-left p-4 sm:p-6 transition-colors hover:bg-slate-50 flex items-start gap-4 ${!notification.is_read ? 'bg-sky-50/30' : ''}`}
+                  className={`flex w-full items-start gap-4 p-4 text-left transition-colors hover:bg-lightprimary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 sm:p-6 ${!notification.is_read ? 'bg-lightprimary/30' : ''}`}
                 >
-                  <div className={`mt-1 flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${!notification.is_read ? 'bg-white shadow-sm ring-1 ring-slate-200/50' : 'bg-slate-100'}`}>
+                  <div className={`mt-1 flex size-10 flex-shrink-0 items-center justify-center rounded-full ${!notification.is_read ? 'bg-white ring-1 ring-border' : 'bg-muted'}`}>
                     {getIcon(notification.type)}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <p className={`text-sm font-bold truncate ${!notification.is_read ? 'text-slate-900' : 'text-slate-700'}`}>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <p className={`truncate text-sm font-semibold ${!notification.is_read ? 'text-foreground' : 'text-bodytext'}`}>
                         {notification.title}
                       </p>
-                      <span className="text-xs font-medium text-slate-400 whitespace-nowrap">
+                      <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">
                         {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                       </span>
                     </div>
-                    <p className={`text-sm line-clamp-2 ${!notification.is_read ? 'text-slate-600 font-medium' : 'text-slate-500'}`}>
+                    <p className={`line-clamp-2 text-sm ${!notification.is_read ? 'font-medium text-bodytext' : 'text-muted-foreground'}`}>
                       {notification.message}
                     </p>
                   </div>
                   {!notification.is_read && (
-                    <div className="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-sky-500 mt-2.5"></div>
+                    <span className="mt-2.5 size-2.5 flex-shrink-0 rounded-full bg-primary"><span className="sr-only">Unread</span></span>
                   )}
                 </button>
               </li>
             ))}
           </ul>
-        </div>
-      )}
-    </div>
+        )}
+      </CardBox>
+    </>
   );
 }

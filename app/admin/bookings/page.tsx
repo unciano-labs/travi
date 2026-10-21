@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { createAdminClient } from '@/lib/supabase/admin';
 import BookingsClient from '@/components/admin/BookingsClient';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default async function BookingsPage() {
   const admin = createAdminClient({ admin: true });
@@ -52,7 +53,7 @@ export default async function BookingsPage() {
   });
 
   return (
-    <Suspense fallback={<div className="animate-pulse space-y-6"><div className="h-8 w-48 bg-slate-200 rounded"></div><div className="h-96 w-full bg-slate-200 rounded-xl"></div></div>}>
+    <Suspense fallback={<div className="space-y-6"><Skeleton className="h-24 w-full rounded-md" /><Skeleton className="h-96 w-full rounded-lg" /></div>}>
       <BookingsClient initialBookings={formattedBookings as any} />
     </Suspense>
   );

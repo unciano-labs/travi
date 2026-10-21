@@ -6,6 +6,13 @@ import TourForm from '@/components/dashboard/TourForm';
 import ScheduleForm from '@/components/dashboard/ScheduleForm';
 import SchedulesCalendar from '@/components/dashboard/SchedulesCalendar';
 import TransportManager from '@/components/dashboard/TransportManager';
+import PageHeader from '@/components/ui/PageHeader';
+import CardBox from '@/components/ui/CardBox';
+import EmptyState from '@/components/ui/EmptyState';
+import StatusBadge from '@/components/ui/StatusBadge';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 
 export default async function EditTourPage(props: { 
   params: Promise<{ id: string }>,
@@ -108,43 +115,54 @@ export default async function EditTourPage(props: {
     tour_itineraries: tour.tour_itineraries,
   };
 
+  const tabClass = (active: boolean) =>
+    `inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&_svg]:size-4 ${active ? 'bg-primary text-white shadow-sm' : 'text-foreground hover:bg-lightprimary hover:text-primary'}`;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard/organizer/tours" className="p-2 text-slate-400 hover:text-slate-900 transition-colors bg-white rounded-lg border border-slate-200">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Manage Tour</h1>
-            <p className="text-slate-600">Editing: <span className="font-semibold text-slate-900">{tour.title}</span></p>
-          </div>
-        </div>
-      </div>
+    <>
+      <PageHeader
+        title="Manage Tour"
+        description={<>Editing: <span className="font-semibold text-foreground">{tour.title}</span></>}
+        breadcrumbs={[
+          { title: 'Dashboard', href: '/dashboard/organizer' },
+          { title: 'My Tours', href: '/dashboard/organizer/tours' },
+          { title: 'Manage Tour' },
+        ]}
+        actions={
+          <Button asChild variant="neutral">
+            <Link href="/dashboard/organizer/tours">
+              <ArrowLeft />
+              Back to Tours
+            </Link>
+          </Button>
+        }
+      />
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-slate-200">
+      <nav aria-label="Tour sections" className="mb-6 inline-flex flex-wrap items-center gap-2 rounded-md border border-border bg-white p-1">
         <Link 
           href={`/dashboard/organizer/tours/${id}/edit?tab=details`}
-          className={`flex items-center gap-2 px-6 py-3 border-b-2 transition-colors font-medium text-sm ${tab === 'details' ? 'border-coral-500 text-coral-500' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+          className={tabClass(tab === 'details')}
+          aria-current={tab === 'details' ? 'page' : undefined}
         >
-          <Info className="w-4 h-4" /> Tour Details
+          <Info /> Tour Details
         </Link>
         <Link 
           href={`/dashboard/organizer/tours/${id}/edit?tab=schedules`}
-          className={`flex items-center gap-2 px-6 py-3 border-b-2 transition-colors font-medium text-sm ${tab === 'schedules' ? 'border-coral-500 text-coral-500' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+          className={tabClass(tab === 'schedules')}
+          aria-current={tab === 'schedules' ? 'page' : undefined}
         >
-          <CalendarDays className="w-4 h-4" /> Schedules
+          <CalendarDays /> Schedules
         </Link>
-      </div>
+      </nav>
 
       {/* Tab Content */}
-      <div className="pt-2">
+      <div>
         {tab === 'details' ? (
           <TourForm initialData={initialData} />
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1 space-y-6">
+          <div className="grid grid-cols-12 gap-6">
+            <div className="col-span-12 lg:col-span-4 space-y-6">
               <ScheduleForm 
                 key={editScheduleId || 'new'}
                 tourId={id} 
@@ -153,20 +171,25 @@ export default async function EditTourPage(props: {
               />
             </div>
 
-            <div className="lg:col-span-2">
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-slate-900">Upcoming Schedules</h2>
-                  <div className="flex bg-slate-100 p-1 rounded-lg">
+            <div className="col-span-12 lg:col-span-8">
+              <CardBox className="p-0 gap-0 overflow-hidden">
+                <div className="px-6 py-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h5 className="card-title">Upcoming Schedules</h5>
+                    <p className="text-sm text-muted-foreground">Dates travelers can book</p>
+                  </div>
+                  <div className="inline-flex items-center gap-1 rounded-md bg-muted p-1">
                     <Link 
                       href={`?tab=schedules&view=calendar`} 
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${calendarView === 'calendar' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${calendarView === 'calendar' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-primary'}`}
+                      aria-current={calendarView === 'calendar' ? 'page' : undefined}
                     >
                       <Calendar className="w-4 h-4" /> Calendar
                     </Link>
                     <Link 
                       href={`?tab=schedules&view=list`} 
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${calendarView === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${calendarView === 'list' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-primary'}`}
+                      aria-current={calendarView === 'list' ? 'page' : undefined}
                     >
                       <List className="w-4 h-4" /> List
                     </Link>
@@ -180,57 +203,68 @@ export default async function EditTourPage(props: {
                 ) : (
                   <>
                     {(!schedulesWithBookings || schedulesWithBookings.length === 0) ? (
-                      <div className="p-12 text-center text-slate-500">
-                        <Calendar className="w-12 h-12 mx-auto text-slate-300 mb-3" />
-                        <p>No schedules have been added yet.</p>
-                        <p className="text-sm">Create a schedule to allow travelers to book this tour.</p>
-                      </div>
+                      <EmptyState
+                        icon={Calendar}
+                        title="No schedules have been added yet."
+                        description="Create a schedule to allow travelers to book this tour."
+                      />
                     ) : (
-                      <div className="divide-y divide-slate-100">
+                      <div className="divide-y divide-border">
                         {schedulesWithBookings.map((schedule) => {
                           const start = new Date(schedule.start_date);
                           const end = new Date(schedule.end_date);
                           const isPast = end < new Date();
+                          const fillPercent = schedule.capacity > 0 ? Math.round((schedule.booked_count / schedule.capacity) * 100) : 0;
                           
                           return (
-                            <div key={schedule.id} className={`p-6 flex flex-col items-start gap-4 ${isPast ? 'bg-slate-50 opacity-75' : ''}`}>
+                            <div key={schedule.id} className={`px-6 py-5 flex flex-col items-start gap-4 ${isPast ? 'bg-muted/50 opacity-75' : ''}`}>
                               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-4">
-                                <div>
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <h3 className="font-bold text-slate-900 text-lg">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                                    <h3 className="font-semibold text-foreground text-base">
                                       {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                       {' - '}
                                       {end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                     </h3>
-                                    {schedule.status === 'open' && !isPast && <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Open</span>}
-                                    {schedule.status === 'full' && <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Full</span>}
-                                    {schedule.status === 'cancelled' && <span className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Cancelled</span>}
-                                    {isPast && <span className="bg-slate-200 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Past</span>}
+                                    {schedule.status === 'open' && !isPast && <StatusBadge status="open" />}
+                                    {schedule.status === 'full' && <StatusBadge status="full" />}
+                                    {schedule.status === 'cancelled' && <StatusBadge status="cancelled" />}
+                                    {isPast && <StatusBadge status="past" label="Past" />}
                                   </div>
-                                  <div className="flex items-center gap-4 text-sm text-slate-500 font-medium">
+                                  <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground font-medium">
                                     <span className="flex items-center gap-1"><Users className="w-4 h-4"/> {schedule.booked_count} / {schedule.capacity} Booked</span>
                                     {schedule.price_per_person && (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                      <Badge variant="lightSuccess">
                                         {schedule.original_price && (
-                                          <span className="line-through text-green-600 opacity-70">₱{schedule.original_price}</span>
+                                          <span className="line-through opacity-70">₱{schedule.original_price}</span>
                                         )}
                                         Promo: ₱{schedule.price_per_person}
-                                      </span>
+                                      </Badge>
                                     )}
                                   </div>
+                                  <Progress
+                                    value={fillPercent}
+                                    variant={fillPercent >= 100 ? 'warning' : 'primary'}
+                                    className="mt-3 max-w-xs"
+                                    aria-label={`${schedule.booked_count} of ${schedule.capacity} seats booked`}
+                                  />
                                 </div>
                                 
                                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                                  <Link href={`?tab=schedules&view=list&editScheduleId=${schedule.id}`} className="w-full sm:w-auto text-center px-4 py-2 border border-slate-200 text-slate-600 font-medium rounded-lg hover:bg-slate-50 transition-colors text-sm">
-                                    Edit
-                                  </Link>
-                                  <Link href={`/dashboard/organizer/tours/${id}/schedules/${schedule.id}`} className="w-full sm:w-auto text-center px-4 py-2 bg-slate-900 text-white font-medium rounded-lg hover:bg-slate-800 transition-colors text-sm">
-                                    View Bookings
-                                  </Link>
+                                  <Button asChild variant="neutral" size="sm" className="w-full sm:w-auto">
+                                    <Link href={`?tab=schedules&view=list&editScheduleId=${schedule.id}`}>
+                                      Edit
+                                    </Link>
+                                  </Button>
+                                  <Button asChild size="sm" className="w-full sm:w-auto">
+                                    <Link href={`/dashboard/organizer/tours/${id}/schedules/${schedule.id}`}>
+                                      View Bookings
+                                    </Link>
+                                  </Button>
                                 </div>
                               </div>
                               
-                              <div className="w-full pt-3 border-t border-slate-100 flex items-center justify-between">
+                              <div className="w-full pt-3 border-t border-border flex items-center justify-between">
                                 <TransportManager
                                   tourScheduleId={schedule.id}
                                   startDate={schedule.start_date}
@@ -247,11 +281,11 @@ export default async function EditTourPage(props: {
                     )}
                   </>
                 )}
-              </div>
+              </CardBox>
             </div>
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }

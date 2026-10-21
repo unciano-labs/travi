@@ -11,6 +11,15 @@ import {
   requestPasswordChange, confirmPasswordChange,
   requestPhoneChange, confirmPhoneChange
 } from '@/actions/profile';
+import CardBox from '@/components/ui/CardBox';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { buttonVariants } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+const PRIMARY_BTN = buttonVariants({ size: 'sm' });
+const BACK_BTN = buttonVariants({ variant: 'ghost', size: 'sm' });
 
 interface AccountSecurityProps {
   email: string;
@@ -25,20 +34,20 @@ export default function AccountSecurityManager({ email, phone, emailVerifiedAt, 
   const toggle = (section: string) => setOpenSection(openSection === section ? null : section);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="p-6 border-b border-slate-200">
+    <CardBox className="gap-0 overflow-hidden p-0">
+      <div className="px-6 py-4 border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center">
-            <Shield className="w-5 h-5 text-brand" />
+          <div className="w-10 h-10 bg-lightprimary rounded-full flex items-center justify-center">
+            <Shield className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-brand-navy">Account Security</h3>
-            <p className="text-sm text-slate-500">Manage your email, phone, and password settings.</p>
+            <h5 className="card-title">Account Security</h5>
+            <p className="text-sm text-muted-foreground">Manage your email, phone, and password settings.</p>
           </div>
         </div>
       </div>
 
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-border">
         <VerifyEmailSection
           email={email}
           isVerified={!!emailVerifiedAt}
@@ -62,7 +71,7 @@ export default function AccountSecurityManager({ email, phone, emailVerifiedAt, 
           onToggle={() => toggle('password')}
         />
       </div>
-    </div>
+    </CardBox>
   );
 }
 
@@ -95,52 +104,53 @@ function VerifyEmailSection({ email, isVerified, isOpen, onToggle }: {
 
   return (
     <div>
-      <button onClick={onToggle} className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+      <button type="button" onClick={onToggle} aria-expanded={isOpen} className="w-full px-6 py-4 flex items-center justify-between hover:bg-lightprimary/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40">
         <div className="flex items-center gap-3">
-          <Mail className="w-5 h-5 text-slate-400" />
+          <Mail className="w-5 h-5 text-muted-foreground" />
           <div className="text-left">
-            <p className="text-sm font-medium text-slate-900">Email Verification</p>
-            <p className="text-xs text-slate-500">{email}</p>
+            <p className="text-sm font-medium text-foreground">Email Verification</p>
+            <p className="text-xs text-muted-foreground">{email}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {isVerified || step === 'done' ? (
-            <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
+            <Badge variant="lightSuccess">
               <CheckCircle2 className="w-3.5 h-3.5" /> Verified
-            </span>
+            </Badge>
           ) : (
-            <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full">
+            <Badge variant="lightWarning">
               <AlertTriangle className="w-3.5 h-3.5" /> Unverified
-            </span>
+            </Badge>
           )}
-          {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+          {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
         </div>
       </button>
 
       {isOpen && !isVerified && step !== 'done' && (
         <div className="px-6 pb-5 pt-1">
           {step === 'idle' && (
-            <div className="flex items-center justify-between bg-slate-50 rounded-xl p-4 border border-slate-100">
-              <p className="text-sm text-slate-600">Send a verification code to <strong>{email}</strong></p>
-              <button onClick={handleSend} disabled={loading}
-                className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-dark transition disabled:opacity-50">
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/50 rounded-lg p-4 border border-border">
+              <p className="text-sm text-bodytext">Send a verification code to <strong>{email}</strong></p>
+              <button type="button" onClick={handleSend} disabled={loading}
+                className={PRIMARY_BTN}>
                 {loading ? 'Sending...' : 'Verify Now'}
               </button>
             </div>
           )}
           {step === 'sent' && (
             <form onSubmit={handleVerify} className="space-y-3">
-              <p className="text-sm text-slate-600">Enter the 6-digit code sent to <strong>{email}</strong></p>
-              <input type="text" maxLength={6} placeholder="123456" value={code} onChange={e => setCode(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm tracking-widest outline-none focus:border-brand focus:ring-1 focus:ring-brand/20" />
-              {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+              <p className="text-sm text-bodytext">Enter the 6-digit code sent to <strong>{email}</strong></p>
+              <Input type="text" maxLength={6} placeholder="123456" aria-label="Verification code" value={code} onChange={e => setCode(e.target.value)}
+               
+                  className="tracking-widest" />
+              {error && <p className="text-xs text-error font-medium">{error}</p>}
               <button type="submit" disabled={loading}
-                className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-dark transition disabled:opacity-50">
+                className={PRIMARY_BTN}>
                 {loading ? 'Verifying...' : 'Confirm'}
               </button>
             </form>
           )}
-          {error && step === 'idle' && <p className="text-xs text-red-500 font-medium mt-2">{error}</p>}
+          {error && step === 'idle' && <p className="text-xs text-error font-medium mt-2">{error}</p>}
         </div>
       )}
     </div>
@@ -179,52 +189,53 @@ function ChangeEmailSection({ currentEmail, isOpen, onToggle }: {
 
   return (
     <div>
-      <button onClick={onToggle} className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+      <button type="button" onClick={onToggle} aria-expanded={isOpen} className="w-full px-6 py-4 flex items-center justify-between hover:bg-lightprimary/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40">
         <div className="flex items-center gap-3">
-          <Send className="w-5 h-5 text-slate-400" />
+          <Send className="w-5 h-5 text-muted-foreground" />
           <div className="text-left">
-            <p className="text-sm font-medium text-slate-900">Change Email</p>
-            <p className="text-xs text-slate-500">Update your email address</p>
+            <p className="text-sm font-medium text-foreground">Change Email</p>
+            <p className="text-xs text-muted-foreground">Update your email address</p>
           </div>
         </div>
-        {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
       </button>
 
       {isOpen && (
         <div className="px-6 pb-5 pt-1">
           {step === 'done' ? (
-            <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 rounded-xl p-4 border border-emerald-100">
-              <CheckCircle2 className="w-5 h-5" />
-              <p className="text-sm font-medium">Email updated successfully!</p>
-            </div>
+            <Alert variant="lightsuccess">
+              <CheckCircle2 />
+              <AlertDescription className="font-medium">Email updated successfully!</AlertDescription>
+            </Alert>
           ) : step === 'otp' ? (
             <form onSubmit={handleConfirm} className="space-y-3">
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-bodytext">
                 A verification code has been sent to your <strong>current email ({currentEmail})</strong>.
                 Enter it below to confirm the email change.
               </p>
-              <input type="text" maxLength={6} placeholder="123456" value={code} onChange={e => setCode(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm tracking-widest outline-none focus:border-brand focus:ring-1 focus:ring-brand/20" />
-              {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+              <Input type="text" maxLength={6} placeholder="123456" aria-label="Verification code" value={code} onChange={e => setCode(e.target.value)}
+               
+                  className="tracking-widest" />
+              {error && <p className="text-xs text-error font-medium">{error}</p>}
               <div className="flex gap-2">
                 <button type="button" onClick={() => { setStep('form'); setCode(''); setError(''); }}
-                  className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition">Back</button>
+                  className={BACK_BTN}>Back</button>
                 <button type="submit" disabled={loading}
-                  className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-dark transition disabled:opacity-50">
+                  className={PRIMARY_BTN}>
                   {loading ? 'Updating...' : 'Confirm Change'}
                 </button>
               </div>
             </form>
           ) : (
             <form onSubmit={handleRequestChange} className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">New Email Address</label>
-                <input type="email" required placeholder="newemail@example.com" value={newEmail} onChange={e => setNewEmail(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand/20" />
+              <div className="space-y-2">
+                <Label htmlFor="sec-new-email">New Email Address</Label>
+                <Input id="sec-new-email" type="email" required placeholder="newemail@example.com" value={newEmail} onChange={e => setNewEmail(e.target.value)}
+                  />
               </div>
-              {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+              {error && <p className="text-xs text-error font-medium">{error}</p>}
               <button type="submit" disabled={loading}
-                className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-dark transition disabled:opacity-50">
+                className={PRIMARY_BTN}>
                 {loading ? 'Sending Code...' : 'Send Verification Code'}
               </button>
             </form>
@@ -267,66 +278,67 @@ function PhoneSection({ phone, isVerified, isOpen, onToggle }: {
 
   return (
     <div>
-      <button onClick={onToggle} className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+      <button type="button" onClick={onToggle} aria-expanded={isOpen} className="w-full px-6 py-4 flex items-center justify-between hover:bg-lightprimary/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40">
         <div className="flex items-center gap-3">
-          <Phone className="w-5 h-5 text-slate-400" />
+          <Phone className="w-5 h-5 text-muted-foreground" />
           <div className="text-left">
-            <p className="text-sm font-medium text-slate-900">Phone Number</p>
-            <p className="text-xs text-slate-500">{phone || 'Not set — required for password changes'}</p>
+            <p className="text-sm font-medium text-foreground">Phone Number</p>
+            <p className="text-xs text-muted-foreground">{phone || 'Not set — required for password changes'}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {phone && (
             isVerified || step === 'done' ? (
-              <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
+              <Badge variant="lightSuccess">
                 <CheckCircle2 className="w-3.5 h-3.5" /> Verified
-              </span>
+              </Badge>
             ) : (
-              <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full">
+              <Badge variant="lightWarning">
                 <AlertTriangle className="w-3.5 h-3.5" /> Unverified
-              </span>
+              </Badge>
             )
           )}
-          {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+          {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
         </div>
       </button>
 
       {isOpen && (
         <div className="px-6 pb-5 pt-1">
           {step === 'done' ? (
-            <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 rounded-xl p-4 border border-emerald-100">
-              <CheckCircle2 className="w-5 h-5" />
-              <p className="text-sm font-medium">Phone number updated successfully!</p>
-            </div>
+            <Alert variant="lightsuccess">
+              <CheckCircle2 />
+              <AlertDescription className="font-medium">Phone number updated successfully!</AlertDescription>
+            </Alert>
           ) : step === 'otp' ? (
             <form onSubmit={handleConfirm} className="space-y-3">
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-bodytext">
                 A verification code has been sent to your <strong>registered email address</strong>.
                 Enter it below to confirm the change.
               </p>
-              <input type="text" maxLength={6} placeholder="123456" value={code} onChange={e => setCode(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm tracking-widest outline-none focus:border-brand focus:ring-1 focus:ring-brand/20" />
-              {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+              <Input type="text" maxLength={6} placeholder="123456" aria-label="Verification code" value={code} onChange={e => setCode(e.target.value)}
+               
+                  className="tracking-widest" />
+              {error && <p className="text-xs text-error font-medium">{error}</p>}
               <div className="flex gap-2">
                 <button type="button" onClick={() => { setStep('form'); setCode(''); setError(''); }}
-                  className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition">Back</button>
+                  className={BACK_BTN}>Back</button>
                 <button type="submit" disabled={loading}
-                  className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-dark transition disabled:opacity-50">
+                  className={PRIMARY_BTN}>
                   {loading ? 'Updating...' : 'Confirm Change'}
                 </button>
               </div>
             </form>
           ) : (
             <form onSubmit={handleRequestChange} className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">Mobile Number</label>
-                <input type="tel" required placeholder="09123456789" value={newPhone} onChange={e => setNewPhone(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand/20" />
-                <p className="text-xs text-slate-400">Philippine mobile number format (e.g., 09123456789)</p>
+              <div className="space-y-2">
+                <Label htmlFor="sec-new-phone">Mobile Number</Label>
+                <Input id="sec-new-phone" type="tel" required placeholder="09123456789" value={newPhone} onChange={e => setNewPhone(e.target.value)}
+                  />
+                <p className="text-xs text-muted-foreground">Philippine mobile number format (e.g., 09123456789)</p>
               </div>
-              {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+              {error && <p className="text-xs text-error font-medium">{error}</p>}
               <button type="submit" disabled={loading}
-                className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-dark transition disabled:opacity-50">
+                className={PRIMARY_BTN}>
                 {loading ? 'Sending Code...' : 'Send Verification Code'}
               </button>
             </form>
@@ -362,11 +374,11 @@ function ChangePasswordSection({ hasPhone, isOpen, onToggle }: {
     if (/[0-9]/.test(pwd)) score++;
     if (/[^A-Za-z0-9]/.test(pwd)) score++;
 
-    if (score <= 1) return { label: 'Weak', color: 'bg-red-500', width: '20%' };
-    if (score <= 2) return { label: 'Fair', color: 'bg-amber-500', width: '40%' };
-    if (score <= 3) return { label: 'Good', color: 'bg-yellow-500', width: '60%' };
-    if (score <= 4) return { label: 'Strong', color: 'bg-emerald-500', width: '80%' };
-    return { label: 'Very Strong', color: 'bg-emerald-600', width: '100%' };
+    if (score <= 1) return { label: 'Weak', color: 'bg-error', width: '20%' };
+    if (score <= 2) return { label: 'Fair', color: 'bg-warning', width: '40%' };
+    if (score <= 3) return { label: 'Good', color: 'bg-secondary', width: '60%' };
+    if (score <= 4) return { label: 'Strong', color: 'bg-success', width: '80%' };
+    return { label: 'Very Strong', color: 'bg-successemphasis', width: '100%' };
   };
 
   const strength = passwordStrength(newPassword);
@@ -406,102 +418,104 @@ function ChangePasswordSection({ hasPhone, isOpen, onToggle }: {
 
   return (
     <div>
-      <button onClick={onToggle} className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+      <button type="button" onClick={onToggle} aria-expanded={isOpen} className="w-full px-6 py-4 flex items-center justify-between hover:bg-lightprimary/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40">
         <div className="flex items-center gap-3">
-          <Lock className="w-5 h-5 text-slate-400" />
+          <Lock className="w-5 h-5 text-muted-foreground" />
           <div className="text-left">
-            <p className="text-sm font-medium text-slate-900">Change Password</p>
-            <p className="text-xs text-slate-500">Update your account password</p>
+            <p className="text-sm font-medium text-foreground">Change Password</p>
+            <p className="text-xs text-muted-foreground">Update your account password</p>
           </div>
         </div>
-        {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
       </button>
 
       {isOpen && (
         <div className="px-6 pb-5 pt-1">
           {step === 'done' ? (
-            <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 rounded-xl p-4 border border-emerald-100">
-              <CheckCircle2 className="w-5 h-5" />
-              <p className="text-sm font-medium">Password changed successfully!</p>
-            </div>
+            <Alert variant="lightsuccess">
+              <CheckCircle2 />
+              <AlertDescription className="font-medium">Password changed successfully!</AlertDescription>
+            </Alert>
           ) : step === 'otp' ? (
             <form onSubmit={handleConfirm} className="space-y-4">
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-bodytext">
                 Enter the verification code{requiresPhoneOtp ? 's' : ''} sent to your email{requiresPhoneOtp ? ' and phone' : ''}.
               </p>
 
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">Email Code</label>
-                <input type="text" maxLength={6} placeholder="123456" value={emailOtp} onChange={e => setEmailOtp(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm tracking-widest outline-none focus:border-brand focus:ring-1 focus:ring-brand/20" />
+              <div className="space-y-2">
+                <Label htmlFor="sec-email-otp">Email Code</Label>
+                <Input id="sec-email-otp" type="text" maxLength={6} placeholder="123456" value={emailOtp} onChange={e => setEmailOtp(e.target.value)}
+                 
+                  className="tracking-widest" />
               </div>
 
               {requiresPhoneOtp && (
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">Phone Code</label>
-                  <input type="text" maxLength={6} placeholder="123456" value={phoneOtp} onChange={e => setPhoneOtp(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm tracking-widest outline-none focus:border-brand focus:ring-1 focus:ring-brand/20" />
+                <div className="space-y-2">
+                  <Label htmlFor="sec-phone-otp">Phone Code</Label>
+                  <Input id="sec-phone-otp" type="text" maxLength={6} placeholder="123456" value={phoneOtp} onChange={e => setPhoneOtp(e.target.value)}
+                   
+                  className="tracking-widest" />
                 </div>
               )}
 
-              {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+              {error && <p className="text-xs text-error font-medium">{error}</p>}
 
               <div className="flex gap-2">
                 <button type="button" onClick={() => { setStep('form'); setEmailOtp(''); setPhoneOtp(''); setError(''); }}
-                  className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition">Back</button>
+                  className={BACK_BTN}>Back</button>
                 <button type="submit" disabled={loading}
-                  className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-dark transition disabled:opacity-50">
+                  className={PRIMARY_BTN}>
                   {loading ? 'Changing...' : 'Change Password'}
                 </button>
               </div>
             </form>
           ) : (
             <form onSubmit={handleRequestChange} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">Current Password</label>
+              <div className="space-y-2">
+                <Label htmlFor="sec-current-password">Current Password</Label>
                 <div className="relative">
-                  <input type={showCurrent ? 'text' : 'password'} required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 pr-10 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand/20" />
-                  <button type="button" onClick={() => setShowCurrent(!showCurrent)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <Input id="sec-current-password" type={showCurrent ? 'text' : 'password'} required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
+                    className="pr-10" />
+                  <button type="button" onClick={() => setShowCurrent(!showCurrent)} aria-label={showCurrent ? 'Hide password' : 'Show password'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                     {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">New Password</label>
+              <div className="space-y-2">
+                <Label htmlFor="sec-new-password">New Password</Label>
                 <div className="relative">
-                  <input type={showNew ? 'text' : 'password'} required minLength={8} value={newPassword} onChange={e => setNewPassword(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 pr-10 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand/20" />
-                  <button type="button" onClick={() => setShowNew(!showNew)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <Input id="sec-new-password" type={showNew ? 'text' : 'password'} required minLength={8} value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                    className="pr-10" />
+                  <button type="button" onClick={() => setShowNew(!showNew)} aria-label={showNew ? 'Hide password' : 'Show password'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                     {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
                 {newPassword && (
                   <div className="mt-1.5">
-                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                       <div className={`h-full rounded-full transition-all duration-300 ${strength.color}`} style={{ width: strength.width }} />
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">Strength: <span className="font-medium">{strength.label}</span></p>
+                    <p className="text-xs text-muted-foreground mt-1">Strength: <span className="font-medium">{strength.label}</span></p>
                   </div>
                 )}
               </div>
 
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">Confirm New Password</label>
-                <input type="password" required value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand/20" />
+              <div className="space-y-2">
+                <Label htmlFor="sec-confirm-password">Confirm New Password</Label>
+                <Input id="sec-confirm-password" type="password" required value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)}
+                  />
                 {confirmPwd && confirmPwd !== newPassword && (
-                  <p className="text-xs text-red-500 font-medium">Passwords do not match</p>
+                  <p className="text-xs text-error font-medium">Passwords do not match</p>
                 )}
               </div>
 
-              {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+              {error && <p className="text-xs text-error font-medium">{error}</p>}
 
               <button type="submit" disabled={loading || !currentPassword || !newPassword || newPassword !== confirmPwd}
-                className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-dark transition disabled:opacity-50">
+                className={PRIMARY_BTN}>
                 {loading ? 'Verifying...' : 'Continue'}
               </button>
             </form>

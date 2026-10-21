@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import TravelerProfileForm from '@/components/dashboard/TravelerProfileForm';
 import AccountSecurityManager from '@/components/dashboard/AccountSecurityManager';
+import PageHeader from '@/components/ui/PageHeader';
+import CardBox from '@/components/ui/CardBox';
 
 export default async function TravelerProfilePage() {
   const supabase = await createClient();
@@ -22,19 +24,27 @@ export default async function TravelerProfilePage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <h1 className="text-2xl font-bold text-slate-900">Profile Settings</h1>
-      
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <TravelerProfileForm profile={profile} />
-      </div>
-
-      <AccountSecurityManager
-        email={profile.email}
-        phone={profile.phone}
-        emailVerifiedAt={profile.email_verified_at}
-        phoneVerifiedAt={profile.phone_verified_at}
+    <>
+      <PageHeader
+        title="Profile Settings"
+        breadcrumbs={[{ title: 'Dashboard', href: '/dashboard/traveler' }, { title: 'Profile Settings' }]}
       />
-    </div>
+      <div className="flex max-w-3xl flex-col gap-6">
+        <CardBox>
+          <div>
+            <h5 className="card-title">Personal Information</h5>
+            <p className="text-sm text-muted-foreground">Your name as shown on bookings.</p>
+          </div>
+          <TravelerProfileForm profile={profile} />
+        </CardBox>
+
+        <AccountSecurityManager
+          email={profile.email}
+          phone={profile.phone}
+          emailVerifiedAt={profile.email_verified_at}
+          phoneVerifiedAt={profile.phone_verified_at}
+        />
+      </div>
+    </>
   );
 }

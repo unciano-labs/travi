@@ -1,7 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Trash2, GripVertical } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 
 export interface ItineraryDay {
   id?: string;
@@ -42,45 +46,45 @@ export function ItineraryBuilder({ initialDays = [] }: { initialDays?: Itinerary
       
       <div className="space-y-4">
         {days.map((day, index) => (
-          <div key={day.day_number} className="p-4 border border-slate-200 rounded-lg bg-slate-50 relative group">
-            <div className="absolute left-0 top-0 bottom-0 w-8 flex items-center justify-center text-slate-300 cursor-move opacity-0 group-hover:opacity-100 transition-opacity">
-              {/* Optional: Add drag handle later if needed */}
-            </div>
-            
+          <div key={day.day_number} className="p-4 border border-border rounded-lg bg-muted/50 relative group">
             <div className="flex justify-between items-center mb-4">
-              <h4 className="font-bold text-slate-700">Day {day.day_number}</h4>
+              <h4 className="font-semibold text-foreground">Day {day.day_number}</h4>
               {days.length > 1 && (
-                <button
+                <Button
                   type="button"
+                  variant="ghosterror"
+                  size="iconsm"
                   onClick={() => removeDay(index)}
-                  className="text-slate-400 hover:text-red-500 transition-colors p-1"
                   title="Remove Day"
+                  aria-label={`Remove Day ${day.day_number}`}
                 >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                  <Trash2 />
+                </Button>
               )}
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Title</label>
-                <input
+              <div className="space-y-2">
+                <Label htmlFor={`itinerary-title-${index}`} className="text-xs text-muted-foreground">Title</Label>
+                <Input
+                  id={`itinerary-title-${index}`}
                   type="text"
                   required
                   value={day.title}
                   onChange={(e) => updateDay(index, 'title', e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-coral focus:border-coral outline-none bg-white"
+                  className="bg-white"
                   placeholder="e.g. Arrival & Island Tour"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
-                <textarea
+              <div className="space-y-2">
+                <Label htmlFor={`itinerary-description-${index}`} className="text-xs text-muted-foreground">Description</Label>
+                <Textarea
+                  id={`itinerary-description-${index}`}
                   required
                   rows={3}
                   value={day.description}
                   onChange={(e) => updateDay(index, 'description', e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-coral focus:border-coral outline-none bg-white"
+                  className="bg-white"
                   placeholder="Describe the activities for this day..."
                 />
               </div>
@@ -89,13 +93,14 @@ export function ItineraryBuilder({ initialDays = [] }: { initialDays?: Itinerary
         ))}
       </div>
 
-      <button
+      <Button
         type="button"
+        variant="lightprimary"
         onClick={addDay}
-        className="flex items-center gap-2 text-sm font-medium text-brand-navy hover:text-brand-navy/80 bg-brand-navy/5 px-4 py-2 rounded-lg transition-colors w-full justify-center border border-dashed border-brand-navy/30 hover:border-brand-navy"
+        className="w-full border border-dashed border-primary/40"
       >
-        <Plus className="w-4 h-4" /> Add Another Day
-      </button>
+        <Plus /> Add Another Day
+      </Button>
     </div>
   );
 }

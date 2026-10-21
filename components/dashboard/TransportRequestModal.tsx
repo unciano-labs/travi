@@ -1,7 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Truck, X, Search, CheckCircle, Clock, XCircle, MapPin, Heart } from 'lucide-react';
+import { Truck, Search, CheckCircle, Clock, MapPin, Heart, AlertCircle, Loader2 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import EmptyState from '@/components/ui/EmptyState';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getAvailableVehicles, toggleFavoriteVehicle } from '@/actions/vehicles';
 import { sendTransportRequest } from '@/actions/transport-requests';
 import { useRouter } from 'next/navigation';
@@ -157,29 +164,24 @@ export default function TransportRequestModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50/50">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Transport Request</h2>
-            <p className="text-sm text-slate-500 mt-1">
-              For schedule: {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
-            </p>
-          </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-3xl p-0 gap-0 flex flex-col">
+        <DialogHeader className="px-6 py-5 border-b border-border bg-muted/50">
+          <DialogTitle className="text-xl">Transport Request</DialogTitle>
+          <DialogDescription>
+            For schedule: {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
+          </DialogDescription>
+        </DialogHeader>
 
         <div className="p-6 overflow-y-auto flex-1">
           {existingRequest && existingRequest.status !== 'declined' && existingRequest.status !== 'canceled' ? (
             <div className="text-center py-12">
-              {existingRequest.status === 'pending' && <Clock className="w-16 h-16 text-amber-400 mx-auto mb-4" />}
-              {existingRequest.status === 'accepted' && <CheckCircle className="w-16 h-16 text-emerald-500 mx-auto mb-4" />}
-              {existingRequest.status === 'completed' && <CheckCircle className="w-16 h-16 text-blue-500 mx-auto mb-4" />}
+              {existingRequest.status === 'pending' && <Clock className="w-16 h-16 text-warning mx-auto mb-4" />}
+              {existingRequest.status === 'accepted' && <CheckCircle className="w-16 h-16 text-success mx-auto mb-4" />}
+              {existingRequest.status === 'completed' && <CheckCircle className="w-16 h-16 text-primary mx-auto mb-4" />}
               
-              <h3 className="text-xl font-bold text-slate-900 mb-2">Request {existingRequest.status}</h3>
-              <p className="text-slate-600 max-w-md mx-auto">
+              <h3 className="text-xl font-semibold text-foreground mb-2">Request {existingRequest.status}</h3>
+              <p className="text-bodytext max-w-md mx-auto">
                 You have an active transport request for this schedule. 
                 {existingRequest.status === 'pending' && ' Waiting for the transporter to accept.'}
                 {existingRequest.status === 'accepted' && ' The transporter has accepted! Your vehicle is secured.'}
@@ -188,47 +190,51 @@ export default function TransportRequestModal({
           ) : (
             <form onSubmit={handleSubmit} className="space-y-8">
               {error && (
-                <div className="bg-red-50 text-red-600 p-4 rounded-lg text-sm font-medium">
-                  {error}
-                </div>
+                <Alert variant="lighterror">
+                  <AlertCircle />
+                  <AlertDescription className="font-medium">{error}</AlertDescription>
+                </Alert>
               )}
 
               {/* Logistics Section */}
               <div className="space-y-4">
-                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-coral-500" /> Logistics
+                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-primary" /> Logistics
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Pickup Location</label>
-                    <input type="text" required value={pickupLocation} onChange={e => setPickupLocation(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral-500 focus:border-coral-500 outline-none" placeholder="e.g., Airport Terminal 1" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="transport-pickup-location">Pickup Location</Label>
+                    <Input id="transport-pickup-location" type="text" required value={pickupLocation} onChange={e => setPickupLocation(e.target.value)} placeholder="e.g., Airport Terminal 1" />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Dropoff Location</label>
-                    <input type="text" required value={dropoffLocation} onChange={e => setDropoffLocation(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral-500 focus:border-coral-500 outline-none" placeholder="e.g., Hotel Name" />
+                  <div className="space-y-2">
+                    <Label htmlFor="transport-dropoff-location">Dropoff Location</Label>
+                    <Input id="transport-dropoff-location" type="text" required value={dropoffLocation} onChange={e => setDropoffLocation(e.target.value)} placeholder="e.g., Hotel Name" />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Pickup Time (on {new Date(startDate).toLocaleDateString()})</label>
-                    <input type="time" required value={pickupTime} onChange={e => setPickupTime(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-coral-500 focus:border-coral-500 outline-none" />
+                  <div className="space-y-2">
+                    <Label htmlFor="transport-pickup-time">Pickup Time (on {new Date(startDate).toLocaleDateString()})</Label>
+                    <Input id="transport-pickup-time" type="time" required value={pickupTime} onChange={e => setPickupTime(e.target.value)} />
                   </div>
                 </div>
               </div>
 
               {/* Vehicle Selection Section */}
               <div className="space-y-4">
-                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <Truck className="w-4 h-4 text-coral-500" /> Available Vehicles
+                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-primary" /> Available Vehicles
                 </h3>
                 
                 {loading ? (
                   <div className="flex justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coral-500"></div>
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" aria-label="Loading vehicles" />
                   </div>
                 ) : vehicles.length === 0 ? (
-                  <div className="text-center py-8 bg-slate-50 rounded-xl border border-slate-200 border-dashed">
-                    <Search className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="text-slate-600 font-medium">No vehicles found</p>
-                    <p className="text-sm text-slate-500 mt-1">There are no vehicles with enough capacity available for these dates.</p>
+                  <div className="bg-muted/50 rounded-lg border border-border border-dashed">
+                    <EmptyState
+                      icon={Search}
+                      title="No vehicles found"
+                      description="There are no vehicles with enough capacity available for these dates."
+                      className="py-8"
+                    />
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -236,34 +242,36 @@ export default function TransportRequestModal({
                       <div 
                         key={v.id} 
                         onClick={() => setSelectedVehicle(v.id)}
-                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedVehicle === v.id ? 'border-coral-500 bg-coral-50 shadow-md' : 'border-slate-200 hover:border-coral-200 bg-white'}`}
+                        className={`p-4 rounded-lg border cursor-pointer transition-all ${selectedVehicle === v.id ? 'border-primary bg-lightprimary ring-1 ring-primary/20' : 'border-border hover:border-primary/40 bg-white'}`}
                       >
                         <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-bold text-slate-900">{v.name}</h4>
+                          <h4 className="font-semibold text-foreground">{v.name}</h4>
                           <div className="flex items-center gap-2">
                             <button 
+                              type="button"
                               onClick={(e) => handleToggleFavorite(e, v.id)} 
-                              className={`p-1.5 rounded-full transition-colors ${v.is_favorite ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                              className={`p-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${v.is_favorite ? 'bg-lighterror text-error hover:bg-error hover:text-white' : 'bg-muted text-muted-foreground hover:bg-lightprimary hover:text-primary'}`}
                               title={v.is_favorite ? "Remove from favorites" : "Add to favorites"}
+                              aria-label={v.is_favorite ? "Remove from favorites" : "Add to favorites"}
                             >
                               <Heart className={`w-4 h-4 ${v.is_favorite ? 'fill-current' : ''}`} />
                             </button>
-                            <span className="text-xs font-bold px-2 py-1 bg-slate-100 text-slate-600 rounded-md uppercase tracking-wider">
+                            <Badge variant="gray" className="rounded-md uppercase tracking-wider">
                               {v.vehicle_type}
-                            </span>
+                            </Badge>
                           </div>
                         </div>
-                        <div className="text-sm text-slate-600 space-y-1 mb-3">
+                        <div className="text-sm text-bodytext space-y-1 mb-3">
                           <p>💺 {v.seat_capacity} Seats</p>
                           <p>🏢 {v.transporter.company_name || v.transporter.display_name}</p>
                           {v.rate_per_day && <p>💰 ₱{v.rate_per_day}/day (Est.)</p>}
                         </div>
                         
                         <div className="flex items-center gap-2">
-                          <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedVehicle === v.id ? 'border-coral-500 bg-coral-500 text-white' : 'border-slate-300'}`}>
+                          <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedVehicle === v.id ? 'border-primary bg-primary text-white' : 'border-border'}`}>
                             {selectedVehicle === v.id && <div className="w-2 h-2 bg-white rounded-full"></div>}
                           </div>
-                          <span className="text-sm font-medium text-slate-700">{selectedVehicle === v.id ? 'Selected' : 'Select'}</span>
+                          <span className="text-sm font-medium text-foreground">{selectedVehicle === v.id ? 'Selected' : 'Select'}</span>
                         </div>
                       </div>
                     ))}
@@ -271,22 +279,22 @@ export default function TransportRequestModal({
                 )}
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
-                <button type="button" onClick={onClose} className="px-6 py-2 text-slate-600 font-medium hover:bg-slate-50 rounded-lg transition-colors">
+              <div className="pt-4 border-t border-border flex justify-end gap-3">
+                <Button type="button" variant="neutral" onClick={onClose}>
                   Cancel
-                </button>
-                <button 
+                </Button>
+                <Button 
                   type="submit" 
                   disabled={submitting || !selectedVehicle || vehicles.length === 0} 
-                  className="bg-coral-500 hover:bg-coral-600 text-white px-8 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
                 >
+                  {submitting && <Loader2 className="animate-spin" />}
                   {submitting ? 'Sending Request...' : 'Send Request'}
-                </button>
+                </Button>
               </div>
             </form>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

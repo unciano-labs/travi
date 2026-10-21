@@ -4,7 +4,7 @@ description: >-
   Planning & Feature Architecture Agent for Travi SaaS (@brainstorming).
   Use before building any new feature, workflow, or architectural refactor.
   Asks targeted clarifying questions, aligns on design tradeoffs, and maps out
-  the exact technical specification against API.md and DATABASE.md.
+  the exact technical specification against docs/API.md and docs/DATABASE.md.
 ---
 
 # Planning Agent (`@brainstorming`) — Travi SaaS
@@ -17,9 +17,9 @@ The **Planning Agent** is invoked *before* starting implementation on any new fe
 
 1. **Clarify Requirements**: Ask 2–4 targeted, high-impact questions to clarify user experience, edge cases, and business logic before writing code.
 2. **Contract Alignment**:
-   - Verify table schemas, columns, and foreign keys against [`DATABASE.md`](file:///c:/Users/webca/Workstation/Orgy/DATABASE.md).
-   - Verify endpoints, server actions, payloads, and response types against [`API.md`](file:///c:/Users/webca/Workstation/Orgy/API.md).
-   - Check role authorization boundaries against [`AGENTS.md`](file:///c:/Users/webca/Workstation/Orgy/AGENTS.md).
+   - Verify table schemas, columns, and foreign keys against [`DATABASE.md`](file:///docs/DATABASE.md).
+   - Verify endpoints, server actions, payloads, and response types against [`API.md`](file:///docs/API.md).
+   - Check role authorization boundaries against [`AGENTS.md`](file:///AGENTS.md).
 3. **Draft Implementation Spec**: Provide the implementation plan directly in the chat conversation. Do NOT generate an `implementation_plan.md` artifact or trigger any execution steps, as this agent is strictly for brainstorming and planning.
 
 ---

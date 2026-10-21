@@ -15,7 +15,7 @@ This skill equips the agent to act as a **Lead QA Engineer & Test Automation Spe
 
 ## 1. System Architecture & Role Matrix
 
-When testing, verify that actions and routes strictly comply with the permissions defined in [`AGENTS.md`](file:///c:/Users/webca/Workstation/Orgy/AGENTS.md) and [`DATABASE.md`](file:///c:/Users/webca/Workstation/Orgy/DATABASE.md):
+When testing, verify that actions and routes strictly comply with the permissions defined in [`AGENTS.md`](file:///AGENTS.md) and [`DATABASE.md`](file:///docs/DATABASE.md):
 
 | Feature / Action | Traveler | Organizer | Transporter | Admin | Expected Guard / Status |
 |---|:---:|:---:|:---:|:---:|---|

@@ -2,7 +2,7 @@
 # Functional Requirements & API Specification
 
 > Stack: Next.js API Routes (Node.js) + Supabase
-> See also: [AGENTS.md](./AGENTS.md) | [DATABASE.md](./DATABASE.md)
+> See also: [AGENTS.md](../AGENTS.md) | [DATABASE.md](./DATABASE.md)
 
 ---
 
@@ -336,4 +336,4 @@ Then review is rejected (403)
 
 ---
 
-*See [AGENTS.md](./AGENTS.md) for dev phases | [DATABASE.md](./DATABASE.md) for schema**
+*See [AGENTS.md](../AGENTS.md) for dev phases | [DATABASE.md](./DATABASE.md) for schema**

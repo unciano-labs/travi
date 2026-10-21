@@ -1,7 +1,49 @@
-import { Users, Bus, Map, CreditCard, Activity } from 'lucide-react';
+import { Users, Bus, Map as MapIcon, CreditCard, Activity, ArrowRight } from 'lucide-react';
 import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { createAdminClient } from '@/lib/supabase/admin';
 import Link from 'next/link';
+import PageHeader from '@/components/ui/PageHeader';
+import CardBox from '@/components/ui/CardBox';
+import StatCard, { type StatTone } from '@/components/ui/StatCard';
+import Timeline, { type TimelineItem } from '@/components/ui/Timeline';
+import EmptyState from '@/components/ui/EmptyState';
+import { Button } from '@/components/ui/button';
+import BarChart from '@/components/ui/charts/BarChart';
+import DonutChart from '@/components/ui/charts/DonutChart';
+
+const TZ = 'Asia/Manila';
+const CHART_MONTHS = 6;
+const REVENUE_STATUSES = new Set(['confirmed', 'completed']);
+const STATUS_BREAKDOWN: { status: string; label: string; color: string; dot: string }[] = [
+  { status: 'pending', label: 'Pending', color: 'var(--color-warning)', dot: 'bg-warning' },
+  { status: 'confirmed', label: 'Confirmed', color: 'var(--color-success)', dot: 'bg-success' },
+  { status: 'completed', label: 'Completed', color: 'var(--color-primary)', dot: 'bg-primary' },
+  { status: 'canceled', label: 'Canceled', color: 'var(--color-error)', dot: 'bg-error' },
+  { status: 'refunded', label: 'Refunded', color: 'var(--color-info)', dot: 'bg-info' },
+];
+const STATUS_TONE: Record<string, TimelineItem['tone']> = {
+  pending: 'warning',
+  confirmed: 'success',
+  completed: 'primary',
+  canceled: 'error',
+  refunded: 'info',
+};
+
+// "YYYY-MM" in Manila time, so month buckets match what admins see on the calendar.
+function monthKey(date: Date) {
+  return date.toLocaleDateString('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit' }).slice(0, 7);
+}
+
+function lastMonths(count: number) {
+  const [year, month] = monthKey(new Date()).split('-').map(Number);
+  return Array.from({ length: count }, (_, i) => {
+    const d = new Date(Date.UTC(year, month - 1 - (count - 1 - i), 15));
+    return {
+      key: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`,
+      label: d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }),
+    };
+  });
+}
 
 export default async function AdminDashboard() {
   const { user } = await requireSession();
@@ -9,91 +51,196 @@ export default async function AdminDashboard() {
 
   const admin = createAdminClient({ admin: true });
 
+  const months = lastMonths(CHART_MONTHS);
+  // Start one day early to cover the UTC/Manila offset; rows are bucketed by Manila month below.
+  const [firstYear, firstMonth] = months[0].key.split('-').map(Number);
+  const chartSince = new Date(Date.UTC(firstYear, firstMonth - 1, 0)).toISOString();
+
   const [
     usersRes,
     toursRes,
     bookingsRes,
     transportersRes,
-    recentActivityRes
+    recentActivityRes,
+    chartBookingsRes
   ] = await Promise.all([
     admin.from('user_profiles').select('*', { count: 'exact', head: true }),
     admin.from('tours').select('*', { count: 'exact', head: true }).eq('status', 'published'),
     admin.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'confirmed'),
     admin.from('transporter_profiles').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
     admin.from('bookings')
-      .select('id, total_amount, created_at, seats, user_profiles(full_name), tour_schedules(tours(title))')
+      .select('id, total_amount, created_at, seats, status, user_profiles(full_name), tour_schedules(tours(title))')
       .order('created_at', { ascending: false })
-      .limit(5)
+      .limit(5),
+    admin.from('bookings')
+      .select('created_at, total_amount, status')
+      .gte('created_at', chartSince)
   ]);
 
-  const stats = [
-    { name: 'Total Users', value: (usersRes.count || 0).toLocaleString(), icon: Users, color: 'text-blue-600', bg: 'bg-blue-100' },
-    { name: 'Active Tours', value: (toursRes.count || 0).toLocaleString(), icon: Map, color: 'text-emerald-600', bg: 'bg-emerald-100' },
-    { name: 'Total Bookings', value: (bookingsRes.count || 0).toLocaleString(), icon: CreditCard, color: 'text-purple-600', bg: 'bg-purple-100' },
-    { name: 'Transporters', value: (transportersRes.count || 0).toLocaleString(), icon: Bus, color: 'text-orange-600', bg: 'bg-orange-100' },
+  const stats: { name: string; value: string; icon: typeof Users; tone: StatTone; href?: string }[] = [
+    { name: 'Total Users', value: (usersRes.count || 0).toLocaleString(), icon: Users, tone: 'primary' },
+    { name: 'Active Tours', value: (toursRes.count || 0).toLocaleString(), icon: MapIcon, tone: 'success', href: '/admin/tours' },
+    { name: 'Total Bookings', value: (bookingsRes.count || 0).toLocaleString(), icon: CreditCard, tone: 'info', href: '/admin/bookings' },
+    { name: 'Transporters', value: (transportersRes.count || 0).toLocaleString(), icon: Bus, tone: 'warning', href: '/admin/transporters' },
   ];
 
+  // Aggregate the last 6 months of bookings for the charts.
+  const monthIndex = new Map<string, number>(months.map((m, i) => [m.key, i]));
+  const bookingsPerMonth = months.map(() => 0);
+  const revenuePerMonth = months.map(() => 0);
+  const statusCounts = new Map<string, number>();
+  for (const b of chartBookingsRes.data || []) {
+    const idx = monthIndex.get(monthKey(new Date(b.created_at)));
+    if (idx === undefined) continue;
+    bookingsPerMonth[idx] += 1;
+    if (REVENUE_STATUSES.has(b.status)) revenuePerMonth[idx] += Number(b.total_amount) || 0;
+    statusCounts.set(b.status, (statusCounts.get(b.status) || 0) + 1);
+  }
+  const totalChartBookings = bookingsPerMonth.reduce((a, b) => a + b, 0);
+  const totalChartRevenue = revenuePerMonth.reduce((a, b) => a + b, 0);
+  const breakdown = STATUS_BREAKDOWN.map((s) => ({ ...s, count: statusCounts.get(s.status) || 0 }));
+
   const recentBookings = recentActivityRes.data || [];
+  const timelineItems: TimelineItem[] = recentBookings.map((b: any) => {
+    const travelerName = b.user_profiles?.full_name || 'Anonymous';
+    const tourTitle = b.tour_schedules?.tours?.title || 'Unknown Tour';
+    const created = new Date(b.created_at);
+    return {
+      key: b.id,
+      time: (
+        <>
+          {created.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          <span className="block font-normal text-muted-foreground">
+            {created.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+          </span>
+        </>
+      ),
+      title: `New Booking: ${tourTitle}`,
+      subtitle: `${travelerName} booked for ${b.seats} pax • ₱${(b.total_amount || 0).toLocaleString()}`,
+      tone: STATUS_TONE[b.status] ?? 'primary',
+    };
+  });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Dashboard Overview</h1>
-      </div>
+    <>
+      <PageHeader
+        title="Dashboard Overview"
+        breadcrumbs={[{ title: 'Admin', href: '/admin' }, { title: 'Dashboard' }]}
+      />
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <div key={stat.name} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-              <div className="flex items-center justify-between">
+      <div className="grid grid-cols-12 gap-6">
+        {/* Stats */}
+        <div className="col-span-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {stats.map((stat) => (
+            <StatCard key={stat.name} title={stat.name} value={stat.value} icon={stat.icon} tone={stat.tone} href={stat.href} />
+          ))}
+        </div>
+
+        {/* Revenue / bookings chart */}
+        <div className="col-span-12 flex lg:col-span-8">
+          <CardBox className="h-full pb-0">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h5 className="card-title">Revenue Updates</h5>
+                <p className="text-sm text-muted-foreground">Confirmed and completed bookings, last {CHART_MONTHS} months</p>
+              </div>
+              <div className="flex gap-6">
                 <div>
-                  <p className="text-sm font-medium text-slate-500">{stat.name}</p>
-                  <p className="text-3xl font-bold text-slate-900 mt-2">{stat.value}</p>
+                  <p className="text-xs text-muted-foreground">Revenue</p>
+                  <p className="text-lg font-semibold text-foreground">₱{totalChartRevenue.toLocaleString()}</p>
                 </div>
-                <div className={`w-12 h-12 rounded-full ${stat.bg} flex items-center justify-center`}>
-                  <Icon className={`w-6 h-6 ${stat.color}`} />
+                <div>
+                  <p className="text-xs text-muted-foreground">Bookings</p>
+                  <p className="text-lg font-semibold text-foreground">{totalChartBookings.toLocaleString()}</p>
                 </div>
               </div>
             </div>
-          );
-        })}
-      </div>
-
-      {/* Recent Activity */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="px-6 py-5 border-b border-slate-200 bg-slate-50 flex items-center gap-3">
-          <Activity className="w-5 h-5 text-slate-400" />
-          <h2 className="text-lg font-medium text-slate-900">Recent Activity</h2>
+            <BarChart
+              categories={months.map((m) => m.label)}
+              series={[{ name: 'Revenue', data: revenuePerMonth }]}
+              valuePrefix="₱"
+              height={300}
+            />
+          </CardBox>
         </div>
-        <div className="divide-y divide-slate-100">
-          {recentBookings.length === 0 && (
-            <div className="p-6 text-center text-sm text-slate-500">No recent activity found.</div>
-          )}
-          {recentBookings.map((b: any) => {
-            const travelerName = b.user_profiles?.full_name || 'Anonymous';
-            const tourTitle = b.tour_schedules?.tours?.title || 'Unknown Tour';
-            const timeAgo = new Date(b.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
-            return (
-              <div key={b.id} className="px-6 py-4 flex items-center hover:bg-slate-50 transition-colors">
-                <div className="w-2 h-2 rounded-full bg-brand-navy mr-4"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-slate-900">New Booking: {tourTitle}</p>
-                  <p className="text-xs text-slate-500 mt-1">{travelerName} booked for {b.seats} pax • {timeAgo}</p>
+        {/* Booking status breakdown */}
+        <div className="col-span-12 flex lg:col-span-4">
+          <CardBox className="h-full">
+            <div>
+              <h5 className="card-title">Booking Status</h5>
+              <p className="text-sm text-muted-foreground">Last {CHART_MONTHS} months</p>
+            </div>
+            {totalChartBookings === 0 ? (
+              <EmptyState icon={CreditCard} title="No bookings yet." className="py-6" />
+            ) : (
+              <div className="flex flex-1 flex-col items-center justify-center gap-6">
+                <div className="flex shrink-0 justify-center">
+                  <DonutChart
+                    labels={breakdown.map((s) => s.label)}
+                    series={breakdown.map((s) => s.count)}
+                    colors={breakdown.map((s) => s.color)}
+                  />
                 </div>
-                <div className="text-sm font-medium text-slate-900">₱{(b.total_amount || 0).toLocaleString()}</div>
+                <ul className="grid w-full grid-cols-2 gap-x-4 gap-y-2">
+                  {breakdown.map((s) => (
+                    <li key={s.status} className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className={`size-2.5 shrink-0 rounded-full ${s.dot}`} aria-hidden="true" />
+                      <span>{s.label}</span>
+                      <span className="ml-auto font-semibold text-foreground">{s.count.toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
-            );
-          })}
+            )}
+          </CardBox>
         </div>
-        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 text-center">
-          <Link href="/admin/bookings" className="text-sm font-medium text-brand-navy hover:text-brand-navy/80">
-            View All Activity
-          </Link>
+
+        {/* Recent activity */}
+        <div className="col-span-12 lg:col-span-8">
+          <CardBox className="h-full">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="flex size-10 items-center justify-center rounded-full bg-lightprimary text-primary">
+                  <Activity className="size-5" aria-hidden="true" />
+                </span>
+                <div>
+                  <h5 className="card-title">Recent Activity</h5>
+                  <p className="text-sm text-muted-foreground">Latest 5 bookings</p>
+                </div>
+              </div>
+            </div>
+            {timelineItems.length === 0 ? (
+              <EmptyState icon={Activity} title="No recent activity found." />
+            ) : (
+              <Timeline items={timelineItems} />
+            )}
+            <div className="mt-auto border-t border-border pt-4 text-center">
+              <Button asChild variant="ghostprimary" size="sm">
+                <Link href="/admin/bookings">
+                  View All Activity <ArrowRight />
+                </Link>
+              </Button>
+            </div>
+          </CardBox>
+        </div>
+
+        {/* Bookings per month */}
+        <div className="col-span-12 flex lg:col-span-4">
+          <CardBox className="h-full pb-0">
+            <div>
+              <h5 className="card-title">Bookings per Month</h5>
+              <p className="text-sm text-muted-foreground">All statuses</p>
+            </div>
+            <BarChart
+              categories={months.map((m) => m.label)}
+              series={[{ name: 'Bookings', data: bookingsPerMonth }]}
+              colors={['var(--color-secondary)']}
+              height={280}
+            />
+          </CardBox>
         </div>
       </div>
-    </div>
+    </>
   );
 }

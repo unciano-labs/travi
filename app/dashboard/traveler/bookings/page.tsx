@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import TravelerBookingsClient from '@/components/traveler/TravelerBookingsClient';
+import PageHeader from '@/components/ui/PageHeader';
 
 export default async function TravelerBookings() {
   const supabase = await createClient();
@@ -42,9 +43,12 @@ export default async function TravelerBookings() {
   const bookings = (allBookings as any[]) || [];
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">My Bookings</h1>
+    <>
+      <PageHeader
+        title="My Bookings"
+        breadcrumbs={[{ title: 'Dashboard', href: '/dashboard/traveler' }, { title: 'My Bookings' }]}
+      />
       <TravelerBookingsClient initialBookings={bookings} />
-    </div>
+    </>
   );
 }

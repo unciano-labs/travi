@@ -67,7 +67,7 @@ export default function SchedulesCalendar({
       <div className="flex flex-col gap-0.5 leading-tight">
         {s.price_per_person && (
           <div className="flex items-center gap-1 font-bold">
-            {s.original_price && <span className="text-[10px] text-slate-500 line-through font-normal">₱{s.original_price}</span>}
+            {s.original_price && <span className="text-[10px] opacity-70 line-through font-normal">₱{s.original_price}</span>}
             <span className="flex items-center gap-0.5">
               <span className="text-[10px] opacity-80">₱</span>{s.price_per_person}
             </span>
@@ -81,44 +81,79 @@ export default function SchedulesCalendar({
   };
 
   return (
-    <div className="h-[800px] bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative calendar-container">
+    <div className="h-[800px] bg-white rounded-lg relative calendar-container">
       <style dangerouslySetInnerHTML={{ __html: `
-        /* Custom Tailwind Overrides for Big Calendar */
+        /* Theme overrides for Big Calendar (dashboard tokens from app/globals.css) */
         .rbc-calendar { 
           font-family: inherit; 
           font-size: 0.8rem; /* Smaller font as requested */
+          color: var(--color-bodytext);
+        }
+        .rbc-month-view, .rbc-time-view, .rbc-agenda-view,
+        .rbc-header, .rbc-month-row + .rbc-month-row, .rbc-day-bg + .rbc-day-bg,
+        .rbc-agenda-view table.rbc-agenda-table, .rbc-agenda-view table.rbc-agenda-table tbody > tr > td + td,
+        .rbc-agenda-view table.rbc-agenda-table tbody > tr + tr {
+          border-color: var(--color-border);
+        }
+        .rbc-month-view, .rbc-time-view, .rbc-agenda-view {
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        .rbc-header {
+          padding: 8px 4px;
+          font-weight: 600;
+          color: var(--color-foreground);
+        }
+        .rbc-off-range-bg {
+          background-color: var(--color-muted);
+        }
+        .rbc-toolbar .rbc-toolbar-label {
+          font-size: 1rem;
+          font-weight: 600;
+          color: var(--color-foreground);
         }
         .rbc-event {
-          background-color: var(--color-coral, #ff6b6b);
+          background-color: var(--color-primary);
           border-radius: 4px;
           border: none;
           padding: 2px 6px;
           font-weight: 600;
           font-size: 11px;
-          box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+          box-shadow: none;
+        }
+        .rbc-event.rbc-selected {
+          background-color: var(--color-primaryemphasis);
         }
         .rbc-event.status-full {
-          background-color: #d97706; /* amber-600 */
+          background-color: var(--color-warning);
         }
         .rbc-event.status-cancelled {
-          background-color: #dc2626; /* red-600 */
+          background-color: var(--color-error);
         }
         .rbc-event.is-past {
-          background-color: #94a3b8; /* slate-400 */
+          background-color: var(--color-muted-foreground);
           opacity: 0.8;
         }
         .rbc-today {
-          background-color: #f8fafc; /* slate-50 */
+          background-color: var(--color-lightprimary);
         }
         .rbc-toolbar button {
           border-radius: 6px;
-          border-color: #e2e8f0;
-          color: #475569;
+          border-color: var(--color-border);
+          color: var(--color-bodytext);
+          font-weight: 500;
         }
-        .rbc-toolbar button:active, .rbc-toolbar button.rbc-active {
-          background-color: #f1f5f9;
+        .rbc-toolbar button:hover, .rbc-toolbar button:focus {
+          background-color: var(--color-lightprimary);
+          border-color: var(--color-border);
+          color: var(--color-primary);
+        }
+        .rbc-toolbar button:active, .rbc-toolbar button.rbc-active,
+        .rbc-toolbar button.rbc-active:hover, .rbc-toolbar button.rbc-active:focus {
+          background-color: var(--color-primary);
           box-shadow: none;
-          border-color: #cbd5e1;
+          border-color: var(--color-primary);
+          color: var(--white);
         }
       `}} />
       

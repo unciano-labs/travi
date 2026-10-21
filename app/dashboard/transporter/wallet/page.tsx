@@ -1,5 +1,8 @@
 import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { WalletClient } from '@/components/dashboard/WalletClient';
+import { AlertCircle } from 'lucide-react';
+import PageHeader from '@/components/ui/PageHeader';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default async function WalletPage() {
   const { user, profile, supabase } = await requireSession();
@@ -37,21 +40,27 @@ export default async function WalletPage() {
     .order('created_at', { ascending: false });
 
   if (!wallet) {
-    return <div>Error loading wallet. Please contact support.</div>;
+    return (
+      <Alert variant="lighterror">
+        <AlertCircle />
+        <AlertDescription>Error loading wallet. Please contact support.</AlertDescription>
+      </Alert>
+    );
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Digital Wallet</h1>
-        <p className="text-slate-500 mt-2">Manage your earnings, view transaction history, and request payouts.</p>
-      </div>
+    <>
+      <PageHeader
+        title="Digital Wallet"
+        description="Manage your earnings, view transaction history, and request payouts."
+        breadcrumbs={[{ title: 'Dashboard', href: '/dashboard/transporter' }, { title: 'Wallet' }]}
+      />
 
       <WalletClient 
         wallet={wallet} 
         transactions={transactions || []} 
         payouts={payouts || []} 
       />
-    </div>
+    </>
   );
 }
