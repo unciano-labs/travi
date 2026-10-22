@@ -12,7 +12,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 > **Single source of truth and operating manual for every AI agent working in this repo.**
 > If anything in `docs/`, `README.md`, or `.agents/skills/*` contradicts this file, **this file wins**. If this file contradicts the code or `supabase/migrations/`, **the code wins**: fix this file.
-> **Last updated:** 2026-10-23 (Phase 2 money integrity)
+> **Last updated:** 2026-10-23 (Phase 3 Wave A)
 
 ---
 
@@ -100,7 +100,7 @@ A single account can hold several roles (traveler + organizer + transporter) and
 | RLS tests | `node:test` + PGlite (`@electric-sql/pglite`, dev) | 0.3.16 | In-process Postgres; replays every migration with Supabase stubs (`supabase/tests/rls/`) |
 | Smoke / QA tests | `scripts/qa-smoke-test.ts` run with `tsx` | | Runs against the live DB |
 | Lint | ESLint 9 (flat config) + `eslint-config-next` 16.3.8 | 9.39.5 | No Prettier, no EditorConfig |
-| Hosting | Vercel | | `vercel.json` defines the cron schedule (`/api/cron/escrow-release`, daily) |
+| Hosting | Vercel | | `vercel.json` defines the cron schedules (`/api/cron/escrow-release` 18:00 UTC, `/api/cron/trip-reminders` 01:00 UTC) |
 | Local toolchain | Node v24.15.0, npm 11.12.1 (the lockfile is npm) | | `package.json` has no `engines` field |
 
 ### 1.3 Commands
@@ -150,9 +150,11 @@ travi/
 │   ├── layout.tsx           # Root: fonts (Plus Jakarta Sans, Playfair Display), metadata, <Analytics/>
 │   ├── globals.css          # Tailwind v4 entry: @import "tailwindcss", @plugin typography, @theme tokens
 │   ├── page.tsx             # Landing page
-│   ├── login/, signup/      # Auth pages (login is a client page)
-│   ├── tours/[slug]/                      # Public tour detail (generateMetadata + JSON-LD)
-│   │   └── booking/[bookingId]/{,pay,success}/   # Booking review → payment method → payment verification
+│   ├── login/, signup/      # Auth pages (signup has a role picker, ?role= preselects; both honour ?next=)
+│   ├── auth/                # callback/ (PKCE code + token_hash exchange → safe next), forgot-password/, reset-password/
+│   ├── tours/page.tsx       # Public catalog: filters/sort/pagination via search_public_tours RPC (+ loading/error)
+│   ├── tours/[slug]/                      # Public tour detail (generateMetadata + JSON-LD; cache() + tagged unstable_cache)
+│   │   └── booking/[bookingId]/{,pay,success}/   # Booking review → payment method → payment verification (noindex layout, loading/error)
 │   ├── dashboard/           # Authenticated multi-role area
 │   │   ├── layout.tsx       # 'use client' shell (sidebar from pathname). NO auth logic
 │   │   ├── page.tsx         # Dispatcher: redirects to the user's primary role
@@ -167,12 +169,12 @@ travi/
 │                            # reviews, schedules, tours, transport-requests, transporter, vehicles, wallet
 ├── components/
 │   ├── admin/               # Admin *Client.tsx tables, AdminNotificationBell, AdminProfileMenu, PlatformSettingsForm, BookingMobileCard
-│   ├── auth/                # SignupForm
+│   ├── auth/                # SignupForm, LoginForm, ForgotPasswordForm, ResetPasswordForm, AuthCard
 │   ├── dashboard/           # Role dashboards: forms, modals, managers, calendars, LocationPicker, RoleSwitcher, NotificationBell
-│   ├── landing/             # Marketing sections, TourListClient, TourBookingCard, PaymentSelectionClient, hero.css, useScrollReveal
+│   ├── landing/             # Marketing sections, TourCard/TourGrid (server), CatalogFilters, TourBookingCard, PaymentSelectionClient, PublicRouteError, hero.css
 │   ├── seo/                 # TourJsonLd
 │   ├── shell/               # AppShell (sidebar + sticky header + mobile Sheet) and AppSidebar. Used by app/dashboard/layout.tsx and app/admin/layout.tsx
-│   ├── traveler/            # TravelerBookingsClient
+│   ├── traveler/            # TravelerBookingsClient, ReviewDialog
 │   ├── ui/                  # shadcn primitives (lowercase: button, card, badge, table, input, textarea, label, select, dialog, sheet, tabs,
 │   │                        #   dropdown-menu, avatar, alert, progress, switch, checkbox, separator, skeleton, tooltip),
 │   │                        # template widgets (PascalCase: CardBox, PageHeader, WelcomeBanner, StatCard, StatusBadge, Timeline, EmptyState),
@@ -182,16 +184,21 @@ travi/
 │   ├── supabase/            # server.ts (cookie client), browser.ts, middleware.ts (updateSession + RBAC), admin.ts (service role)
 │   ├── auth-helpers.ts      # requireSession(), assertRole()   ← Server Actions / RSC
 │   ├── api-auth.ts          # verifyApiAuth(), assertApiRole() ← app/api Bearer routes
-│   ├── schemas/             # zod: admin, auth, booking, tour
+│   ├── schemas/             # zod: admin, auth, booking, catalog (lenient query parsing), review, tour
 │   ├── services/            # bookings.ts, tours.ts, payments.ts (applyPaidPayment, verifyBookingPayment), refunds.ts (refundBooking)
-│   ├── data/                # tours.ts, reviews.ts, stats.ts: cached public reads (unstable_cache, tags)
+│   ├── data/                # tours.ts (catalog search + detail), reviews.ts, stats.ts: cached public reads. tours-fallback.ts is TEMPORARY until 20261024100000 is applied
 │   ├── env.ts               # zod-validated env. Import `env`, not process.env
 │   ├── logger.ts            # pino `logger` + captureException() (pino + Sentry)
 │   ├── audit.ts             # logMutation() / logAdminAudit() → admin_audit_logs
 │   ├── ratelimit.ts         # assertRateLimit(id, 'auth' | 'mutation'), getClientIp()
 │   ├── paymongo.ts          # PayMongo REST client (intents, methods, checkout, refunds). Mocks when the key is missing
-│   ├── email.ts, sms.ts     # Resend sender + escapeHtml(); SMS console mock (dev only; fails in production)
-│   ├── notifications.ts     # Internal notification senders (in-app + email). Not Server Actions
+│   ├── email.ts, sms.ts     # The ONLY email sender (sendEmail) + escapeHtml/siteUrl/maskEmail; SMS console mock (dev only; fails in production)
+│   ├── notifications.ts     # Internal notification senders (in-app + email via templates). Not Server Actions
+│   ├── email-templates.ts   # Pure email templates { subject, html, text }; the layout escapes every value
+│   ├── accounts.ts          # ensureAccountProvisioned(): profile/role fallback when the signup trigger did not run
+│   ├── password-recovery.ts # Signed httpOnly recovery-marker cookie (travi_pw_recovery) for /auth/reset-password
+│   ├── safe-next.ts         # safeNextPath(): only same-site relative return-to paths
+│   ├── features.ts          # Feature flags (PHONE_OTP_ENABLED = false, decision D5)
 │   ├── otp.ts               # OTP issue/verify/require/consume helpers. Not Server Actions
 │   ├── json-ld.ts           # serializeJsonLd(): escapes </script> etc. for JSON-LD
 │   ├── datetime.ts          # manilaToday(): business dates are Asia/Manila
@@ -200,7 +207,7 @@ travi/
 ├── supabase/migrations/     # YYYYMMDDHHMMSS_snake_case.sql. Append-only
 ├── supabase/tests/rls/      # DB harness (harness.mjs, fixtures.mjs), RLS + money tests (*.test.mjs), live-policy-audit.sql
 ├── vercel.json              # Cron schedule
-├── e2e/                     # Playwright specs (unauthenticated flows only)
+├── e2e/                     # Playwright specs (unauthenticated flows only; auth-flows.spec.ts covers login/signup/reset pages)
 ├── scripts/                 # Seed, fix, and QA scripts (ESLint-ignored). qa-smoke-test.ts is the QA gate (read-only).
 │                            # Scripts that write call scripts/lib/write-guard.cjs: run with CONFIRM_DB_WRITE=<project-ref>
 ├── docs/                    # Reference specs (see Quick Links)
@@ -286,7 +293,8 @@ export async function doThing(input: unknown) {
 
 - Report errors with `captureException(error, { action: 'name', ...ids })` from `@/lib/logger`. It logs through pino and forwards to Sentry.
 - Use `logger.info / warn / debug` for structured logs.
-- **Do not add new `console.log`.** It exists in `lib/email.ts`, `lib/notifications.ts` (email mock) and `lib/sms.ts` as dev mocks. The SMS mock refuses to run in production.
+- **Do not add new `console.log`.** The SMS dev mock in `lib/sms.ts` is the only one (it refuses to run in production); the email dev mock logs only the masked recipient and subject via pino.
+- **Emails:** build them with `lib/email-templates.ts` and send with `sendEmail` from `lib/email.ts`. No inline HTML in actions, no other Resend client, links from `siteUrl()`.
 - **Never log secrets, OTP codes, passwords, tokens, or full payment payloads.**
 - Map Supabase errors to user-safe messages where they leak internals.
   - Example: the service maps the `check_capacity_not_exceeded` violation to `'Not enough seats available.'`.
@@ -302,7 +310,7 @@ export async function doThing(input: unknown) {
 - **Server Components are the default.** Pages are `async` RSCs that fetch on the server:
   - **Authenticated pages:** `createClient()` from `@/lib/supabase/server` (RLS applies).
   - **Admin pages:** `requireSession()` + `assertRole(user.id, 'admin')` **in the page**, *then* `createAdminClient({ admin: true })`. Never rely on middleware alone.
-  - **Public catalog data:** `lib/data/*` (`unstable_cache`, `revalidate: 3600`, tags). New public reads go here and must filter `status = 'published'` and `deleted_at IS NULL` themselves.
+  - **Public catalog data:** `lib/data/*` (`unstable_cache` + tags). Catalog search goes through the `search_public_tours` RPC (`getCachedTourSearch` / `getCatalogPage` / `getCachedPublicTours`, 300 s); tour detail is `cache()` + `unstable_cache` (60 s, because the pending-booking expiry cannot invalidate a tag); sitemap 1 h. New public reads must filter `status = 'published'` and `deleted_at IS NULL` themselves.
   - **Shared write logic:** `lib/services/*` (takes a `SupabaseClient`), so actions and `app/api` routes share one implementation.
 - **Client components** (`'use client'` only when you need state, effects, browser APIs, or event handlers; say why in the PR):
   - Receive server data as `initialX` props and hold it in `useState`.
@@ -349,7 +357,8 @@ export async function doThing(input: unknown) {
   - `generateMetadata` (await `params`, which is a Promise in Next 16).
   - JSON-LD via `components/seo/*`.
   - Add the route to `app/sitemap.ts`.
-  - Keep `/admin/`, `/dashboard/`, `/api/` disallowed in `app/robots.ts`.
+  - Keep `/admin/`, `/dashboard/`, `/api/` and `/tours/*/booking/` disallowed in `app/robots.ts`; booking pages are also `noindex` via `app/tours/[slug]/booking/layout.tsx`. Filtered catalog URLs are `noindex, follow` with canonical `/tours`. `metadataBase` comes from `NEXT_PUBLIC_SITE_URL`.
+- **Auth redirects:** every return-to redirect goes through `safeNextPath()`. `/login` and `/auth/*` render only fixed, code-chosen messages (never free text from the query string).
 - **Size and reuse:** keep files under ~400 lines; split large client components into sub-components. Extract shared logic into `lib/` or `components/ui/`. Put business logic in services and actions, not in components.
 
 ### 3.6 Database & migrations
@@ -524,7 +533,7 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
   - Slug is `slugify(title)-<last 6 digits of Date.now()>`, set on create and **never changed** (URLs are stable).
   - Itinerary arrives as a JSON string `[{ day_number, title, description }]`. Update replaces all rows. `(tour_id, day_number)` is unique.
   - Publish sets `status: 'published'`, `deleted_at: null`. Archive sets `status: 'archived'`, `deleted_at: now()`.
-- **Public catalog** (`lib/data/tours.ts`): only `published`, not-deleted tours with at least one `open`, not-deleted schedule starting today or later.
+- **Public catalog** (`search_public_tours`, `lib/data/tours.ts`): only `published`, not-deleted tours of **approved**, non-deleted organizers with an `open`, non-deleted schedule starting today or later (Manila) with at least max(guests, 1) seats left. Price = schedule price ?? tour price. Ratings come from published, non-deleted reviews (`tour_rating_summary` view). User text is matched literally (LIKE wildcards escaped).
 - **Schedules** (`actions/schedules.ts`):
   - Created `open`. Delete is soft: `deleted_at` + `status: 'cancelled'`.
   - `transport_status` is derived from `transport_type`:
@@ -544,17 +553,19 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
 - **Availability:**
   - `blockVehicleDates` rejects `start > end` and any overlap.
   - `removeAvailabilityBlock` refuses `booked` rows (a booked row must be released through the transport booking).
-- **Reviews:**
-  - A review must target a `tour_id` or a `transporter_id` (`reviews_target_check`). Rating is 1–5. Default status is `pending`; end users can only insert `pending` reviews for themselves (RLS).
-  - **Only `published` reviews are public.**
-  - Admin moderation: `hideReview` (used by the UI) and `moderateReview` (`hide | publish | delete` → soft delete).
-  - There is no review-creation action yet. When you build it, enforce "traveler with a `completed` booking on that tour", one review per booking.
+- **Reviews** (`actions/reviews.ts`):
+  - Travelers review **tours only** via `createReview({ bookingId, rating, comment })`: their own `completed` booking of that tour, one review per booking (`reviews.booking_id` unique, also across soft deletes), comment ≤ 1000, inserted `pending`. Enforced by RLS + `can_review_booking()`. End users cannot set `transporter_id` (no organizer→transporter review flow yet).
+  - **Only `published` reviews are public.** Admin queue (Pending / Published / Hidden): `publishReview`, `hideReview`, `deleteReview` (soft) — admin-only, service role, audited.
+  - `transporter_profiles.average_rating/review_count` are maintained by the `reviews_refresh_ratings` trigger (`refresh_transporter_rating`). Tour ratings: `tour_rating_summary` view (anon-readable).
 
 ### 4.6 Accounts, roles, onboarding, notifications, OTP
 
 - **Signup:**
-  - Supabase Auth `signUp` → insert `user_profiles` (the DB takes `email` from the auth account and clears verification stamps) → `assign_self_role` RPC for the chosen role (`traveler | organizer | transporter`; requires `WEBSITE_ID`).
-  - Password min 6 at signup; min 8 when changing it.
+  - Supabase Auth `signUp` with `options.data` (`full_name`/`first_name`/`last_name`, `signup_role`, `signup_website_id`) and `emailRedirectTo` `/auth/callback`. The `on_auth_user_created` trigger (`handle_new_auth_user()`) creates `user_profiles` and assigns the role (self-service roles only; the website id must exist in `website_roles`; never admin). `ensureAccountProvisioned()` (`lib/accounts.ts`) is the fallback on signup, login and callback.
+  - With "Confirm email" ON there is no session after signup → `/login?message=check_email`. `on_auth_user_email_confirmed` mirrors `auth.users.email_confirmed_at` into `user_profiles.email_verified_at`. **Bookings require a verified email** (`assertEmailVerified(user)` in `lib/auth-helpers.ts`).
+  - Password minimum 8 everywhere (`passwordSchema`, max 72).
+  - **Password reset:** `/auth/forgot-password` (rate-limited, same message whether or not the account exists) → email → `/auth/callback` (verifies the recovery link, sets the `travi_pw_recovery` marker cookie) → `/auth/reset-password` (requires the marker; signs out other sessions).
+  - Login honours `?next=` (safe paths only); middleware sends signed-out `/dashboard/*` to `/login?next=…`.
 - **Role switching:**
   - `addAccountType(role)` adds a role via the `assign_self_role` RPC.
   - `RoleSwitcher` links to `/dashboard/<role>`.
@@ -564,14 +575,15 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
   - Rows are inserted with the service-role client and keyed by **auth user id**.
   - Only `notifications` is in the `supabase_realtime` publication; the bells subscribe through the browser client.
   - `notifySuperAdmin` targets the user whose email is `ADMIN_EMAIL`.
-  - Email goes through Resend (`lib/email.ts`).
+  - Email goes through `sendEmail` (`lib/email.ts`, Resend) with templates from `lib/email-templates.ts`.
+  - **Travelers** get in-app + email messages for: booking confirmed (receipt), payment needs review, booking canceled/refunded, dispute opened, dispute resolved, and a trip reminder 1–2 days before departure (`/api/cron/trip-reminders`, daily 09:00 Manila). Send-once bookkeeping: `booking_notifications_sent` (unique booking/kind/dedupe key; service role only); due list: `bookings_due_for_trip_reminder()`.
 - **OTP** (`lib/otp.ts`; only the payout-method wrappers `sendPayoutOtp`/`verifyPayoutOtp` are Server Actions in `actions/otp.ts`):
   - Stateless HS256 JWT cookies signed with `OTP_SECRET` (never the Supabase JWT secret):
     - `otp_pending_<action>`: 10 minutes, holds the 6-digit code.
     - `otp_verified_<action>`: 15 minutes.
   - Tokens are bound to the signed-in user (`userId` claim checked on verify and on use) and carry only fixed claims (`newPhone`, `newEmail`).
   - ⚠ The code is readable from its own cookie and there is no attempt limit (§6 #9; fix in Phase 5 of docs/MVP_LAUNCH_READINESS.md).
-  - Phone OTP fails in production until an SMS provider is integrated; users get an "use email instead" error.
+  - Phone OTP is **hidden at launch** (`PHONE_OTP_ENABLED = false` in `lib/features.ts`, decision D5): the UI hides it and the phone actions refuse. Password change uses the email code only.
   - Actions: `add_payout_method`, `change_email`, `change_phone`, `change_password_email`, `change_password_phone`, `verify_email`.
   - Phone numbers must match PH format `^(\+63|0)9\d{9}$` and be unique.
   - The `payout_otps` table is unused.
@@ -610,7 +622,8 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
 | Transporter vehicles, availability, requests, reviews view | Implemented |
 | Traveler booking → PayMongo (GCash/Maya) → confirmation, cancel, dispute | Implemented with atomic DB functions + signed webhook; ⚠ migration not yet applied (§6 #3) |
 | Wallets, escrow cron (scheduled in `vercel.json`), payouts, saved payout methods | Implemented with atomic DB functions; ⚠ see §6 #3, #6, #7 |
-| Review submission by travelers | **Not implemented** |
+| Review submission by travelers + admin moderation queue | Implemented |
+| Public `/tours` catalog with filters, hero search, password reset, email verification, traveler emails/reminders | Implemented (Phase 3 Wave A; migrations pending) |
 | Real SMS provider; admin UI for payments needing review; maker-checker payouts; transport payouts | **Not implemented** |
 
 ---
@@ -625,6 +638,7 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
 - **Server Actions and RSC:** `requireSession()` returns `{ user, profile, supabase }` and throws `'Unauthorized'`.
 - **`app/api/*` (mobile/external clients):** `verifyApiAuth(request)` requires `Authorization: Bearer <supabase access token>`.
   - ⚠ The client it returns does not attach the token, so queries run as anon. Fix it with `global: { headers: { Authorization } }` before building on it.
+- **Auth email links** (confirm signup, password reset) all land on `/auth/callback`.
 - **Re-authentication for sensitive operations** (payout request, password change) uses `signInWithPassword`. **OTP** is required for adding payout methods and for changing email, phone, or password.
 
 ### 5.2 Authorization (RBAC): four layers, all required
@@ -715,7 +729,7 @@ Record the reason in a one-line comment at the call site.
   - **Required on:** every login, signup, and OTP send/verify action; every mutating action; every public `app/api` POST. Many legacy actions lack it; add it when you touch them.
 - **CORS:** none is configured, so route handlers are same-origin by default. Do not add `Access-Control-Allow-Origin: *`. If mobile clients need CORS, allow-list explicit origins in the route handler.
 - **Webhooks:** must verify the PayMongo `paymongo-signature` HMAC with `PAYMONGO_WEBHOOK_SECRET` over the **raw body** before parsing (`verifyWebhookSignature`), must re-fetch money data from PayMongo's API instead of trusting the payload, must be idempotent (`webhook_events` + the money functions), and must return 2xx only after the work is durable. `app/api/webhooks/paymongo` follows all four.
-- **Cron:** must require `Authorization: Bearer ${CRON_SECRET}`, fail closed when the secret is unset, and stay idempotent.
+- **Cron:** must require `Authorization: Bearer ${CRON_SECRET}` (constant-time compare), fail closed when the secret is unset, and stay idempotent. Both `/api/cron/escrow-release` and `/api/cron/trip-reminders` do.
 - **Data protection:**
   - **PII:** names, emails, phones, payout account numbers. Never log it, never expose it through public reads.
   - Organizers may read only travelers who booked their tours (`is_organizer_for_traveler`).
@@ -759,14 +773,14 @@ These are verified against the code on 2026-10-16. **Do not copy these patterns.
 17. **Duplicate migration timestamp `20260831000000`** (`add_saved_payout_methods` + `wallet_v2_architecture`). Renaming either file needs human approval, because it affects remote migration history.
 18. **`types/supabase.ts` is stale**, and there are columns with no migration (see §4.7).
 19. **Organizer dashboards show gross revenue** (`app/dashboard/organizer/page.tsx`), not the net that reaches the wallet (FIN-15). Platform revenue is only derivable from `fee_amount`; there is no platform ledger.
-20. **Two email senders.** `lib/email.ts` and `sendEmailNotification` use a hardcoded `notifications@travi.app`; email links are hardcoded to `https://travi.app`.
+20. **`confirmEmailChange` never verifies the NEW address** (`actions/profile.ts`): the code goes to the current email, then the new email is marked verified. Fix with the OTP rework (Phase 5.7).
 21. **Unused dependencies:** `stripe`, `@stripe/stripe-js`, `@tanstack/react-query`, `react-hook-form`, `@hookform/resolvers`. Also unused: the `payout_otps` table and the legacy `payments` table (replaced by `booking_payments`).
 22. **Tracked junk files at the repo root**, listed in §2.2. `.gitignore` is missing `playwright-report/`, `test-results/`, `scratch/`, `*.log`.
 23. **`README.md` is create-next-app boilerplate.**
 23a. **Stub forms that persist nothing:** `OrganizerProfileForm` and `TravelerProfileForm` save via a TODO + `setTimeout`; the admin settings "Admin Profile" password form's action is a no-op.
 23b. **Stale client state after mutations:** admin `BookingsClient` doesn't update `bookings` after `resolveDispute` (`setBookings` unused); `ReviewsClient.handleHide` uses a stale closure (`setReviews(reviews.map(...))`). Several status labels use `.replace('_', ' ')`, which only replaces the first underscore.
 23c. **Admin dashboard charts** (`app/admin/page.tsx`) aggregate a 6-month `bookings` select in JS; past PostgREST's row cap (default 1000) they undercount. Move to a SQL aggregate/RPC when volume grows.
-24. **Getter actions catch Next's dynamic-rendering bailout.** `getTransporterVehicles`, `getTransporterAvailability`, `getTransporterRequests`, and `getTransporterReviews` catch it and `captureException` it. `npm run build` prints 5 `"level":"error"` "Dynamic server usage" logs, but it still exits 0. The fix is `unstable_rethrow` (§3.3).
+24. **Getter actions catch Next's dynamic-rendering bailout.** `getTransporterVehicles`, `getTransporterAvailability` and `getTransporterRequests` (`getTransporterReviews` is fixed) catch it and `captureException` it. `npm run build` prints 5 `"level":"error"` "Dynamic server usage" logs, but it still exits 0. The fix is `unstable_rethrow` (§3.3).
 
 ---
 
