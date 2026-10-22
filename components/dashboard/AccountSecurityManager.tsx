@@ -11,6 +11,7 @@ import {
   requestPasswordChange, confirmPasswordChange,
   requestPhoneChange, confirmPhoneChange
 } from '@/actions/profile';
+import { PHONE_OTP_ENABLED } from '@/lib/features';
 import CardBox from '@/components/ui/CardBox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -42,7 +43,9 @@ export default function AccountSecurityManager({ email, phone, emailVerifiedAt, 
           </div>
           <div>
             <h5 className="card-title">Account Security</h5>
-            <p className="text-sm text-muted-foreground">Manage your email, phone, and password settings.</p>
+            <p className="text-sm text-muted-foreground">
+              {PHONE_OTP_ENABLED ? 'Manage your email, phone, and password settings.' : 'Manage your email and password settings.'}
+            </p>
           </div>
         </div>
       </div>
@@ -59,14 +62,16 @@ export default function AccountSecurityManager({ email, phone, emailVerifiedAt, 
           isOpen={openSection === 'email'}
           onToggle={() => toggle('email')}
         />
-        <PhoneSection
-          phone={phone || ''}
-          isVerified={!!phoneVerifiedAt}
-          isOpen={openSection === 'phone'}
-          onToggle={() => toggle('phone')}
-        />
+        {/* D5: phone OTP is hidden until an SMS provider is integrated (lib/features.ts). */}
+        {PHONE_OTP_ENABLED && (
+          <PhoneSection
+            phone={phone || ''}
+            isVerified={!!phoneVerifiedAt}
+            isOpen={openSection === 'phone'}
+            onToggle={() => toggle('phone')}
+          />
+        )}
         <ChangePasswordSection
-          hasPhone={!!phone}
           isOpen={openSection === 'password'}
           onToggle={() => toggle('password')}
         />
@@ -350,8 +355,8 @@ function PhoneSection({ phone, isVerified, isOpen, onToggle }: {
 }
 
 // ─── Change Password Section ───
-function ChangePasswordSection({ hasPhone, isOpen, onToggle }: {
-  hasPhone: boolean; isOpen: boolean; onToggle: () => void;
+function ChangePasswordSection({ isOpen, onToggle }: {
+  isOpen: boolean; onToggle: () => void;
 }) {
   const [step, setStep] = useState<'form' | 'otp' | 'done'>('form');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -391,10 +396,11 @@ function ChangePasswordSection({ hasPhone, isOpen, onToggle }: {
 
     const res = await requestPasswordChange(currentPassword);
     if (res.success) {
-      setRequiresPhoneOtp('requiresPhoneOtp' in res ? !!res.requiresPhoneOtp : false);
+      // The server decides (only when PHONE_OTP_ENABLED and the account has a phone).
+      setRequiresPhoneOtp(PHONE_OTP_ENABLED && res.requiresPhoneOtp);
       setStep('otp');
     } else {
-      setError('error' in res && res.error ? String(res.error) : 'Failed to verify current password');
+      setError(res.error || 'Failed to verify current password');
     }
     setLoading(false);
   };

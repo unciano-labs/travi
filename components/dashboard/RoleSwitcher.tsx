@@ -38,8 +38,9 @@ export function RoleSwitcher({ currentRole }: { currentRole: string }) {
 
   const handleAddRole = async (roleId: string) => {
     setAddingRole(roleId);
-    await addAccountType(roleId);
-    // Note: addAccountType redirects automatically, so we don't clear loading state manually here.
+    // Redirects to the new dashboard on success; only a failure returns.
+    const result = await addAccountType(roleId);
+    if (result && !result.success) setAddingRole(null);
   };
 
   const ownedRoles = ALL_ROLES.filter((r) => roles.includes(r.id));

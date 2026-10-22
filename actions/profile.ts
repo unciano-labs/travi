@@ -1,50 +1,71 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+import { ZodError } from 'zod';
 import { requireSession } from '@/lib/auth-helpers';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
 import { captureException } from '@/lib/logger';
+import { assertRateLimit } from '@/lib/ratelimit';
+import { PHONE_OTP_ENABLED } from '@/lib/features';
 import { sendOtp, verifyOtp, requireVerifiedOtp, consumeVerifiedOtp } from '@/lib/otp';
+import {
+  changeEmailSchema,
+  confirmPasswordChangeSchema,
+  otpCodeSchema,
+  phPhoneSchema,
+  requestPasswordChangeSchema,
+  updateProfileNameSchema,
+} from '@/lib/schemas/auth';
 
-// ─── Update Profile Name ───
-export async function updateProfileName(fullName: string) {
+type Result = { success: true } | { success: false; error: string };
+
+function failure(error: unknown, fallback: string): { success: false; error: string } {
+  if (error instanceof ZodError) return { success: false, error: error.issues[0]?.message ?? fallback };
+  if (error instanceof Error && error.message) return { success: false, error: error.message };
+  return { success: false, error: fallback };
+}
+
+const PHONE_DISABLED = 'Phone verification is not available yet. Your email address is used for verification.';
+
+// OTP sends/verifies get the strict 'auth' limiter, keyed per account (AGENTS.md §5.6).
+const otpLimit = (profileId: string) => assertRateLimit(`otp:${profileId}`, 'auth');
+
+// ─── Update Profile Name (BIZ-11) ───
+export async function updateProfileName(fullName: string): Promise<Result> {
   try {
-    const { profile } = await requireSession();
-    const admin = createAdminClient({ admin: true });
+    const data = updateProfileNameSchema.parse({ fullName });
+    const { profile, supabase } = await requireSession();
+    await assertRateLimit(profile.id, 'mutation');
 
-    const { error } = await admin
+    // RLS client: users may update their own profile; identity columns are guarded by trigger.
+    const { error } = await supabase
       .from('user_profiles')
-      .update({ full_name: fullName, updated_at: new Date().toISOString() })
+      .update({ full_name: data.fullName, updated_at: new Date().toISOString() })
       .eq('id', profile.id);
+    if (error) throw new Error('Could not save your profile.');
 
-    if (error) throw error;
-
-    const { revalidatePath } = await import('next/cache');
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard', 'layout');
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     captureException(error, { action: 'updateProfileName' });
-    return { success: false, error: error.message };
+    return failure(error, 'Could not save your profile.');
   }
 }
 
-// ─── Change Phone: Step 1 — Send OTP to new phone ───
-export async function requestPhoneChange(newPhone: string) {
+// ─── Change Phone: Step 1 — Send OTP (hidden at launch, D5) ───
+export async function requestPhoneChange(newPhone: string): Promise<Result> {
+  if (!PHONE_OTP_ENABLED) return { success: false, error: PHONE_DISABLED };
   try {
-    const { user } = await requireSession();
+    const phone = phPhoneSchema.parse(newPhone);
+    const { user, profile } = await requireSession();
+    await otpLimit(profile.id);
+
+    // Service role: the uniqueness check must see other users' rows.
     const admin = createAdminClient({ admin: true });
-
-    // Basic PH phone validation
-    const cleaned = newPhone.replace(/\s|-/g, '');
-    if (!/^(\+63|0)9\d{9}$/.test(cleaned)) {
-      throw new Error('Please enter a valid Philippine mobile number (e.g., 09123456789)');
-    }
-
-    // Check if new phone is already in use
     const { data: existing } = await admin
       .from('user_profiles')
       .select('id')
-      .eq('phone', cleaned)
+      .eq('phone', phone)
       .neq('user_id', user.id)
       .limit(1);
 
@@ -52,99 +73,106 @@ export async function requestPhoneChange(newPhone: string) {
       throw new Error('This phone number is already associated with another account.');
     }
 
-    // Send OTP to registered email, store newPhone in JWT payload
-    return sendOtp('change_phone', 'email', { newPhone: cleaned });
-  } catch (error: any) {
+    const result = await sendOtp('change_phone', 'email', { newPhone: phone });
+    return result.success ? { success: true } : { success: false, error: result.error ?? 'Failed to send code' };
+  } catch (error: unknown) {
     captureException(error, { action: 'requestPhoneChange' });
-    return { success: false, error: error.message };
+    return failure(error, 'Failed to send verification code');
   }
 }
 
-// ─── Change Phone: Step 2 — Confirm OTP & update ───
-export async function confirmPhoneChange(code: string) {
+// ─── Change Phone: Step 2 — Confirm OTP & update (hidden at launch, D5) ───
+export async function confirmPhoneChange(code: string): Promise<Result> {
+  if (!PHONE_OTP_ENABLED) return { success: false, error: PHONE_DISABLED };
   try {
-    const verifyResult = await verifyOtp('change_phone', code);
-    if (!verifyResult.success) return verifyResult;
-
+    const otp = otpCodeSchema.parse(code);
     const { profile } = await requireSession();
+    await otpLimit(profile.id);
+
+    const verifyResult = await verifyOtp('change_phone', otp);
+    if (!verifyResult.success) return { success: false, error: verifyResult.error ?? 'Invalid verification code' };
+
     const payload = await requireVerifiedOtp('change_phone');
-    const newPhone = payload.newPhone as string;
+    const newPhone = payload.newPhone;
+    if (typeof newPhone !== 'string' || !newPhone) throw new Error('New phone number not found in verification payload');
 
-    if (!newPhone) throw new Error('New phone number not found in verification payload');
-
+    // Service role: phone and phone_verified_at are server-owned columns.
     const admin = createAdminClient({ admin: true });
-
-    // Update profile phone
+    const now = new Date().toISOString();
     const { error: profileError } = await admin
       .from('user_profiles')
-      .update({
-        phone: newPhone,
-        phone_verified_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
+      .update({ phone: newPhone, phone_verified_at: now, updated_at: now })
       .eq('id', profile.id);
-
-    if (profileError) throw profileError;
+    if (profileError) throw new Error('Could not update your phone number.');
 
     await consumeVerifiedOtp('change_phone');
-
-    const { revalidatePath } = await import('next/cache');
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard', 'layout');
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     captureException(error, { action: 'confirmPhoneChange' });
-    return { success: false, error: error.message };
+    return failure(error, 'Verification failed');
   }
 }
 
 // ─── Verify Email: Step 1 — Send OTP ───
-export async function sendVerifyEmailOtp() {
-  return sendOtp('verify_email', 'email');
+export async function sendVerifyEmailOtp(): Promise<Result> {
+  try {
+    const { profile } = await requireSession();
+    await otpLimit(profile.id);
+    const result = await sendOtp('verify_email', 'email');
+    return result.success ? { success: true } : { success: false, error: result.error ?? 'Failed to send code' };
+  } catch (error: unknown) {
+    captureException(error, { action: 'sendVerifyEmailOtp' });
+    return failure(error, 'Failed to send code');
+  }
 }
 
 // ─── Verify Email: Step 2 — Confirm OTP ───
-export async function confirmVerifyEmail(code: string) {
+export async function confirmVerifyEmail(code: string): Promise<Result> {
   try {
-    const verifyResult = await verifyOtp('verify_email', code);
-    if (!verifyResult.success) return verifyResult;
+    const otp = otpCodeSchema.parse(code);
+    const { user, profile } = await requireSession();
+    await otpLimit(profile.id);
 
-    const { profile } = await requireSession();
+    const verifyResult = await verifyOtp('verify_email', otp);
+    if (!verifyResult.success) return { success: false, error: verifyResult.error ?? 'Invalid verification code' };
+    await requireVerifiedOtp('verify_email');
+
+    // Service role: email_verified_at is server-owned, and the code proves control of the inbox,
+    // so Supabase Auth's own confirmation (used by assertEmailVerified) is stamped too.
     const admin = createAdminClient({ admin: true });
-
+    if (!user.email_confirmed_at) {
+      const { error: authError } = await admin.auth.admin.updateUserById(user.id, { email_confirm: true });
+      if (authError) throw new Error('Could not verify your email address.');
+    }
     const { error } = await admin
       .from('user_profiles')
       .update({ email_verified_at: new Date().toISOString() })
       .eq('id', profile.id);
-
-    if (error) throw error;
+    if (error) throw new Error('Could not verify your email address.');
 
     await consumeVerifiedOtp('verify_email');
-
-    const { revalidatePath } = await import('next/cache');
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard', 'layout');
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     captureException(error, { action: 'confirmVerifyEmail' });
-    return { success: false, error: error.message };
+    return failure(error, 'Verification failed');
   }
 }
 
 // ─── Change Email: Step 1 — Send OTP to current email ───
-export async function requestEmailChange(newEmail: string) {
+export async function requestEmailChange(newEmail: string): Promise<Result> {
   try {
-    const { user } = await requireSession();
+    const data = changeEmailSchema.parse({ newEmail });
+    const { user, profile } = await requireSession();
+    await otpLimit(profile.id);
+
+    // Service role: the uniqueness check must see other users' rows.
     const admin = createAdminClient({ admin: true });
-
-    // Validate new email format
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
-      throw new Error('Invalid email format');
-    }
-
-    // Check if new email is already in use
     const { data: existing } = await admin
       .from('user_profiles')
       .select('id')
-      .eq('email', newEmail)
+      .eq('email', data.newEmail)
       .neq('user_id', user.id)
       .limit(1);
 
@@ -152,133 +180,121 @@ export async function requestEmailChange(newEmail: string) {
       throw new Error('This email address is already associated with another account.');
     }
 
-    // Send OTP to current email, store newEmail in JWT payload
-    return sendOtp('change_email', 'email', { newEmail });
-  } catch (error: any) {
+    const result = await sendOtp('change_email', 'email', { newEmail: data.newEmail });
+    return result.success ? { success: true } : { success: false, error: result.error ?? 'Failed to send code' };
+  } catch (error: unknown) {
     captureException(error, { action: 'requestEmailChange' });
-    return { success: false, error: error.message };
+    return failure(error, 'Failed to send verification code');
   }
 }
 
 // ─── Change Email: Step 2 — Confirm OTP & update ───
-export async function confirmEmailChange(code: string) {
+export async function confirmEmailChange(code: string): Promise<Result> {
   try {
-    const verifyResult = await verifyOtp('change_email', code);
-    if (!verifyResult.success) return verifyResult;
-
+    const otp = otpCodeSchema.parse(code);
     const { user, profile } = await requireSession();
+    await otpLimit(profile.id);
+
+    const verifyResult = await verifyOtp('change_email', otp);
+    if (!verifyResult.success) return { success: false, error: verifyResult.error ?? 'Invalid verification code' };
+
     const payload = await requireVerifiedOtp('change_email');
-    const newEmail = payload.newEmail as string;
+    const newEmail = payload.newEmail;
+    if (typeof newEmail !== 'string' || !newEmail) throw new Error('New email not found in verification payload');
 
-    if (!newEmail) throw new Error('New email not found in verification payload');
-
+    // Service role: auth.admin and the server-owned email columns.
     const admin = createAdminClient({ admin: true });
-
-    // Update auth email
     const { error: authError } = await admin.auth.admin.updateUserById(user.id, { email: newEmail });
-    if (authError) throw authError;
+    if (authError) throw new Error('Could not update your email address.');
 
-    // Update profile email
+    const now = new Date().toISOString();
     const { error: profileError } = await admin
       .from('user_profiles')
-      .update({
-        email: newEmail,
-        email_verified_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
+      .update({ email: newEmail, email_verified_at: now, updated_at: now })
       .eq('id', profile.id);
-
-    if (profileError) throw profileError;
+    if (profileError) throw new Error('Could not update your email address.');
 
     await consumeVerifiedOtp('change_email');
-
-    const { revalidatePath } = await import('next/cache');
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard', 'layout');
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     captureException(error, { action: 'confirmEmailChange' });
-    return { success: false, error: error.message };
+    return failure(error, 'Verification failed');
   }
 }
 
-// ─── Change Password: Step 1 — Verify current password & send OTPs ───
-export async function requestPasswordChange(currentPassword: string) {
+// ─── Change Password: Step 1 — Verify current password & send OTP(s) ───
+export async function requestPasswordChange(
+  currentPassword: string
+): Promise<{ success: true; requiresPhoneOtp: boolean } | { success: false; error: string }> {
   try {
-    const { user, profile } = await requireSession();
+    const data = requestPasswordChangeSchema.parse({ currentPassword });
+    const { user, profile, supabase } = await requireSession();
+    await otpLimit(profile.id);
+    if (!user.email) throw new Error('No email address on this account');
 
-    // 1. Verify current password
-    const supabase = await createClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: user.email!,
-      password: currentPassword
+      email: user.email,
+      password: data.currentPassword,
     });
+    if (signInError) throw new Error('Current password is incorrect');
 
-    if (signInError) {
-      throw new Error('Current password is incorrect');
-    }
-
-    // 2. Send email OTP
     const emailResult = await sendOtp('change_password_email', 'email');
-    if (!emailResult.success) return emailResult;
+    if (!emailResult.success) return { success: false, error: emailResult.error ?? 'Failed to send code' };
 
-    // 3. Send phone OTP if phone exists
-    const hasPhone = !!profile.phone;
-    if (hasPhone) {
+    // D5: phone OTP only when an SMS provider is live and the user has a phone.
+    const requiresPhoneOtp = PHONE_OTP_ENABLED && !!profile.phone;
+    if (requiresPhoneOtp) {
       const phoneResult = await sendOtp('change_password_phone', 'phone');
-      if (!phoneResult.success) {
-        // Non-blocking: phone OTP failed but email was sent
-        console.warn('[Password Change] Phone OTP failed, continuing with email-only');
-      }
+      if (!phoneResult.success) return { success: false, error: phoneResult.error ?? 'Failed to send phone code' };
     }
 
-    return { success: true, requiresPhoneOtp: hasPhone };
-  } catch (error: any) {
+    return { success: true, requiresPhoneOtp };
+  } catch (error: unknown) {
     captureException(error, { action: 'requestPasswordChange' });
-    return { success: false, error: error.message };
+    return failure(error, 'Failed to verify current password');
   }
 }
 
-// ─── Change Password: Step 2 — Verify OTPs & update ───
+// ─── Change Password: Step 2 — Verify OTP(s) & update ───
 export async function confirmPasswordChange(
   newPassword: string,
   emailOtpCode: string,
   phoneOtpCode?: string
-) {
+): Promise<Result> {
   try {
-    // Verify email OTP
-    const emailResult = await verifyOtp('change_password_email', emailOtpCode);
+    const data = confirmPasswordChangeSchema.parse({ newPassword, emailOtpCode, phoneOtpCode });
+    const { profile, supabase } = await requireSession();
+    await otpLimit(profile.id);
+
+    const requiresPhoneOtp = PHONE_OTP_ENABLED && !!profile.phone;
+    if (data.phoneOtpCode && !PHONE_OTP_ENABLED) return { success: false, error: PHONE_DISABLED };
+    if (requiresPhoneOtp && !data.phoneOtpCode) return { success: false, error: 'Enter the code sent to your phone' };
+
+    const emailResult = await verifyOtp('change_password_email', data.emailOtpCode);
     if (!emailResult.success) return { success: false, error: 'Invalid email verification code' };
+    await requireVerifiedOtp('change_password_email');
 
-    // Verify phone OTP if provided
-    if (phoneOtpCode) {
-      const phoneResult = await verifyOtp('change_password_phone', phoneOtpCode);
+    if (requiresPhoneOtp && data.phoneOtpCode) {
+      const phoneResult = await verifyOtp('change_password_phone', data.phoneOtpCode);
       if (!phoneResult.success) return { success: false, error: 'Invalid phone verification code' };
+      await requireVerifiedOtp('change_password_phone');
     }
 
-    const { user } = await requireSession();
-    const admin = createAdminClient({ admin: true });
+    // The user's own session (just re-authenticated in step 1); no service role needed.
+    const { error: authError } = await supabase.auth.updateUser({ password: data.newPassword });
+    if (authError) throw new Error(authError.message);
 
-    // Validate password strength
-    if (newPassword.length < 8) {
-      throw new Error('Password must be at least 8 characters');
-    }
-
-    // Update password via admin API
-    const { error: authError } = await admin.auth.admin.updateUserById(user.id, {
-      password: newPassword
-    });
-
-    if (authError) throw authError;
-
-    // Consume verified cookies
     await consumeVerifiedOtp('change_password_email');
-    if (phoneOtpCode) {
-      await consumeVerifiedOtp('change_password_phone');
-    }
+    if (requiresPhoneOtp) await consumeVerifiedOtp('change_password_phone');
+
+    // Sign out every other device that may still hold the old password.
+    const { error: signOutError } = await supabase.auth.signOut({ scope: 'others' });
+    if (signOutError) captureException(signOutError, { action: 'confirmPasswordChange:signOutOthers' });
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     captureException(error, { action: 'confirmPasswordChange' });
-    return { success: false, error: error.message };
+    return failure(error, 'Password change failed');
   }
 }

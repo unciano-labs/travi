@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useState, useTransition } from 'react';
+import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { updateProfileName } from '@/actions/profile';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,22 +15,40 @@ type Profile = {
 };
 
 export default function TravelerProfileForm({ profile }: { profile: Profile }) {
-  const [loading, setLoading] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [status, setStatus] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
 
   // Basic split for first/last name
-  const names = profile.full_name ? profile.full_name.split(' ') : ['', ''];
+  const names = profile.full_name ? profile.full_name.trim().split(/\s+/) : [];
   const defaultFirstName = names[0] || '';
-  const defaultLastName = names.slice(1).join(' ') || '';
+  const defaultLastName = names.slice(1).join(' ');
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setLoading(true);
-    // TODO: Implement save profile action
-    setTimeout(() => setLoading(false), 1000);
-  }
+  const handleSubmit = (formData: FormData) => {
+    setStatus(null);
+    const fullName = [formData.get('firstName'), formData.get('lastName')]
+      .map((v) => (typeof v === 'string' ? v.trim() : ''))
+      .filter(Boolean)
+      .join(' ');
+
+    startTransition(async () => {
+      const result = await updateProfileName(fullName);
+      setStatus(
+        result.success
+          ? { tone: 'success', message: 'Profile saved.' }
+          : { tone: 'error', message: result.error }
+      );
+    });
+  };
 
   return (
-    <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
+    <form className="flex flex-col gap-6" action={handleSubmit}>
+      {status && (
+        <Alert variant={status.tone === 'success' ? 'lightsuccess' : 'lighterror'} role={status.tone === 'error' ? 'alert' : 'status'}>
+          {status.tone === 'success' ? <CheckCircle2 /> : <AlertCircle />}
+          <AlertDescription>{status.message}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="traveler-firstName">First Name</Label>
@@ -36,6 +56,9 @@ export default function TravelerProfileForm({ profile }: { profile: Profile }) {
             id="traveler-firstName"
             type="text"
             name="firstName"
+            autoComplete="given-name"
+            required
+            maxLength={100}
             defaultValue={defaultFirstName}
           />
         </div>
@@ -45,6 +68,8 @@ export default function TravelerProfileForm({ profile }: { profile: Profile }) {
             id="traveler-lastName"
             type="text"
             name="lastName"
+            autoComplete="family-name"
+            maxLength={100}
             defaultValue={defaultLastName}
           />
         </div>
@@ -59,12 +84,13 @@ export default function TravelerProfileForm({ profile }: { profile: Profile }) {
           disabled
           className="bg-muted/50"
         />
+        <p className="text-xs text-muted-foreground">Change your email under Account Security below.</p>
       </div>
 
       <div className="flex justify-end gap-3 border-t border-border pt-4">
-        <Button type="submit" disabled={loading}>
-          {loading && <Loader2 className="animate-spin" />}
-          {loading ? 'Saving...' : 'Save Profile'}
+        <Button type="submit" disabled={pending}>
+          {pending && <Loader2 className="animate-spin" />}
+          {pending ? 'Saving...' : 'Save Profile'}
         </Button>
       </div>
     </form>

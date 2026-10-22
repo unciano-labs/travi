@@ -3,12 +3,18 @@ import { z } from 'zod';
 import { createBookingSchema } from '@/lib/schemas/booking';
 import { captureException } from '@/lib/logger';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { assertEmailVerified } from '@/lib/auth-helpers';
 
 export async function createBookingService(
   supabase: SupabaseClient,
   travelerProfileId: string,
-  validatedData: z.infer<typeof createBookingSchema>
+  validatedData: z.infer<typeof createBookingSchema>,
+  // The authenticated traveler (from requireSession / verifyApiAuth), for the BIZ-12 gate.
+  traveler: { email_confirmed_at?: string | null }
 ) {
+  // BIZ-12: only travelers with a verified email can book (every entry point goes through here).
+  assertEmailVerified(traveler);
+
   // Fetch the schedule to calculate amount and check capacity
   const { data: schedule, error: scheduleError } = await supabase
     .from('tour_schedules')
