@@ -42,13 +42,24 @@ export default async function TravelerBookings() {
 
   const bookings = (allBookings as any[]) || [];
 
+  // Bookings already reviewed (own reviews are readable under RLS). On error the review button
+  // still shows and createReview reports "already reviewed", so the page never breaks over it.
+  const { data: ownReviews } = await supabase
+    .from('reviews')
+    .select('booking_id')
+    .eq('reviewer_profile_id', profile.id)
+    .not('booking_id', 'is', null);
+  const reviewedBookingIds = ((ownReviews as { booking_id: string | null }[] | null) ?? [])
+    .map((r) => r.booking_id)
+    .filter((bookingId): bookingId is string => Boolean(bookingId));
+
   return (
     <>
       <PageHeader
         title="My Bookings"
         breadcrumbs={[{ title: 'Dashboard', href: '/dashboard/traveler' }, { title: 'My Bookings' }]}
       />
-      <TravelerBookingsClient initialBookings={bookings} />
+      <TravelerBookingsClient initialBookings={bookings} reviewedBookingIds={reviewedBookingIds} />
     </>
   );
 }

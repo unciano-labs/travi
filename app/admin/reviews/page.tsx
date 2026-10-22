@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import ReviewsClient from '@/components/admin/ReviewsClient';
 import { requireSession, assertRole } from '@/lib/auth-helpers';
 import PageHeader from '@/components/ui/PageHeader';
+import { captureException } from '@/lib/logger';
 
 export default async function ReviewsPage() {
   const { user } = await requireSession();
@@ -9,8 +10,8 @@ export default async function ReviewsPage() {
 
   const admin = createAdminClient({ admin: true });
 
-  // Fetch reviews with related data
-  // We use admin client to bypass RLS and view all reviews
+  // Service role: admin console read across all reviewers (admin role checked above).
+  // Soft-deleted reviews are left out; the moderation queue only shows live rows.
   const { data: allReviews, error } = await admin
     .from('reviews')
     .select(`
@@ -26,13 +27,28 @@ export default async function ReviewsPage() {
       tour:tours(title),
       transporter:transporter_profiles!reviews_transporter_id_fkey(company_name, individual_name)
     `)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching reviews:', error);
+    captureException(error, { action: 'AdminReviewsPage' });
   }
 
-  const formattedReviews = (allReviews || []).map((r: any) => {
+  type ReviewRow = {
+    id: string;
+    reviewer_profile_id: string;
+    tour_id: string | null;
+    transporter_id: string | null;
+    rating: number;
+    comment: string | null;
+    status: 'pending' | 'published' | 'hidden';
+    created_at: string;
+    reviewer: { full_name: string | null; email: string | null } | null;
+    tour: { title: string } | null;
+    transporter: { company_name: string | null; individual_name: string | null } | null;
+  };
+
+  const formattedReviews = ((allReviews ?? []) as unknown as ReviewRow[]).map((r) => {
     let targetName = 'Unknown Target';
     if (r.tour) {
       targetName = r.tour.title;
@@ -61,6 +77,7 @@ export default async function ReviewsPage() {
     <>
       <PageHeader
         title="Reviews & Moderation"
+        description="Publish traveler reviews after checking them, or hide and remove ones that break the guidelines."
         breadcrumbs={[{ title: 'Admin', href: '/admin' }, { title: 'Reviews' }]}
       />
 

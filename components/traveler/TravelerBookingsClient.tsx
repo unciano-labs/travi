@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import { cancelBookingAsTraveler, openDispute } from '@/actions/bookings';
-import { XCircle, AlertCircle, Ticket } from 'lucide-react';
+import { XCircle, AlertCircle, Ticket, Star, CheckCircle2 } from 'lucide-react';
+import ReviewDialog from '@/components/traveler/ReviewDialog';
 import CardBox from '@/components/ui/CardBox';
 import EmptyState from '@/components/ui/EmptyState';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
@@ -26,8 +28,23 @@ type Booking = {
   };
 };
 
-export default function TravelerBookingsClient({ initialBookings }: { initialBookings: Booking[] }) {
+export default function TravelerBookingsClient({
+  initialBookings,
+  reviewedBookingIds = [],
+}: {
+  initialBookings: Booking[];
+  reviewedBookingIds?: string[];
+}) {
   const [loading, setLoading] = useState<string | null>(null);
+  const [reviewed, setReviewed] = useState<Set<string>>(() => new Set(reviewedBookingIds));
+  const [reviewing, setReviewing] = useState<{ id: string; tourTitle: string } | null>(null);
+  const [reviewNotice, setReviewNotice] = useState<string | null>(null);
+
+  const handleReviewSubmitted = (bookingId: string) => {
+    setReviewed((prev) => new Set(prev).add(bookingId));
+    setReviewing(null);
+    setReviewNotice('Thanks for your review! It will appear on the tour page once our team has checked it.');
+  };
 
   const handleCancel = async (bookingId: string) => {
     if (!window.confirm('Are you sure you want to cancel this booking? This will refund your payment to the original payment method.')) return;
@@ -68,7 +85,9 @@ export default function TravelerBookingsClient({ initialBookings }: { initialBoo
     const canCancel = (b.status === 'pending' || b.status === 'confirmed') && !isPastDate;
     // Can only dispute if tour has passed but dispute is not resolved/already open.
     const canDispute = b.status === 'confirmed' && b.dispute_status === 'none' && isPastDate;
-    return { canCancel, canDispute };
+    const isReviewed = reviewed.has(b.id);
+    const canReview = b.status === 'completed' && !isReviewed;
+    return { canCancel, canDispute, canReview, isReviewed };
   };
 
   const renderStatus = (b: Booking) => (
@@ -83,7 +102,7 @@ export default function TravelerBookingsClient({ initialBookings }: { initialBoo
   );
 
   const renderActions = (b: Booking) => {
-    const { canCancel, canDispute } = getFlags(b);
+    const { canCancel, canDispute, canReview, isReviewed } = getFlags(b);
     return (
       <div className="flex justify-end gap-2">
         {canCancel && (
@@ -110,7 +129,24 @@ export default function TravelerBookingsClient({ initialBookings }: { initialBoo
             Dispute
           </Button>
         )}
-        {!canCancel && !canDispute && (
+        {canReview && (
+          <Button
+            type="button"
+            variant="lightprimary"
+            size="xs"
+            onClick={() => setReviewing({ id: b.id, tourTitle: b.tour_schedules?.tours?.title || 'your trip' })}
+          >
+            <Star className="size-3.5" aria-hidden="true" />
+            Leave a review
+          </Button>
+        )}
+        {isReviewed && b.status === 'completed' && (
+          <span className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-success">
+            <CheckCircle2 className="size-3.5" aria-hidden="true" />
+            Reviewed
+          </span>
+        )}
+        {!canCancel && !canDispute && !canReview && !(isReviewed && b.status === 'completed') && (
           <span className="px-3 py-1.5 text-xs font-medium text-muted-foreground">—</span>
         )}
       </div>
@@ -121,8 +157,15 @@ export default function TravelerBookingsClient({ initialBookings }: { initialBoo
     <CardBox className="gap-0 overflow-hidden p-0">
       <div className="border-b border-border px-6 py-4">
         <h5 className="card-title">All Bookings</h5>
-        <p className="text-sm text-muted-foreground">Cancel upcoming trips or open a dispute after your tour.</p>
+        <p className="text-sm text-muted-foreground">Cancel upcoming trips, open a dispute after your tour, or review completed trips.</p>
       </div>
+      {reviewNotice && (
+        <div className="px-6 pt-4">
+          <Alert variant="lightsuccess">
+            <AlertDescription>{reviewNotice}</AlertDescription>
+          </Alert>
+        </div>
+      )}
       {initialBookings.length === 0 ? (
         <EmptyState icon={Ticket} title="You haven't booked any tours yet." />
       ) : (
@@ -162,7 +205,7 @@ export default function TravelerBookingsClient({ initialBookings }: { initialBoo
           </div>
           <div className="space-y-3 p-4 md:hidden">
             {initialBookings.map((b) => {
-              const { canCancel, canDispute } = getFlags(b);
+              const { canCancel, canDispute, canReview, isReviewed } = getFlags(b);
               return (
                 <LazyMobileCard
                   key={b.id}
@@ -173,13 +216,14 @@ export default function TravelerBookingsClient({ initialBookings }: { initialBoo
                     { label: 'Travel Date', value: b.tour_schedules?.start_date ? new Date(b.tour_schedules.start_date).toLocaleDateString() : 'N/A' },
                     { label: 'Total Amount', value: `₱${(b.total_amount || 0).toLocaleString()}` },
                   ]}
-                  actions={canCancel || canDispute ? renderActions(b) : undefined}
+                  actions={canCancel || canDispute || canReview || isReviewed ? renderActions(b) : undefined}
                 />
               );
             })}
           </div>
         </>
       )}
+      <ReviewDialog booking={reviewing} onClose={() => setReviewing(null)} onSubmitted={handleReviewSubmitted} />
     </CardBox>
   );
 }
