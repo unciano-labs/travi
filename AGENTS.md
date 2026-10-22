@@ -280,7 +280,7 @@ export async function doThing(input: unknown) {
 
 - Report errors with `captureException(error, { action: 'name', ...ids })` from `@/lib/logger`. It logs through pino and forwards to Sentry.
 - Use `logger.info / warn / debug` for structured logs.
-- **Do not add new `console.log`.** It exists in `lib/email.ts`, `lib/sms.ts`, and `actions/otp.ts` as dev mocks.
+- **Do not add new `console.log`.** It exists in `lib/email.ts`, `lib/notifications.ts` (email mock) and `lib/sms.ts` as dev mocks. The SMS mock refuses to run in production.
 - **Never log secrets, OTP codes, passwords, tokens, or full payment payloads.**
 - Map Supabase errors to user-safe messages where they leak internals.
   - Example: the service maps the `check_capacity_not_exceeded` violation to `'Not enough seats available.'`.
@@ -551,10 +551,13 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
   - Only `notifications` is in the `supabase_realtime` publication; the bells subscribe through the browser client.
   - `notifySuperAdmin` targets the user whose email is `ADMIN_EMAIL`.
   - Email goes through Resend (`lib/email.ts`).
-- **OTP** (`actions/otp.ts`):
-  - Stateless HS256 JWT cookies:
+- **OTP** (`lib/otp.ts`; only the payout-method wrappers `sendPayoutOtp`/`verifyPayoutOtp` are Server Actions in `actions/otp.ts`):
+  - Stateless HS256 JWT cookies signed with `OTP_SECRET` (never the Supabase JWT secret):
     - `otp_pending_<action>`: 10 minutes, holds the 6-digit code.
     - `otp_verified_<action>`: 15 minutes.
+  - Tokens are bound to the signed-in user (`userId` claim checked on verify and on use) and carry only fixed claims (`newPhone`, `newEmail`).
+  - ⚠ The code is readable from its own cookie and there is no attempt limit (§6 #9; fix in Phase 5 of docs/MVP_LAUNCH_READINESS.md).
+  - Phone OTP fails in production until an SMS provider is integrated; users get an "use email instead" error.
   - Actions: `add_payout_method`, `change_email`, `change_phone`, `change_password_email`, `change_password_phone`, `verify_email`.
   - Phone numbers must match PH format `^(\+63|0)9\d{9}$` and be unique.
   - The `payout_otps` table is unused.
@@ -662,7 +665,8 @@ Record the reason in a one-line comment at the call site.
 
 - **All runtime env vars are declared and validated in `lib/env.ts` (zod).** New code imports `env` from `@/lib/env`, not `process.env`.
   - When you add a variable, add it to the `envSchema` **and** to `.env.example` (name, comment, and a placeholder value only) in the same change.
-  - Some legacy modules still read `process.env` directly: `lib/email.ts`, `lib/data/*`, `actions/otp.ts`, the cron route, `app/robots.ts`, `app/sitemap.ts`.
+  - Some legacy modules still read `process.env` directly: `lib/email.ts`, `lib/notifications.ts`, `lib/data/*`, `lib/logger.ts`, `actions/bookings.ts`, `app/robots.ts`, `app/sitemap.ts`. (`NODE_ENV` reads are fine.)
+  - `.env.example` is committed and must stay in sync with `lib/env.ts`.
 - **`.env.local` is the real secrets file.** It is gitignored by `.env*`, and `!.env.example` is the only exception. **Never commit real values, and never print secrets in logs, test output, or chat.**
 - **Only `NEXT_PUBLIC_*` values may reach the browser.** Never prefix a secret with `NEXT_PUBLIC_`.
 - **Never hardcode keys, passwords, or test credentials in source.**
