@@ -202,13 +202,13 @@ export default function HeroSection() {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="text-brand" aria-hidden="true">
                     <path d="m4 12.5 5 5L20 6.5" />
                   </svg>
-                  Free cancellation
+                  Free cancellation before your trip
                 </span>
                 <span className="flex items-center gap-1.5 hidden sm:flex">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="text-brand" aria-hidden="true">
                     <path d="m4 12.5 5 5L20 6.5" />
                   </svg>
-                  Instant confirmation
+                  Confirmed when you pay
                 </span>
               </div>
               <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
@@ -254,10 +254,6 @@ export default function HeroSection() {
               <button type="button" className="chip" onClick={() => setDestQuery("Sagada")}>Sagada</button>
               <button type="button" className="chip" onClick={() => setDestQuery("Boracay")}>Boracay</button>
             </div>
-            <p className="urgency">
-              <span className="dot" aria-hidden="true"></span>
-              High demand today: 3 spots left on El Nido Island Hopping (small group).
-            </p>
           </div>
         </div>
 

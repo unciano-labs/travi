@@ -17,6 +17,7 @@ const eslintConfig = defineConfig([
     "playwright-report/**",
     "test-results/**",
     "reference/**",
+    ".claude/**",
   ]),
   {
     rules: {

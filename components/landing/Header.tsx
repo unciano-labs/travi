@@ -28,7 +28,7 @@ export default function Header() {
       const supabase = createClient();
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (authUser) {
-        const { data: profile } = await supabase.from('profiles').select('avatar_url, full_name').eq('id', authUser.id).single();
+        const { data: profile } = await supabase.from('user_profiles').select('avatar_url, full_name').eq('user_id', authUser.id).maybeSingle();
         setUser({ ...authUser, profile });
       }
     };
