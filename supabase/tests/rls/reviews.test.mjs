@@ -4,7 +4,7 @@
 import { before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { attempt, createDb } from './harness.mjs';
-import { B1, P, R, S, SEED, TOUR, TP, U, id, one } from './fixtures.mjs';
+import { B1, P, R, S, SEED, TOUR, TP, U, id, one, seedAuthUsers } from './fixtures.mjs';
 
 // Extra fixtures (this file only).
 const U2 = { T2: id(200), A: id(202) };          // auth.users: second traveler, admin
@@ -13,7 +13,7 @@ const BK = { done: id(210), confirmed: id(211), othersDone: id(212) };
 const RV = { xPending: id(220), t1Published: id(221), t1Deleted: id(222) };
 
 const EXTRA = `
-INSERT INTO auth.users (id, email) VALUES ('${U2.T2}', 't2@example.com'), ('${U2.A}', 'admin@example.com');
+${seedAuthUsers([[U2.T2, 't2@example.com'], [U2.A, 'admin@example.com']])}
 INSERT INTO user_profiles (id, user_id, email, full_name) VALUES
   ('${P2.T2}', '${U2.T2}', 't2@example.com', 'Theo Traveler'), ('${P2.A}', '${U2.A}', 'admin@example.com', 'Ada Admin');
 INSERT INTO user_roles (user_profile_id, website_role_id) VALUES ('${P2.T2}', '${R.traveler}'), ('${P2.A}', '${R.admin}');

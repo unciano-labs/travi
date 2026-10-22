@@ -15,26 +15,27 @@ export const TB1 = id(91);
 export const B1 = id(101);
 export const N1 = id(111);
 
+// Insert auth.users rows WITHOUT the signup trigger (20261024090000) creating profiles, so tests can
+// create profiles with fixed ids themselves (and keep some users profile-less on purpose).
+export function seedAuthUsers(rows) {
+  const toggle = (action) => `DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'on_auth_user_created' AND tgrelid = 'auth.users'::regclass) THEN
+    ALTER TABLE auth.users ${action} TRIGGER on_auth_user_created;
+  END IF;
+END $$;`;
+  const values = rows.map(([uid, email]) => `('${uid}', '${email}')`).join(', ');
+  return `${toggle('DISABLE')}\nINSERT INTO auth.users (id, email) VALUES ${values};\n${toggle('ENABLE')}`;
+}
+
 export const SEED = `
 INSERT INTO websites (id, name) VALUES ('${W}', 'travi');
 INSERT INTO website_roles (id, website_id, role) VALUES
   ('${R.admin}', '${W}', 'admin'), ('${R.traveler}', '${W}', 'traveler'),
   ('${R.organizer}', '${W}', 'organizer'), ('${R.transporter}', '${W}', 'transporter');
--- Seed accounts predate the auth.users → user_profiles trigger (20261024090000): insert them with it
--- off so the explicit profile ids below (and the profile-less U.N) stay as they are.
-DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'on_auth_user_created' AND tgrelid = 'auth.users'::regclass) THEN
-    ALTER TABLE auth.users DISABLE TRIGGER on_auth_user_created;
-  END IF;
-END $$;
-INSERT INTO auth.users (id, email) VALUES
-  ('${U.T}', 't@example.com'), ('${U.O}', 'o@example.com'), ('${U.O2}', 'o2@example.com'),
-  ('${U.X}', 'x@example.com'), ('${U.N}', 'new@example.com');
-DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'on_auth_user_created' AND tgrelid = 'auth.users'::regclass) THEN
-    ALTER TABLE auth.users ENABLE TRIGGER on_auth_user_created;
-  END IF;
-END $$;
+${seedAuthUsers([
+  [U.T, 't@example.com'], [U.O, 'o@example.com'], [U.O2, 'o2@example.com'],
+  [U.X, 'x@example.com'], [U.N, 'new@example.com'],
+])}
 INSERT INTO user_profiles (id, user_id, email, full_name) VALUES
   ('${P.T}', '${U.T}', 't@example.com', 'Tina Traveler'), ('${P.O}', '${U.O}', 'o@example.com', 'Oscar Org'),
   ('${P.O2}', '${U.O2}', 'o2@example.com', 'Olive Org'), ('${P.X}', '${U.X}', 'x@example.com', 'Xavier Van');
