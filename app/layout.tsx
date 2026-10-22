@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Playfair_Display, DM_Sans } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
+import { env } from "@/lib/env";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-sans",
@@ -19,6 +20,8 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
+  // Resolves relative canonical/OpenGraph URLs (e.g. alternates.canonical: "/tours").
+  metadataBase: new URL(env.NEXT_PUBLIC_SITE_URL || "https://travi.ph"),
   title: "Travi — Discover the Philippines Your Way",
   description: "Book local Philippine tour packages online. Find the best organizers and trusted transport for your next adventure.",
   keywords: ["Philippines", "Tours", "Travel", "Palawan", "Siargao", "Batanes", "Vacation", "Island Hopping"],

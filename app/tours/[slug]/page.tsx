@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Header from '@/components/landing/Header';
 import Footer from '@/components/landing/Footer';
@@ -11,12 +12,13 @@ import { getCachedTourBySlug } from '@/lib/data/tours';
 import { getCachedTourReviews } from '@/lib/data/reviews';
 import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+// getCachedTourBySlug is wrapped in React cache(): generateMetadata and the page share one fetch.
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const tour = await getCachedTourBySlug(slug);
 
   if (!tour) {
-    return { title: 'Tour Not Found - Travi' };
+    return { title: 'Tour Not Found - Travi', robots: { index: false } };
   }
 
   const description = (tour.description || 'Discover incredible local tour packages on Travi.').substring(0, 160) + '...';
@@ -24,8 +26,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: `${tour.title || 'Tour'} | Travi`,
     description,
+    alternates: { canonical: `/tours/${tour.slug}` },
     openGraph: {
       title: `${tour.title || 'Tour'} - Tour in ${tour.location || 'Philippines'}`,
+      url: `/tours/${tour.slug}`,
       description,
       images: tour.cover_image_url ? [tour.cover_image_url] : [],
       type: 'website',
@@ -51,7 +55,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
 
   const reviews = await getCachedTourReviews(tour.id);
 
-  const defaultImage = "https://images.unsplash.com/photo-1544413155-44282362b7ff?auto=format&fit=crop&w=1200&q=80";
+  const defaultImage = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80";
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">

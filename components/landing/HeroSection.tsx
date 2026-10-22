@@ -1,7 +1,15 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import "./hero.css"; // We extracted the reference CSS here
 import { MapPin, Calendar, Users, Search, Minus, Plus } from "lucide-react";
+import { manilaToday } from "@/lib/datetime";
+
+// Unsplash License (free commercial use). Served through next/image, so it is resized, optimized and
+// delivered from this site's own /_next/image endpoint.
+const HERO_IMAGE = "https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?auto=format&fit=crop&w=1920&q=80";
+const REEL_POSTER = "https://images.unsplash.com/photo-1505228395891-9a51e7e86bf6?auto=format&fit=crop&w=800&q=70";
 
 const DESTS = [
   { name: "Palawan", tag: "El Nido, Coron & island hopping", type: "dest" },
@@ -19,17 +27,19 @@ const DESTS = [
 ];
 
 export default function HeroSection() {
-  const [isMounted, setIsMounted] = useState(false);
+  const router = useRouter();
   const [destQuery, setDestQuery] = useState("");
   const [showDestList, setShowDestList] = useState(false);
   const [travelers, setTravelers] = useState(2);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [isPaused, setIsPaused] = useState(true); // default ambient video playing, wait, isPaused=false for playing
+  // Set after mount so server and client markup match (the date depends on "now").
+  const [today, setToday] = useState<string | undefined>(undefined);
+  const [isPaused, setIsPaused] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    setTimeout(() => setIsMounted(true), 0);
+    setTimeout(() => setToday(manilaToday()), 0);
     // Play video after mount
     if (videoRef.current) {
       videoRef.current.play().then(() => setIsPaused(false)).catch(() => setIsPaused(true));
@@ -38,12 +48,12 @@ export default function HeroSection() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!destQuery.trim()) {
-      alert("Please enter a destination");
-      return;
-    }
-    // Perform search
-    console.log("Searching for:", { destQuery, startDate, endDate, travelers });
+    const params = new URLSearchParams();
+    if (destQuery.trim()) params.set("q", destQuery.trim());
+    if (startDate) params.set("from", startDate);
+    if (endDate) params.set("to", endDate);
+    params.set("guests", String(travelers));
+    router.push(`/tours?${params.toString()}`);
   };
 
   const toggleVideo = () => {
@@ -62,16 +72,15 @@ export default function HeroSection() {
     ? DESTS.slice(0, 5) 
     : DESTS.filter(d => d.name.toLowerCase().includes(destQuery.toLowerCase()) || d.tag.toLowerCase().includes(destQuery.toLowerCase())).slice(0, 6);
 
-  if (!isMounted) return <div className="hero bg-brand-navy min-h-screen"></div>;
-
   return (
     <section className="hero" aria-labelledby="heroTitle">
-      <img
+      <Image
         className="hero-bg"
-        src="https://image.qwenlm.ai/public_source/0d03f5cf-0e10-4545-8c7b-372335c79b34/1a5690047-a1fe-46e1-8188-85cabaf33afd.png"
+        src={HERO_IMAGE}
         alt=""
-        loading="lazy"
-        decoding="async"
+        fill
+        priority
+        sizes="100vw"
       />
       <div className="hero-overlay" aria-hidden="true"></div>
 
@@ -145,22 +154,22 @@ export default function HeroSection() {
                   <input
                     type="date"
                     className="w-full pl-3 py-3.5 text-slate-700 font-medium focus:outline-none text-sm bg-transparent"
+                    aria-label="Earliest departure date"
                     value={startDate}
-                    min={new Date().toISOString().split('T')[0]}
+                    min={today}
                     onChange={(e) => {
                       setStartDate(e.target.value);
                       if (endDate && e.target.value > endDate) setEndDate(e.target.value);
                     }}
-                    required
                   />
                   <span className="text-slate-400 font-bold px-1 text-sm">➔</span>
                   <input
                     type="date"
                     className="w-full pr-3 py-3.5 text-slate-700 font-medium focus:outline-none text-sm bg-transparent"
+                    aria-label="Latest departure date"
                     value={endDate}
-                    min={startDate || new Date().toISOString().split('T')[0]}
+                    min={startDate || today}
                     onChange={(e) => setEndDate(e.target.value)}
-                    required
                   />
                 </div>
               </div>
@@ -170,13 +179,13 @@ export default function HeroSection() {
                   <Users size={16} /> Travelers
                 </label>
                 <div className="flex items-center justify-between border border-slate-200 rounded-lg p-1.5 h-[50px]">
-                  <button type="button" className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-700 hover:bg-slate-200 transition-colors" onClick={() => setTravelers(Math.max(1, travelers - 1))} disabled={travelers <= 1}>
+                  <button type="button" aria-label="Fewer travelers" className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-700 hover:bg-slate-200 transition-colors" onClick={() => setTravelers(Math.max(1, travelers - 1))} disabled={travelers <= 1}>
                     <Minus size={14} />
                   </button>
                   <div className="font-bold text-slate-800">
                     <span className="text-lg">{travelers}</span> <span className="font-medium text-sm text-slate-600">travelers</span>
                   </div>
-                  <button type="button" className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-700 hover:bg-slate-200 transition-colors" onClick={() => setTravelers(Math.min(12, travelers + 1))} disabled={travelers >= 12}>
+                  <button type="button" aria-label="More travelers" className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-700 hover:bg-slate-200 transition-colors" onClick={() => setTravelers(Math.min(12, travelers + 1))} disabled={travelers >= 12}>
                     <Plus size={14} />
                   </button>
                 </div>
@@ -260,7 +269,7 @@ export default function HeroSection() {
               loop
               playsInline
               preload="none"
-              poster="https://image.qwenlm.ai/public_source/0d03f5cf-0e10-4545-8c7b-372335c79b34/13c794e47-d45f-4e95-8a69-9971ed29a166.png"
+              poster={REEL_POSTER}
               src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4"
             ></video>
             <div className="reel-shade" aria-hidden="true"></div>
