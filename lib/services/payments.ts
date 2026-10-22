@@ -1,7 +1,13 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { captureException } from '@/lib/logger';
 import { getPaymentIntent, type PaymongoPayment } from '@/lib/paymongo';
-import { notifyOrganizerOfNewBooking, notifySuperAdmin } from '@/lib/notifications';
+import {
+  notifyOrganizerOfNewBooking,
+  notifySuperAdmin,
+  notifyTravelerBookingConfirmed,
+  notifyTravelerPaymentNeedsReview,
+  type PaymentReviewReason,
+} from '@/lib/notifications';
 
 export type VerifyPaymentResult =
   | { success: true; status: 'confirmed' | 'pending' }
@@ -50,16 +56,21 @@ export async function applyPaidPayment(
   if (error) throw error;
 
   const outcome = data as ConfirmOutcome;
+  // Notification helpers never throw: a failed email must not fail a confirmed payment.
   if (outcome === 'confirmed') {
-    await notifyOrganizerOfNewBooking(bookingId);
+    await Promise.all([notifyOrganizerOfNewBooking(bookingId), notifyTravelerBookingConfirmed(bookingId)]);
   } else if (outcome in NEEDS_REVIEW) {
-    captureException(new Error(`Payment needs review: ${outcome}`), { action: 'applyPaidPayment', bookingId, outcome, source });
-    await notifySuperAdmin(
-      'Payment needs review',
-      `PayMongo payment ${payment.id} for booking ${bookingId}: ${outcome}. Refund or resolve it in PayMongo.`,
-      'payment_review',
-      '/admin/bookings'
-    );
+    // The success page and the webhook both report the same payment: alert only on the first report.
+    const firstReport = await notifyTravelerPaymentNeedsReview(bookingId, payment.id, outcome as PaymentReviewReason);
+    if (firstReport) {
+      captureException(new Error(`Payment needs review: ${outcome}`), { action: 'applyPaidPayment', bookingId, outcome, source });
+      await notifySuperAdmin(
+        'Payment needs review',
+        `PayMongo payment ${payment.id} for booking ${bookingId}: ${outcome}. Refund or resolve it in PayMongo.`,
+        'payment_review',
+        '/admin/bookings'
+      );
+    }
   }
   return outcome;
 }

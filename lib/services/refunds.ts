@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { captureException } from '@/lib/logger';
 import { createRefund, getPaymentIntent } from '@/lib/paymongo';
+import { notifyTravelerBookingCanceled } from '@/lib/notifications';
 
 export interface RefundBookingInput {
   bookingId: string;
@@ -35,6 +36,7 @@ export async function refundBooking(input: RefundBookingInput) {
   });
   if (beginError) throw new Error(beginError.message);
 
+  let result: { refundId: string; providerRefundId: string; amount: number };
   try {
     const { data: refund } = await admin.from('booking_refunds').select('amount').eq('id', refundId).single();
     const paymentId = await findPaidPaymentId(input.bookingId);
@@ -55,7 +57,7 @@ export async function refundBooking(input: RefundBookingInput) {
       captureException(completeError, { action: 'refundBooking complete', bookingId: input.bookingId, refundId, providerRefundId: providerRefund.id });
       throw new Error('The refund was sent but could not be recorded. Our team has been alerted.');
     }
-    return { refundId: String(refundId), providerRefundId: providerRefund.id };
+    result = { refundId: String(refundId), providerRefundId: providerRefund.id, amount: Number(refund?.amount) || 0 };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Refund failed';
     // Only release the booking for retry if PayMongo did not refund (complete_* errors are handled above).
@@ -64,6 +66,14 @@ export async function refundBooking(input: RefundBookingInput) {
     }
     throw error;
   }
+
+  // Outside the try: the refund is complete, so nothing after this point may call fail_booking_refund().
+  // Cancellations tell the traveler here. Dispute refunds are announced by notifyDisputeResolved()
+  // from the dispute action, so the traveler gets one message, not two.
+  if (input.bookingStatus === 'canceled') {
+    await notifyTravelerBookingCanceled(input.bookingId, { refundAmount: result.amount || null });
+  }
+  return result;
 }
 
 // The PayMongo payment to refund: the one recorded when the booking was confirmed, or (for bookings

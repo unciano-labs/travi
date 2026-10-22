@@ -3,7 +3,7 @@
 import { cookies } from 'next/headers';
 import { SignJWT, jwtVerify } from 'jose';
 import { requireSession } from '@/lib/auth-helpers';
-import { sendEmail } from '@/lib/email';
+import { escapeHtml, sendEmail } from '@/lib/email';
 import { sendSms } from '@/lib/sms';
 import { captureException } from '@/lib/logger';
 import { env } from '@/lib/env';
@@ -62,7 +62,7 @@ export async function sendOtp(
           html: `
             <div style="font-family: sans-serif; color: #1e293b;">
               <h2>Security Verification</h2>
-              <p>Hi ${profile.full_name || 'there'},</p>
+              <p>Hi ${escapeHtml(profile.full_name || 'there')},</p>
               <p>Your one-time verification code is:</p>
               <p style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #0EA5E9;">${code}</p>
               <p>${warningText}</p>
