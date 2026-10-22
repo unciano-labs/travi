@@ -13,11 +13,11 @@ export default function PartnersSection() {
               Zero setup fees. Pay only a small commission per successful booking.
             </p>
             <div className="flex flex-wrap items-center gap-4">
-              <a href="#" className="bg-brand hover:bg-brand-dark transition-colors text-white text-sm font-bold px-6 py-3 rounded-xl shadow-card">
+              <a href="/signup?role=organizer" className="bg-brand hover:bg-brand-dark transition-colors text-white text-sm font-bold px-6 py-3 rounded-xl shadow-card">
                 Register as Organizer
               </a>
-              <a href="#" className="text-white hover:text-sky-300 transition-colors text-sm font-bold px-4 py-3">
-                Learn More →
+              <a href="/signup?role=transporter" className="text-white hover:text-sky-300 transition-colors text-sm font-bold px-4 py-3">
+                Have vehicles? Join as a Transporter →
               </a>
             </div>
           </div>

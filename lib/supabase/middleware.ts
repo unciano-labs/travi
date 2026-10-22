@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { env } from '../env'
+import { safeNextPath } from '../safe-next'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -79,7 +80,11 @@ export async function updateSession(request: NextRequest) {
   // --- Dashboard Routes (Traveler, Organizer, Transporter) ---
   if (pathname.startsWith('/dashboard')) {
     if (!user) {
-      return NextResponse.redirect(new URL('/login', request.url))
+      // Come back here after signing in (validated again on /login).
+      const loginUrl = new URL('/login', request.url)
+      const next = safeNextPath(`${pathname}${request.nextUrl.search}`)
+      if (next && next !== '/dashboard') loginUrl.searchParams.set('next', next)
+      return NextResponse.redirect(loginUrl)
     }
 
     // Prevent cross-role access, or block admin from accessing standard dashboards directly
@@ -102,13 +107,17 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (pathname === '/login') {
-    if (user) {
+    if (user && roles.length > 0) {
+      // Already signed in: honour a safe relative ?next=, else go to the role home.
+      const next = safeNextPath(request.nextUrl.searchParams.get('next'))
+      if (next) {
+        return NextResponse.redirect(new URL(next, request.url))
+      }
       if (roles.includes('admin')) {
         return NextResponse.redirect(new URL('/admin', request.url))
-      } else if (roles.length > 0) {
-        const primaryRole = roles.includes('traveler') ? 'traveler' : roles[0];
-        return NextResponse.redirect(new URL(`/dashboard/${primaryRole}`, request.url))
       }
+      const primaryRole = roles.includes('traveler') ? 'traveler' : roles[0];
+      return NextResponse.redirect(new URL(`/dashboard/${primaryRole}`, request.url))
     }
   }
 

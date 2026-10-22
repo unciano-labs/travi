@@ -7,13 +7,13 @@ import { z } from 'zod';
 
 export async function POST(request: NextRequest) {
   try {
-    const { profile, supabase } = await verifyApiAuth(request);
+    const { user, profile, supabase } = await verifyApiAuth(request);
     await assertApiRole(supabase, profile.id, 'traveler');
 
     const body = await request.json();
     const validated = createBookingSchema.parse(body);
 
-    const bookingResult = await createBookingService(supabase, profile.id, validated);
+    const bookingResult = await createBookingService(supabase, profile.id, validated, user);
 
     return NextResponse.json({ success: true, data: bookingResult }, { status: 201 });
   } catch (error: any) {

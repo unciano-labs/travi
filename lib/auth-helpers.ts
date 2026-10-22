@@ -48,3 +48,17 @@ export async function assertRole(userId: string, requiredRole: string) {
 
   return roles;
 }
+
+export const EMAIL_NOT_VERIFIED_MESSAGE =
+  'Please verify your email address first. Open the confirmation link we emailed you, then try again.';
+
+/**
+ * BIZ-12: gate actions that need a reachable, verified email (booking, partner onboarding,
+ * payouts). Uses Supabase Auth's own confirmation stamp, so it works with "Confirm email" ON
+ * (stamped when the link is opened) and OFF (Supabase stamps it at signup).
+ */
+export function assertEmailVerified(user: { email_confirmed_at?: string | null } | null | undefined) {
+  if (!user?.email_confirmed_at) {
+    throw new Error(EMAIL_NOT_VERIFIED_MESSAGE);
+  }
+}

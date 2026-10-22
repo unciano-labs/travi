@@ -10,7 +10,7 @@ export default async function TravelerProfilePage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect('/login');
+    redirect('/login?next=/dashboard/traveler/profile');
   }
 
   const { data: profile } = await supabase
@@ -41,7 +41,7 @@ export default async function TravelerProfilePage() {
         <AccountSecurityManager
           email={profile.email}
           phone={profile.phone}
-          emailVerifiedAt={profile.email_verified_at}
+          emailVerifiedAt={profile.email_verified_at ?? user.email_confirmed_at ?? null}
           phoneVerifiedAt={profile.phone_verified_at}
         />
       </div>

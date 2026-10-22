@@ -1,7 +1,7 @@
 'use server';
 
 import { z } from 'zod';
-import { requireSession, assertRole } from '@/lib/auth-helpers';
+import { requireSession, assertRole, assertEmailVerified } from '@/lib/auth-helpers';
 import { assertRateLimit } from '@/lib/ratelimit';
 import { captureException } from '@/lib/logger';
 import { notifySuperAdmin } from '@/lib/notifications';
@@ -15,9 +15,11 @@ export async function createBooking(scheduleId: string, seats: number) {
     const { user, profile, supabase } = await requireSession();
     await assertRole(user.id, 'traveler');
     await assertRateLimit(profile.id, 'mutation');
+    // BIZ-12: friendly error before any work (the service enforces it too).
+    assertEmailVerified(user);
 
     const { createBookingService } = await import('@/lib/services/bookings');
-    const result = await createBookingService(supabase, profile.id, validated);
+    const result = await createBookingService(supabase, profile.id, validated, user);
 
     // Generate PayMongo Checkout URL
     const host = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';

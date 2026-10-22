@@ -1,71 +1,79 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { ZodError } from 'zod';
+import type { AuthError } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { env } from '@/lib/env';
-import { z } from 'zod';
 import { requireSession } from '@/lib/auth-helpers';
 import { assertRateLimit, getClientIp } from '@/lib/ratelimit';
 import { captureException } from '@/lib/logger';
 import { notifySuperAdmin } from '@/lib/notifications';
+import {
+  ensureAccountProvisioned,
+  fetchUserRoles,
+  getSiteOrigin,
+  homePathForRoles,
+} from '@/lib/accounts';
+import { clearPasswordRecovery, hasPasswordRecovery } from '@/lib/password-recovery';
+import { safeNextPath } from '@/lib/safe-next';
+import {
+  addAccountTypeSchema,
+  forgotPasswordSchema,
+  loginSchema,
+  resendConfirmationSchema,
+  resetPasswordSchema,
+  signupSchema,
+} from '@/lib/schemas/auth';
 
-import { loginSchema, signupSchema, addAccountTypeSchema } from '@/lib/schemas/auth';
+type ActionFailure = { success: false; error: string; code?: string };
 
-export async function loginAsAdmin(formData: FormData) {
+function failure(error: unknown, fallback: string): ActionFailure {
+  if (error instanceof ZodError) return { success: false, error: error.issues[0]?.message ?? fallback };
+  if (error instanceof Error && error.message) return { success: false, error: error.message };
+  return { success: false, error: fallback };
+}
+
+const isEmailNotConfirmed = (error: AuthError) =>
+  error.code === 'email_not_confirmed' || /email not confirmed/i.test(error.message);
+
+// Callback URL for auth emails. `next` must already be a safe relative path.
+async function authCallbackUrl(next: string) {
+  return `${await getSiteOrigin()}/auth/callback?next=${encodeURIComponent(next)}`;
+}
+
+// ─── Admin login ───
+export async function loginAsAdmin(formData: FormData): Promise<ActionFailure | void> {
   let success = false;
-  
-  try {
-    const clientIp = await getClientIp();
-    await assertRateLimit(clientIp, 'auth');
 
-    const rawData = {
+  try {
+    await assertRateLimit(await getClientIp(), 'auth');
+    const validated = loginSchema.parse({
       email: formData.get('email'),
-      password: formData.get('password')
-    };
-    const validated = loginSchema.parse(rawData);
+      password: formData.get('password'),
+    });
 
     const supabase = await createClient();
-
     const { data, error } = await supabase.auth.signInWithPassword({
       email: validated.email,
       password: validated.password,
     });
 
-    if (error) return { error: error.message };
-    if (!data.user) return { error: 'Login failed' };
+    if (error || !data.user) return { success: false, error: 'Invalid email or password.' };
 
-    // Verify the user actually has the admin role
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('id')
-      .eq('user_id', data.user.id)
-      .single();
-
-    if (profile) {
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('website_roles!inner(role)')
-        .eq('user_profile_id', profile.id)
-        .eq('website_roles.role', 'admin');
-
-      if (!roleData || roleData.length === 0) {
-        await supabase.auth.signOut();
-        return { error: 'Unauthorized: You do not have admin privileges.' };
-      }
-    } else {
+    const roles = await fetchUserRoles(supabase, data.user.id);
+    if (!roles.includes('admin')) {
       await supabase.auth.signOut();
-      return { error: 'Unauthorized: User profile not found.' };
+      return { success: false, error: 'Unauthorized: You do not have admin privileges.' };
     }
-    
+
     success = true;
-  } catch (error: any) {
+  } catch (error: unknown) {
     captureException(error, { action: 'loginAsAdmin' });
-    return { error: error.message };
+    return failure(error, 'Login failed');
   }
-  
-  if (success) {
-    redirect('/admin');
-  }
+
+  if (success) redirect('/admin');
 }
 
 export async function logoutAdmin() {
@@ -74,81 +82,49 @@ export async function logoutAdmin() {
   redirect('/admin/login');
 }
 
-export async function loginUser(formData: FormData) {
-  let primaryRole = 'traveler';
-  let success = false;
-  
+// ─── User login (honours a safe relative `next`) ───
+export async function loginUser(formData: FormData): Promise<ActionFailure | void> {
+  let destination: string | null = null;
+
   try {
-    const clientIp = await getClientIp();
-    await assertRateLimit(clientIp, 'auth');
-
-    const rawData = {
+    await assertRateLimit(await getClientIp(), 'auth');
+    const validated = loginSchema.parse({
       email: formData.get('email'),
-      password: formData.get('password')
-    };
-    const validated = loginSchema.parse(rawData);
-    
-    const supabase = await createClient();
+      password: formData.get('password'),
+      next: formData.get('next') || undefined,
+    });
 
+    const supabase = await createClient();
     const { data, error } = await supabase.auth.signInWithPassword({
       email: validated.email,
       password: validated.password,
     });
 
-    if (error) return { error: error.message };
-
-    const websiteId = env.WEBSITE_ID;
-
-    // Find the user profile first
-    const { data: profileData, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('id')
-      .eq('user_id', data.user.id)
-      .single();
-
-    if (profileError || !profileData) {
-      await supabase.auth.signOut();
-      return { error: 'Failed to retrieve user profile.' };
+    if (error) {
+      if (isEmailNotConfirmed(error)) {
+        return {
+          success: false,
+          code: 'email_not_confirmed',
+          error: 'Please confirm your email address first. Check your inbox for the confirmation link.',
+        };
+      }
+      return { success: false, error: 'Invalid email or password.' };
     }
 
-    // Find the role for this website via website_roles
-    const { data: rolesData, error: rolesError } = await supabase
-      .from('user_roles')
-      .select(`
-        website_roles!inner (
-          role,
-          website_id
-        )
-      `)
-      .eq('user_profile_id', profileData.id);
-
-    if (rolesError) {
-      await supabase.auth.signOut();
-      return { error: 'Failed to verify user roles.' };
-    }
-
-    if (!rolesData || rolesData.length === 0) {
-      await supabase.auth.signOut();
-      return { error: 'Access denied: No role assigned for this website.' };
-    }
-
-    const roles = rolesData.filter((r: any) => !websiteId || r.website_roles?.website_id === websiteId).map((r: any) => r.website_roles.role);
-
+    // Creates a missing profile / signup role (fallback for the auth.users trigger).
+    const roles = await ensureAccountProvisioned(supabase, data.user);
     if (roles.length === 0) {
       await supabase.auth.signOut();
-      return { error: 'Access denied: You do not have permission for this website.' };
+      return { success: false, error: 'Access denied: no role is assigned to this account.' };
     }
 
-    primaryRole = roles.includes('traveler') ? 'traveler' : roles[0];
-    success = true;
-  } catch (error: any) {
+    destination = safeNextPath(validated.next) ?? homePathForRoles(roles);
+  } catch (error: unknown) {
     captureException(error, { action: 'loginUser' });
-    return { error: error.message };
+    return failure(error, 'Login failed');
   }
-  
-  if (success) {
-    redirect(`/dashboard/${primaryRole}`);
-  }
+
+  if (destination) redirect(destination);
 }
 
 export async function logoutUser() {
@@ -157,136 +133,187 @@ export async function logoutUser() {
   redirect('/login');
 }
 
-export async function signupUser(formData: FormData) {
-  let redirectUrl = '';
-  
-  try {
-    const clientIp = await getClientIp();
-    await assertRateLimit(clientIp, 'auth');
+// ─── Signup (works with Supabase "Confirm email" ON or OFF) ───
+export async function signupUser(formData: FormData): Promise<ActionFailure | void> {
+  let destination: string | null = null;
 
-    const rawData = {
+  try {
+    await assertRateLimit(await getClientIp(), 'auth');
+    const validated = signupSchema.parse({
       email: formData.get('email'),
       password: formData.get('password'),
       role: formData.get('role') || 'traveler',
       firstName: formData.get('firstName'),
       lastName: formData.get('lastName'),
-    };
-    
-    const validated = signupSchema.parse(rawData);
+      next: formData.get('next') || undefined,
+    });
+
+    const fullName = `${validated.firstName} ${validated.lastName}`.trim();
+    const home = safeNextPath(validated.next) ?? `/dashboard/${validated.role}`;
     const supabase = await createClient();
 
+    // The auth.users trigger (migration 20261024090000) creates the profile and the signup role
+    // from this metadata, so nothing here depends on having a session.
     const { data, error } = await supabase.auth.signUp({
       email: validated.email,
       password: validated.password,
       options: {
+        emailRedirectTo: await authCallbackUrl(home),
         data: {
+          full_name: fullName,
           first_name: validated.firstName,
           last_name: validated.lastName,
-        }
-      }
+          signup_role: validated.role,
+          ...(env.WEBSITE_ID ? { signup_website_id: env.WEBSITE_ID } : {}),
+        },
+      },
     });
 
-    if (error) return { error: error.message };
+    if (error) return { success: false, error: error.message };
 
-    if (data.user) {
-      const websiteId = env.WEBSITE_ID;
+    // With "Confirm email" ON, an already-registered address comes back as a user with no
+    // identities (Supabase hides account existence). Treat it like a new signup in the UI.
+    const isNewAccount = !!data.user && (data.user.identities?.length ?? 0) > 0;
 
-      // 1. Insert the global user profile
-      const { data: profileData } = await supabase
-        .from('user_profiles')
-        .insert({
-          user_id: data.user.id,
-          email: validated.email,
-          full_name: `${validated.firstName} ${validated.lastName}`.trim()
-        })
-        .select('id')
-        .single();
-
-      if (profileData && websiteId) {
-        // 2. Link the chosen role. Users cannot insert user_roles directly (RLS); the RPC only
-        //    allows traveler/organizer/transporter for the caller's own profile.
-        const { error: roleError } = await supabase.rpc('assign_self_role', {
-          p_role: validated.role,
-          p_website_id: websiteId,
-        });
-        if (roleError) captureException(roleError, { action: 'signupUser assign_self_role' });
-        
-        // Notify SuperAdmin
-        await notifySuperAdmin(
-          'New Account Created',
-          `${validated.firstName} ${validated.lastName} (${validated.email}) created a new ${validated.role} account.`,
-          'account_created'
-        );
-      }
-    }
-
-    if (data.session) {
-      redirectUrl = `/dashboard/${validated.role}`;
+    if (data.session && data.user) {
+      // "Confirm email" OFF: signed in already. Fallback in case the trigger is missing.
+      await ensureAccountProvisioned(supabase, data.user);
+      destination = home;
     } else {
-      redirectUrl = '/login?message=Check your email to confirm your account';
+      destination = '/login?message=check_email';
     }
-  } catch (error: any) {
+
+    if (isNewAccount) {
+      await notifySuperAdmin(
+        'New Account Created',
+        `${fullName} (${validated.email}) created a new ${validated.role} account.`,
+        'account_created'
+      );
+    }
+  } catch (error: unknown) {
     captureException(error, { action: 'signupUser' });
-    return { error: error.message };
+    return failure(error, 'Signup failed');
   }
-  
-  if (redirectUrl) {
-    redirect(redirectUrl);
+
+  if (destination) redirect(destination);
+}
+
+// ─── Resend the signup confirmation email ───
+export async function resendConfirmation(formData: FormData) {
+  try {
+    await assertRateLimit(await getClientIp(), 'auth');
+    const { email } = resendConfirmationSchema.parse({ email: formData.get('email') });
+
+    const supabase = await createClient();
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: await authCallbackUrl('/dashboard') },
+    });
+    // Same answer either way: never reveal whether the address has an account.
+    if (error) captureException(error, { action: 'resendConfirmation' });
+    return { success: true as const };
+  } catch (error: unknown) {
+    captureException(error, { action: 'resendConfirmation' });
+    return failure(error, 'Could not resend the confirmation email');
   }
 }
 
-export async function getUserRoles() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+// ─── Forgot password: email a recovery link (BIZ-10) ───
+export async function requestPasswordReset(formData: FormData) {
+  try {
+    await assertRateLimit(await getClientIp(), 'auth');
+    const { email } = forgotPasswordSchema.parse({ email: formData.get('email') });
 
-  const websiteId = env.WEBSITE_ID;
-
-  let query = supabase
-    .from('user_roles')
-    .select(`
-      user_profiles!inner(user_id),
-      website_roles!inner(role, website_id)
-    `)
-    .eq('user_profiles.user_id', user.id);
-
-  if (websiteId) {
-    query = query.eq('website_roles.website_id', websiteId);
+    const supabase = await createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: await authCallbackUrl('/auth/reset-password'),
+    });
+    // Same answer either way: never reveal whether the address has an account.
+    if (error) captureException(error, { action: 'requestPasswordReset' });
+    return { success: true as const };
+  } catch (error: unknown) {
+    captureException(error, { action: 'requestPasswordReset' });
+    return failure(error, 'Could not send the reset email');
   }
-
-  const { data } = await query;
-  if (!data) return [];
-  
-  return data.map((r: any) => r.website_roles.role);
 }
 
+// ─── Reset password: only right after following a recovery link (BIZ-10) ───
+export async function resetPassword(formData: FormData): Promise<ActionFailure | void> {
+  let destination: string | null = null;
 
+  try {
+    const validated = resetPasswordSchema.parse({
+      password: formData.get('password'),
+      confirmPassword: formData.get('confirmPassword'),
+    });
 
-export async function addAccountType(role: string) {
-  let success = false;
-  
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || !(await hasPasswordRecovery(user.id))) {
+      return {
+        success: false,
+        code: 'link_expired',
+        error: 'This reset link has expired. Please request a new one.',
+      };
+    }
+    await assertRateLimit(user.id, 'mutation');
+
+    const { error } = await supabase.auth.updateUser({ password: validated.password });
+    if (error) return { success: false, error: error.message };
+
+    await clearPasswordRecovery();
+    // Sign out every other device that may still hold the old credentials.
+    const { error: signOutError } = await supabase.auth.signOut({ scope: 'others' });
+    if (signOutError) captureException(signOutError, { action: 'resetPassword:signOutOthers' });
+
+    const roles = await ensureAccountProvisioned(supabase, user);
+    destination = homePathForRoles(roles);
+  } catch (error: unknown) {
+    captureException(error, { action: 'resetPassword' });
+    return failure(error, 'Could not update your password');
+  }
+
+  if (destination) redirect(destination);
+}
+
+// ─── Roles of the signed-in user (RoleSwitcher) ───
+export async function getUserRoles(): Promise<string[]> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+    return await fetchUserRoles(supabase, user.id);
+  } catch (error: unknown) {
+    captureException(error, { action: 'getUserRoles' });
+    return [];
+  }
+}
+
+// ─── Add another account type (traveler / organizer / transporter) ───
+export async function addAccountType(role: string): Promise<ActionFailure | void> {
+  let destination: string | null = null;
+
   try {
     const validated = addAccountTypeSchema.parse({ role });
-    const { supabase } = await requireSession();
+    const { profile, supabase } = await requireSession();
+    await assertRateLimit(profile.id, 'mutation');
 
     const websiteId = env.WEBSITE_ID;
-    if (!websiteId) return { error: 'Missing website ID configuration' };
+    if (!websiteId) return { success: false, error: 'Missing website ID configuration' };
 
-    // Add the role through the RPC (users cannot insert user_roles directly; it never grants admin)
+    // Users cannot insert user_roles directly; the RPC never grants admin.
     const { error } = await supabase.rpc('assign_self_role', {
       p_role: validated.role,
       p_website_id: websiteId,
     });
+    if (error) throw error;
 
-    if (error) return { error: error.message };
-    
-    success = true;
-  } catch (error: any) {
+    destination = `/dashboard/${validated.role}`;
+  } catch (error: unknown) {
     captureException(error, { action: 'addAccountType', role });
-    return { error: error.message };
+    return failure(error, 'Could not add the account type');
   }
-  
-  if (success) {
-    redirect(`/dashboard/${role}`);
-  }
+
+  if (destination) redirect(destination);
 }

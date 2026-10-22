@@ -51,7 +51,8 @@ export default function TourBookingCard({ tour }: { tour: any }) {
     } else {
       setIsBooking(false);
       if (result.code === 'unauthorized') {
-        router.push('/login');
+        // Come back to this tour after signing in (BIZ-15).
+        router.push(`/login?next=${encodeURIComponent(`/tours/${tour.slug}`)}`);
       } else {
         setErrorMsg(result.error || 'Failed to book the tour.');
       }
