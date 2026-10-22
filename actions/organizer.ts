@@ -41,7 +41,7 @@ export async function createOrganizerProfile(formData: FormData) {
     description,
     address,
     provides_transport: providesTransport,
-    status: 'approved' // Seamless approval per user request
+    // status is set by the database trigger (partner approval policy, BIZ-06)
   });
 
   if (error) {

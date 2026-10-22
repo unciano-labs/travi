@@ -5,6 +5,7 @@ import { requireSession } from '@/lib/auth-helpers';
 import { captureException } from '@/lib/logger';
 import { logAdminAudit } from '@/lib/audit';
 import { notifyOrganizerOfStatusChange } from '@/lib/notifications';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 async function getTransporterSession() {
   const { user, profile, supabase } = await requireSession();
@@ -146,8 +147,9 @@ export async function acceptTransportRequest(requestId: string) {
       console.warn('Could not auto-insert availability booking record:', availErr.message);
     }
     
-    // 3.5 Update the tour_schedules table to 'confirmed'
-    await supabase
+    // 3.5 Update the tour_schedules table to 'confirmed'.
+    // Service role: transporters cannot update schedules under RLS; the request was verified as theirs above.
+    await createAdminClient({ admin: true })
       .from('tour_schedules')
       .update({ transport_status: 'confirmed' })
       .eq('id', request.tour_schedule_id);
@@ -226,8 +228,9 @@ export async function declineTransportRequest(requestId: string, reason?: string
       return { success: false, error: updateErr.message };
     }
     
-    // Update the tour_schedules table to 'unresolved'
-    await supabase
+    // Update the tour_schedules table to 'unresolved'.
+    // Service role: transporters cannot update schedules under RLS; the request was verified as theirs above.
+    await createAdminClient({ admin: true })
       .from('tour_schedules')
       .update({ transport_status: 'unresolved' })
       .eq('id', request.tour_schedule_id);

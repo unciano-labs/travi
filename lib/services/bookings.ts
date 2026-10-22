@@ -50,6 +50,10 @@ export async function createBookingService(
     if (bookingError.message.includes('check_capacity_not_exceeded')) {
       throw new Error('Not enough seats available.');
     }
+    // booking_quote() raises user-facing messages (closed/started/unpublished schedule).
+    if (bookingError.code === 'P0001') {
+      throw new Error(bookingError.message);
+    }
     captureException(bookingError, { action: 'createBookingService', scheduleId: validatedData.scheduleId, seats: validatedData.seats });
     throw new Error(`Failed to create booking: ${bookingError.message} / ${bookingError.details}`);
   }

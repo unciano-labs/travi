@@ -59,16 +59,20 @@ export async function approveOrganizer(organizerId: string) {
 export async function rejectOrganizer(organizerId: string, reason?: string) {
   try {
     const validated = rejectSchema.parse({ id: organizerId, reason });
-    const { user, profile, supabase } = await requireSession();
+    const { user, profile } = await requireSession();
     await assertRole(user.id, 'admin');
     await assertRateLimit(profile.id, 'mutation');
 
-    const { error } = await supabase
+    // Service role: admins have no UPDATE policy on organizer_profiles, and status is server-owned.
+    const admin = createAdminClient({ admin: true });
+    const { data: updated, error } = await admin
       .from('organizer_profiles')
       .update({ status: 'rejected' })
-      .eq('id', validated.id);
+      .eq('id', validated.id)
+      .select('id');
 
     if (error) return { success: false, error: error.message };
+    if (!updated || updated.length === 0) return { success: false, error: 'Organizer not found.' };
 
     // Record audit log
     await logMutation({

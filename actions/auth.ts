@@ -203,21 +203,13 @@ export async function signupUser(formData: FormData) {
         .single();
 
       if (profileData && websiteId) {
-        // 2. Find the correct website_roles ID
-        const { data: websiteRoleData } = await supabase
-          .from('website_roles')
-          .select('id')
-          .eq('role', validated.role)
-          .eq('website_id', websiteId)
-          .single();
-
-        // 3. Link them in user_roles
-        if (websiteRoleData) {
-          await supabase.from('user_roles').insert({
-            user_profile_id: profileData.id,
-            website_role_id: websiteRoleData.id
-          });
-        }
+        // 2. Link the chosen role. Users cannot insert user_roles directly (RLS); the RPC only
+        //    allows traveler/organizer/transporter for the caller's own profile.
+        const { error: roleError } = await supabase.rpc('assign_self_role', {
+          p_role: validated.role,
+          p_website_id: websiteId,
+        });
+        if (roleError) captureException(roleError, { action: 'signupUser assign_self_role' });
         
         // Notify SuperAdmin
         await notifySuperAdmin(
@@ -275,25 +267,15 @@ export async function addAccountType(role: string) {
   
   try {
     const validated = addAccountTypeSchema.parse({ role });
-    const { profile, supabase } = await requireSession();
+    const { supabase } = await requireSession();
 
     const websiteId = env.WEBSITE_ID;
     if (!websiteId) return { error: 'Missing website ID configuration' };
 
-    // Get website role ID
-    const { data: websiteRoleData } = await supabase
-      .from('website_roles')
-      .select('id')
-      .eq('role', validated.role)
-      .eq('website_id', websiteId)
-      .single();
-
-    if (!websiteRoleData) return { error: 'Role not found for this website' };
-
-    // Insert user_role
-    const { error } = await supabase.from('user_roles').insert({
-      user_profile_id: profile.id,
-      website_role_id: websiteRoleData.id
+    // Add the role through the RPC (users cannot insert user_roles directly; it never grants admin)
+    const { error } = await supabase.rpc('assign_self_role', {
+      p_role: validated.role,
+      p_website_id: websiteId,
     });
 
     if (error) return { error: error.message };

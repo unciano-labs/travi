@@ -46,7 +46,7 @@ export async function createTransporterProfile(formData: FormData) {
       phone,
       description,
       service_areas: serviceAreas,
-      status: 'approved', // Seamless approval per user request
+      // status is set by the database trigger (partner approval policy, BIZ-06)
     }).select().single();
 
     if (error) {

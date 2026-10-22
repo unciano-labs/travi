@@ -124,11 +124,14 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
     
     const uploadedUrls: string[] = [];
     
+    // Storage policy: each user may only upload inside a folder named after their user id.
+    const { data: { user } } = await supabase.auth.getUser();
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      const filePath = `${user?.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('tour-images')

@@ -12,7 +12,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 > **Single source of truth and operating manual for every AI agent working in this repo.**
 > If anything in `docs/`, `README.md`, or `.agents/skills/*` contradicts this file, **this file wins**. If this file contradicts the code or `supabase/migrations/`, **the code wins**: fix this file.
-> **Last updated:** 2026-10-22 (Phase 0 hardening)
+> **Last updated:** 2026-10-23 (Phase 1 RLS hardening)
 
 ---
 
@@ -26,6 +26,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
    - `npm run lint`: zero errors.
    - `npm run build`: zero errors. It also runs the TypeScript type-check.
    - `npm run test:qa`: 100% pass. This hits the live Supabase project, so it needs `.env.local`.
+   - `npm run test:rls`: 100% pass, if you touched `supabase/migrations/`, RLS, triggers, or any table the app writes with the user's own client. Runs locally (PGlite), no DB needed.
    - `npm run test:e2e` as well, if you touched routing, middleware, auth guards, SEO, or the landing or tour pages.
    - Follow the [`qa-tester`](.agents/skills/qa-tester/SKILL.md) skill protocol.
 2. **Review this file against your diff.** Answer each question below. **If any answer is "yes", update the matching section of `AGENTS.md` in the same change:**
@@ -96,6 +97,7 @@ A single account can hold several roles (traveler + organizer + transporter) and
 | Markdown | react-markdown | | |
 | State management | **None.** RSC props plus local `useState` | | `@tanstack/react-query`, `react-hook-form`, `@hookform/resolvers` are installed but **never imported** |
 | E2E tests | Playwright (`@playwright/test`) | 1.62.1 | Chromium only |
+| RLS tests | `node:test` + PGlite (`@electric-sql/pglite`, dev) | 0.3.16 | In-process Postgres; replays every migration with Supabase stubs (`supabase/tests/rls/`) |
 | Smoke / QA tests | `scripts/qa-smoke-test.ts` run with `tsx` | | Runs against the live DB |
 | Lint | ESLint 9 (flat config) + `eslint-config-next` 16.3.8 | 9.39.5 | No Prettier, no EditorConfig |
 | Hosting | Vercel | | No `vercel.json`, so cron schedules are configured outside the repo |
@@ -110,7 +112,8 @@ A single account can hold several roles (traveler + organizer + transporter) and
 | `npm run build` | Production build and TypeScript type-check. **Must pass before you finish** |
 | `npm run start` | Serve the production build |
 | `npm run lint` | `eslint` (flat config `eslint.config.mjs`) |
-| `npm run test:qa` | `npx tsx scripts/qa-smoke-test.ts`: env, table, role, overbooking, audit, and soft-delete checks against the **live** DB. **Must pass before you finish** |
+| `npm run test:qa` | `npx tsx scripts/qa-smoke-test.ts`: env, table, role, overbooking, audit, and soft-delete checks against the **live** DB (read-only). **Must pass before you finish** |
+| `npm run test:rls` | `node --test supabase/tests/rls/*.test.mjs`: replays all migrations in PGlite and runs every RLS attack/legit-flow case as each role. `RLS_BASELINE=1` runs it without the newest hardening migration |
 | `npm run test:e2e` | `playwright test`. Starts `npm run dev` itself (`reuseExistingServer: true`) |
 | `npm run test:e2e:ui` | Playwright UI mode |
 | `npx tsc --noEmit` | Standalone type-check (there is no npm script for it) |
@@ -194,6 +197,7 @@ travi/
 │   ├── utils.ts             # cn(): clsx + tailwind-merge
 ├── types/supabase.ts        # Generated DB types. ⚠ STALE (see §4.7). Regenerate; never hand-edit
 ├── supabase/migrations/     # YYYYMMDDHHMMSS_snake_case.sql. Append-only
+├── supabase/tests/rls/      # RLS harness (harness.mjs), tests (*.test.mjs), live-policy-audit.sql (read-only drift check)
 ├── e2e/                     # Playwright specs (unauthenticated flows only)
 ├── scripts/                 # Seed, fix, and QA scripts (ESLint-ignored). qa-smoke-test.ts is the QA gate (read-only).
 │                            # Scripts that write call scripts/lib/write-guard.cjs: run with CONFIRM_DB_WRITE=<project-ref>
@@ -352,8 +356,13 @@ export async function doThing(input: unknown) {
 - **Never edit an applied migration.** Never reuse a timestamp; `20260831000000` is already duplicated (§6).
 - Use `IF NOT EXISTS` / `IF EXISTS` and `DO $$ … $$` guards. The migration chain does **not** replay on a fresh DB (§4.7), so migrations must be safe against the live schema.
 - **Enable RLS on every new table, with explicit policies.**
-  - Owner check: `… IN (SELECT id FROM public.user_profiles WHERE user_id = auth.uid())`.
+  - Owner check: prefer the definer helpers `public.current_user_profile_id()`, `current_organizer_profile_id()`, `current_transporter_profile_id()` (older policies inline `… IN (SELECT id FROM public.user_profiles WHERE user_id = auth.uid())`).
   - Admin check: the `EXISTS (… user_roles … website_roles … role = 'admin')` pattern.
+  - **Never give end users INSERT/UPDATE on status, price, balance, rating, verification or ownership columns.** Protect them with `guard_readonly_columns('col', …)` (BEFORE UPDATE) and a `*_before_insert` trigger that sets server values when `public.is_end_user_request()` (see `20261023090000_rls_hardening.sql`). Service-role writes are unaffected.
+  - Roles are never inserted by users: use the `assign_self_role(role, website_id)` RPC (refuses `admin`).
+  - Trigger functions that must write tables the caller cannot (seat counts, booking refs) are `SECURITY DEFINER SET search_path = public, pg_temp`.
+  - **Every policy/trigger change needs a case in `supabase/tests/rls/rls.test.mjs`** (attack + legitimate flow), and `npm run test:rls` must pass.
+  - Before applying RLS migrations to a real project, run `supabase/tests/rls/live-policy-audit.sql` there (read-only) to catch policies created outside migrations.
 - **After a schema change, regenerate `types/supabase.ts`,** then update §4 of this file.
 - **Text statuses are CHECK constraints, not enums.** Add values via a migration that drops and recreates the CHECK.
 
@@ -443,8 +452,9 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
                completed  (escrow → available for the organizer)
 ```
 
+- **Booking inserts are validated and priced by the DB** for end users (`bookings_before_insert` → `booking_quote()`): the schedule must be `open`, not deleted, starting after today (Asia/Manila), on a `published` tour; `total_amount`, `status = 'pending'`, `dispute_status = 'none'` are set by the server. Travelers have **no UPDATE** on bookings; every status change goes through server code (service role).
 - **Seat accounting lives in the DB:**
-  - Trigger `update_tour_schedule_booked_count` counts bookings in `pending | confirmed | completed`.
+  - Trigger `update_tour_schedule_booked_count` (SECURITY DEFINER) counts bookings in `pending | confirmed | completed`. End users cannot change `booked_count`.
   - A **`private`-format** booking consumes the schedule's **whole capacity**.
   - CHECK `check_capacity_not_exceeded (booked_count <= capacity)` makes overbooking impossible.
   - The service pre-checks `capacity - booked_count` for a friendly error, but **the DB constraint is the real guard. Never remove or bypass it.**
@@ -520,10 +530,12 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
     - `self_provided` → `self_provided`
     - `external_transporter` → `unresolved`, or `pending` once a `transport_bookings` request is created.
   - ⚠ There is no app-layer auth here (it relies on RLS). Add `requireSession` + `assertRole` when you touch this file.
-- **Transport requests:**
+- **Transport requests** (enforced in the DB by `transport_bookings_before_write`, not just the actions):
+  - Organizers insert requests only for their own schedule with a vehicle that belongs to the named transporter; the DB forces `status = 'pending'`, `estimated_price = NULL`. Organizers may edit a `pending` request and cancel (`pending|accepted → canceled`), never accept.
+  - Transporters may only change `status`: `pending → accepted|declined`, `accepted → completed`. Nobody but the service role sets `estimated_price`.
   - Only the owning transporter can act, and only on `pending`.
-  - **Accept** → `accepted`. Inserts `vehicle_availability {status: 'booked', transport_booking_id}`, sets schedule `transport_status: 'confirmed'`, notifies the organizer, and writes an audit row.
-  - **Decline** → `declined`, and sets schedule `transport_status: 'unresolved'`.
+  - **Accept** → `accepted`. Inserts `vehicle_availability {status: 'booked', transport_booking_id}`, sets schedule `transport_status: 'confirmed'` (service role: transporters cannot update schedules), notifies the organizer, and writes an audit row.
+  - **Decline** → `declined`, and sets schedule `transport_status: 'unresolved'` (service role).
 - **Vehicles:**
   - Default `active`; toggle between `active` and `inactive`; delete is soft.
   - `getAvailableVehicles` excludes vehicles with **any** overlapping `vehicle_availability` row.
@@ -531,7 +543,7 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
   - `blockVehicleDates` rejects `start > end` and any overlap.
   - `removeAvailabilityBlock` refuses `booked` rows (a booked row must be released through the transport booking).
 - **Reviews:**
-  - A review must target a `tour_id` or a `transporter_id` (`reviews_target_check`). Rating is 1–5. Default status is `pending`.
+  - A review must target a `tour_id` or a `transporter_id` (`reviews_target_check`). Rating is 1–5. Default status is `pending`; end users can only insert `pending` reviews for themselves (RLS).
   - **Only `published` reviews are public.**
   - Admin moderation: `hideReview` (used by the UI) and `moderateReview` (`hide | publish | delete` → soft delete).
   - There is no review-creation action yet. When you build it, enforce "traveler with a `completed` booking on that tour", one review per booking.
@@ -539,10 +551,10 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
 ### 4.6 Accounts, roles, onboarding, notifications, OTP
 
 - **Signup:**
-  - Supabase Auth `signUp` → insert `user_profiles` → insert `user_roles` for the chosen role (`traveler | organizer | transporter`; requires `WEBSITE_ID`).
+  - Supabase Auth `signUp` → insert `user_profiles` (the DB takes `email` from the auth account and clears verification stamps) → `assign_self_role` RPC for the chosen role (`traveler | organizer | transporter`; requires `WEBSITE_ID`).
   - Password min 6 at signup; min 8 when changing it.
 - **Role switching:**
-  - `addAccountType(role)` adds a role row.
+  - `addAccountType(role)` adds a role via the `assign_self_role` RPC.
   - `RoleSwitcher` links to `/dashboard/<role>`.
   - The **primary role** is `traveler` if the user has it, else the first role.
 - **Onboarding:** the `organizer/` and `transporter/` dashboard **server layouts** render the onboarding form until a `*_profiles` row exists. Profiles are currently auto-`approved`; the admin approve/reject flows still exist.
@@ -568,11 +580,12 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
   - Missing: `payout_otps`; `user_profiles.phone`, `email_verified_at`, `phone_verified_at`; `user_wallets.saved_payout_methods`; `wallet_transactions.fee_amount`; `bookings.dispute_status`; the new `platform_settings` columns; enum values `escrow_deposit` and `penalty`; `increment_available_balance`.
   - Still lists the dropped `release_tour_escrow`.
   - **Regenerate before relying on it.**
-- **Columns used by the code but missing from the migrations** (they exist only in the live DB): `bookings.paymongo_session_id`, `tours.latitude`, `tours.longitude`. Add them with `ADD COLUMN IF NOT EXISTS` in the next migration that touches those tables.
-- **The migrations cannot rebuild a fresh DB:**
+- **Columns that existed only in the live DB** (`bookings.paymongo_session_id`, `tours.latitude`, `tours.longitude`) are now added by `20261023090000_rls_hardening.sql` (`ADD COLUMN IF NOT EXISTS`). `types/supabase.ts` still needs regenerating.
+- **The migrations cannot rebuild a fresh Supabase DB on their own:**
   - `websites` (and `pages`, `templates`, …) are never created.
-  - Legacy migration 017 references tables created later.
-  - `uuid_generate_v4()` requires `uuid-ossp`.
+  - Legacy migration 017 references tables created later (in the live DB it ran after `20260826164500`).
+  - `uuid_generate_v4()` requires `uuid-ossp`; the expiry migration needs `pg_cron`.
+  - The RLS harness (`supabase/tests/rls/harness.mjs`) works around all four with stubs and a reordered 017, so the full chain replays there.
 - **`docs/DATABASE.md` is wrong in places; the migrations win:**
   - It says `profiles`; the table is `user_profiles`.
   - Its RLS examples are wrong.
@@ -619,7 +632,7 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
 | 1. Middleware | `/admin/*` requires `admin` (else → `/admin/login`). `/dashboard/*` requires a user with a role; admins → `/admin`; a role mismatch → the primary role's dashboard. `/login` bounces signed-in users | Roles come from `user_roles ⋈ website_roles` filtered by `WEBSITE_ID`. **`/api/*` is NOT gated by middleware** |
 | 2. Page / layout | Admin pages: `requireSession()` + `assertRole(user.id, 'admin')` | ⚠ `admin/bookings`, `admin/tours`, `admin/transporters` skip this. Add it when you touch them |
 | 3. Server Action / route | `assertRole(user.id, role)` (**admin passes every role check**) or `assertApiRole()` (no admin bypass), **plus an ownership check on the row** | Ownership is enforced with `.eq('organizer_id', …)`, `.eq('transporter_id', …)`, or `!inner` joins |
-| 4. Postgres RLS | Owner policies via the `user_profiles.user_id = auth.uid()` subquery; inline admin `EXISTS` checks; `is_organizer_for_traveler()` (the only SECURITY DEFINER helper) | RLS is the last line of defense, **not** the only one |
+| 4. Postgres RLS | Owner policies (definer helpers `current_*_profile_id()` or the `user_profiles.user_id = auth.uid()` subquery); inline admin `EXISTS` checks; `is_organizer_for_traveler()`. Server-owned columns guarded by triggers; `assign_self_role`/`booking_quote` RPCs. Anonymous users get column-limited SELECT on partner/vehicle tables. Tested by `npm run test:rls` | RLS is the last line of defense, **not** the only one |
 
 Permissions matrix (intended):
 
@@ -659,7 +672,7 @@ Record the reason in a one-line comment at the call site.
 - **Queries:** use the Supabase query builder only. Never build SQL strings, and never interpolate user input into `.or()` / `.filter()` strings without escaping.
 - **Rendering:** React escapes by default. **Never use `dangerouslySetInnerHTML`** except for JSON-LD from `JSON.stringify` of server data. Render markdown with `react-markdown` (no raw HTML plugin).
 - **Email HTML templates:** escape user-provided strings such as names, tour titles, and review text.
-- **Uploads:** bucket `tour-images`. Restrict to image MIME types and sizes on the client and in storage policy.
+- **Uploads:** bucket `tour-images` accepts JPEG/PNG/WebP/AVIF up to 10 MB (bucket config), and users may only upload to `<auth.uid()>/<file>` (storage policy). Client code must use that path.
 
 ### 5.5 Secrets & environment variables
 
@@ -723,7 +736,7 @@ These are verified against the code on 2026-10-16. **Do not copy these patterns.
 
 ### Critical (security / money)
 
-2. **Privilege escalation via RLS.** The `user_roles` INSERT policy (`20260801000001_legacy_migration_01.sql`) lets a user insert **any** `website_role_id` for themselves, including `admin`. The same class of hole exists for organizers updating their own `organizer_profiles.status`, travelers updating their own `bookings.status`, and any authenticated user inserting `notifications` for anyone.
+2. **RLS hardening migration not yet applied to the live DB.** `20261023090000_rls_hardening.sql` closes self-granted admin, booking/payout/transport/review/notification forgery and status self-edits (all verified by `npm run test:rls`), but until it is pushed (after `live-policy-audit.sql`) the live project still has those holes. Remaining after it: **signed-in** users can still read partner phone numbers and addresses, vehicle plates and other travelers' full profile rows for their bookings (SEC-13; anon is now column-limited).
 3. **The PayMongo webhook has no signature verification** (`app/api/webhooks/paymongo/route.ts`), and `PAYMONGO_WEBHOOK_SECRET` is unused.
 6. **Ledger type split.**
    - The success page writes `escrow_deposit`; the webhook writes `payment_hold`.

@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test:qa": "npx tsx scripts/qa-smoke-test.ts",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:rls": "node --test supabase/tests/rls/*.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -62,6 +63,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.3.16",
     "@faker-js/faker": "^10.6.0",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",

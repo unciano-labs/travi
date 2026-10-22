@@ -417,6 +417,29 @@ Also fixed: the outdated landing e2e spec (`e2e/landing-page.spec.ts`). QA gate:
 
 **Exit criteria:** the RLS test suite passes and every hole in §4.2 rows SEC-01…05, 13, 14, 17 has a failing-before/passing-after test.
 
+#### Phase 1 status (2026-10-23, branch `fix/phase-1-rls`, stacked on `fix/phase-0-hardening`)
+
+Migration `supabase/migrations/20261023090000_rls_hardening.sql`, **written and tested locally, not yet applied**. `npm run test:rls` replays all 35 migrations in PGlite and runs 38 cases as each role. Against the pre-Phase-1 schema (`RLS_BASELINE=1`), 24 attacks succeed. With the migration, all 38 cases pass, and applying it twice is a no-op.
+
+| Task | Status | Notes |
+|---|---|---|
+| 1.1 Roles | ✅ | Self-insert policy dropped; `assign_self_role()` RPC (refuses `admin`); signup and `addAccountType` use it |
+| 1.2 Bookings | ✅ | Traveler UPDATE removed; inserts priced and validated by `booking_quote()` (open, future in Manila time, published, not deleted). **Also fixed a hidden defect:** the seat-count trigger ran with the traveler's rights and silently did nothing, so overbooking protection never fired for real bookings; it is now `SECURITY DEFINER` |
+| 1.3 Transport bookings | ✅ | `FOR ALL` policies replaced; trigger enforces party roles, status transitions, server-only price, schedule/vehicle ownership. Accept/decline schedule updates moved to the service role (they were silent no-ops) |
+| 1.4 Payouts & wallets | ✅ | User payout INSERT dropped; balance RPCs service-role only; non-negative balance CHECK (`NOT VALID`); unique ledger index (skipped with a notice if historical duplicates exist) |
+| 1.5 Profiles & status columns | ✅ | Guard triggers on partner status/ratings, profile email/phone/verification, `booked_count`, tour owner/slug; reviews insert `pending` only; notification inserts server-only, users can only mark read; no hard DELETE on tours/schedules; bookings FKs `RESTRICT`; `rejectOrganizer` fixed |
+| 1.6 PII exposure | 🟡 Partial | Anonymous role gets column-limited SELECT (no phones, addresses, plates, availability notes). **Signed-in users** can still read partner contact columns and their travelers' full profiles (needs views + app query changes; moved to Phase 3) |
+| 1.7 Storage | ✅ | Image MIME types, 10 MB limit, upload only to `<uid>/…`; TourForm/VehicleModal updated |
+| 1.8 Function hygiene | ✅ | `search_path` pinned on definer functions |
+| 1.9 RLS test suite | ✅ | `supabase/tests/rls/` (`npm run test:rls`); ready for CI (Phase 5) |
+| 1.10 Types & missing columns | 🟡 Partial | `paymongo_session_id`, `latitude`, `longitude` added. **Types regeneration needs project access** |
+
+**To apply (human):**
+1. Run `supabase/tests/rls/live-policy-audit.sql` on staging (read-only) and drop any unexpected policy.
+2. Apply with `supabase db push` on staging and smoke-test signup, booking, upload, transport accept and admin reject.
+3. Repeat on production.
+4. Regenerate `types/supabase.ts`.
+
 ---
 
 ### Phase 2: Payments, ledger and payouts (≈2 weeks)
