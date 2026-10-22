@@ -1,16 +1,16 @@
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
+import { env } from '@/lib/env';
 import { captureException } from '@/lib/logger';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
 function getPublicSupabase() {
-  return createClient(supabaseUrl, supabaseAnonKey);
+  return createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 /**
- * Cached reviews fetcher with 'reviews' tag.
+ * Latest 50 published, non-deleted reviews of a tour (tour detail page). Cached with the 'reviews' tag.
  */
 export const getCachedTourReviews = unstable_cache(
   async (tourId: string) => {
@@ -33,7 +33,8 @@ export const getCachedTourReviews = unstable_cache(
         .eq('tour_id', tourId)
         .eq('status', 'published')
         .is('deleted_at', null)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (error) {
         captureException(error, { action: 'getCachedTourReviews', tourId });
@@ -41,7 +42,7 @@ export const getCachedTourReviews = unstable_cache(
       }
 
       return data || [];
-    } catch (err: any) {
+    } catch (err: unknown) {
       captureException(err, { action: 'getCachedTourReviews exception', tourId });
       return [];
     }

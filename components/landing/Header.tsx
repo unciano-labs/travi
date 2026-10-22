@@ -1,9 +1,23 @@
 "use client";
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Menu, X, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
 
+// Section links point at the landing page ("/#id") so they also work from /tours and tour pages.
+// `section` drives the scroll-spy highlight on the landing page.
+const NAV_LINKS = [
+  { name: "Home", href: "/", section: "home" },
+  { name: "Tours", href: "/tours", section: "tours" },
+  { name: "Destinations", href: "/#destinations", section: "destinations" },
+  { name: "How It Works", href: "/#how", section: "how" },
+  { name: "For Partners", href: "/#organizers", section: "organizers" },
+  { name: "Contact", href: "/contact", section: null },
+] as const;
+
 export default function Header() {
+  const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeHash, setActiveHash] = useState("#home");
@@ -24,8 +38,8 @@ export default function Header() {
   useEffect(() => {
     const onScroll = () => {
       setScrolled(window.scrollY > 40);
-      
-      const sections = ['home', 'tours', 'destinations', 'how', 'organizers', 'contact'];
+
+      const sections = ['home', 'tours', 'destinations', 'how', 'organizers'];
       let current = "#home";
       for (const id of sections) {
         const el = document.getElementById(id);
@@ -45,36 +59,35 @@ export default function Header() {
       <header className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${scrolled ? 'bg-white/95 backdrop-blur-md shadow-sm' : 'bg-transparent'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 lg:h-20">
-            <a href="#home" className="flex items-center gap-2.5">
+            <Link href="/" className="flex items-center gap-2.5">
               <svg viewBox="0 0 32 32" fill="none" className="w-8 h-8" aria-hidden="true">
                 <circle cx="16" cy="16" r="15" fill="#0EA5E9" opacity=".15"/>
                 <path d="M16 4C10 4 6 8.5 6 14c0 6 5 11 10 14 5-3 10-8 10-14C26 8.5 22 4 16 4z" fill="#0EA5E9"/>
                 <path d="M16 10c-3 0-5 2-5 5s2 5 5 5 5-2 5-5-2-5-5-5z" fill="white" opacity=".9"/>
               </svg>
               <span className={`text-xl font-extrabold tracking-tight ${scrolled ? 'text-brand-navy' : 'text-white'}`}>Travi</span>
-            </a>
-            
+            </Link>
+
             <nav className="hidden lg:flex items-center gap-8 text-sm font-semibold">
-              {[
-                { name: 'Home', href: '#home' },
-                { name: 'Tours', href: '#tours' },
-                { name: 'Destinations', href: '#destinations' },
-                { name: 'How It Works', href: '#how' },
-                { name: 'For Partners', href: '#organizers' },
-                { name: 'Contact', href: '#contact' }
-              ].map((link) => (
-                <a
-                  key={link.name}
-                  href={link.href}
-                  className={`transition-colors ${
-                    activeHash === link.href 
-                      ? (scrolled ? 'text-brand-dark border-b-2 border-brand-dark pb-1' : 'text-sky-300 border-b-2 border-sky-300 pb-1') 
-                      : (scrolled ? 'text-slate-600 hover:text-brand-dark' : 'text-slate-200 hover:text-sky-300')
-                  }`}
-                >
-                  {link.name}
-                </a>
-              ))}
+              {NAV_LINKS.map((link) => {
+                const active = pathname === '/'
+                  ? link.section !== null && activeHash === `#${link.section}`
+                  : link.href !== '/' && !link.href.startsWith('/#') && pathname.startsWith(link.href);
+                return (
+                  <Link
+                    key={link.name}
+                    href={link.href}
+                    aria-current={active ? 'page' : undefined}
+                    className={`transition-colors ${
+                      active
+                        ? (scrolled ? 'text-brand-dark border-b-2 border-brand-dark pb-1' : 'text-sky-300 border-b-2 border-sky-300 pb-1')
+                        : (scrolled ? 'text-slate-600 hover:text-brand-dark' : 'text-slate-200 hover:text-sky-300')
+                    }`}
+                  >
+                    {link.name}
+                  </Link>
+                );
+              })}
             </nav>
 
             <div className="hidden lg:flex items-center gap-3">
@@ -94,9 +107,11 @@ export default function Header() {
               )}
             </div>
 
-            <button 
+            <button
               className={`lg:hidden p-2 rounded-lg ${scrolled ? 'text-slate-800' : 'text-white'}`}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileMenuOpen}
             >
               {mobileMenuOpen ? <X /> : <Menu />}
             </button>
@@ -107,19 +122,16 @@ export default function Header() {
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-40 bg-white pt-20 px-4 pb-6">
           <nav className="grid gap-2 text-sm font-semibold text-slate-700">
-            {['Home', 'Tours', 'Destinations', 'How It Works', 'For Partners', 'Contact'].map((name) => {
-              const href = `#${name.toLowerCase().replace(/ /g, '') === 'forpartners' ? 'organizers' : name.toLowerCase().replace(/ /g, '')}`;
-              return (
-                <a 
-                  key={name} 
-                  href={href} 
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="px-3 py-3 rounded-lg hover:bg-sky-50 hover:text-brand-dark"
-                >
-                  {name}
-                </a>
-              );
-            })}
+            {NAV_LINKS.map((link) => (
+              <Link
+                key={link.name}
+                href={link.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className="px-3 py-3 rounded-lg hover:bg-sky-50 hover:text-brand-dark"
+              >
+                {link.name}
+              </Link>
+            ))}
             <div className="border-t border-slate-100 my-1"></div>
             {user ? (
               <a href="/dashboard" className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-sky-50 text-brand-dark">
