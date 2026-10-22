@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { unstable_rethrow } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/auth-helpers';
 import { captureException } from '@/lib/logger';
@@ -160,6 +161,9 @@ export async function getTransporterReviews() {
 
     if (!transporter) return { reviews: [], averageRating: 0, reviewCount: 0 };
 
+    // Published, non-deleted reviews only: the same set the rating trigger aggregates
+    // (supabase/migrations/20261024120000_reviews_eligibility_and_ratings.sql). reviews has no
+    // vehicle relation, so none is joined.
     const { data: reviews, error } = await supabase
       .from('reviews')
       .select(`
@@ -167,23 +171,20 @@ export async function getTransporterReviews() {
         rating,
         comment,
         created_at,
-        reviewer:user_profiles (
+        reviewer:user_profiles!reviews_reviewer_profile_id_fkey (
           id,
           full_name,
           avatar_url
-        ),
-        vehicle:vehicles (
-          name,
-          vehicle_type
         )
       `)
       .eq('transporter_id', transporter.id)
+      .eq('status', 'published')
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     if (error) {
       captureException(error, { action: 'getTransporterReviews', transporterId: transporter.id });
-      return { reviews: [], averageRating: transporter.average_rating || 0, reviewCount: transporter.review_count || 0 };
+      return { reviews: [], averageRating: Number(transporter.average_rating) || 0, reviewCount: transporter.review_count || 0 };
     }
 
     return {
@@ -191,7 +192,9 @@ export async function getTransporterReviews() {
       averageRating: Number(transporter.average_rating) || 0,
       reviewCount: transporter.review_count || 0,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    // Let Next's redirect/notFound/dynamic-rendering signals through (AGENTS.md §3.3, §6 #24).
+    unstable_rethrow(err);
     captureException(err, { action: 'getTransporterReviews exception' });
     return { reviews: [], averageRating: 0, reviewCount: 0 };
   }

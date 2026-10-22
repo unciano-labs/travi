@@ -1,4 +1,4 @@
-import { Star, MessageSquare, Bus } from 'lucide-react';
+import { Star, MessageSquare } from 'lucide-react';
 import { getTransporterReviews } from '@/actions/transporter';
 import Image from 'next/image';
 import PageHeader from '@/components/ui/PageHeader';
@@ -6,12 +6,24 @@ import CardBox from '@/components/ui/CardBox';
 import EmptyState from '@/components/ui/EmptyState';
 import { Progress } from '@/components/ui/progress';
 
+type TransporterReview = {
+  id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+  reviewer: { full_name: string | null; avatar_url: string | null } | null;
+};
+
 export default async function TransporterReviewsPage() {
-  const { reviews, averageRating, reviewCount } = await getTransporterReviews();
+  const result = await getTransporterReviews();
+  const { averageRating, reviewCount } = result;
+  // Many-to-one embed: PostgREST returns an object, the untyped client infers an array.
+  const reviews = result.reviews as unknown as TransporterReview[];
+  const hasRatings = reviewCount > 0;
 
   // Compute breakdown
   const ratingCounts: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-  reviews.forEach((r: any) => {
+  reviews.forEach((r) => {
     if (r.rating >= 1 && r.rating <= 5) {
       ratingCounts[r.rating] = (ratingCounts[r.rating] || 0) + 1;
     }
@@ -28,37 +40,47 @@ export default async function TransporterReviewsPage() {
       <div className="grid grid-cols-12 gap-6">
         {/* Ratings Overview Card */}
         <CardBox className="col-span-12 items-center justify-center gap-3 text-center md:col-span-4">
-          <div className="text-5xl font-semibold text-foreground">
-            {averageRating > 0 ? averageRating.toFixed(1) : '5.0'}
-          </div>
-          <div className="flex gap-1">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <Star
-                key={star}
-                className={`size-6 ${
-                  star <= Math.round(averageRating || 5)
-                    ? 'fill-warning text-warning'
-                    : 'fill-muted text-border'
-                }`}
-              />
-            ))}
-          </div>
-          <p className="text-xs font-semibold text-muted-foreground">
-            Based on {reviewCount} customer review{reviewCount === 1 ? '' : 's'}
-          </p>
+          {hasRatings ? (
+            <>
+              <div className="text-5xl font-semibold text-foreground">{averageRating.toFixed(1)}</div>
+              <div className="flex gap-1" role="img" aria-label={`Average rating ${averageRating.toFixed(1)} out of 5`}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    aria-hidden="true"
+                    className={`size-6 ${
+                      star <= Math.round(averageRating)
+                        ? 'fill-warning text-warning'
+                        : 'fill-muted text-border'
+                    }`}
+                  />
+                ))}
+              </div>
+              <p className="text-xs font-semibold text-muted-foreground">
+                Based on {reviewCount} published review{reviewCount === 1 ? '' : 's'}
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="text-2xl font-semibold text-foreground">No ratings yet</div>
+              <p className="text-xs font-semibold text-muted-foreground">
+                Your average appears here once your first review is published.
+              </p>
+            </>
+          )}
         </CardBox>
 
         {/* Rating Breakdown Bars */}
         <CardBox className="col-span-12 justify-center gap-3 md:col-span-8">
           {[5, 4, 3, 2, 1].map((stars) => {
             const count = ratingCounts[stars] || 0;
-            const percentage = reviewCount > 0 ? Math.round((count / reviewCount) * 100) : stars === 5 ? 100 : 0;
+            const percentage = reviews.length > 0 ? Math.round((count / reviews.length) * 100) : 0;
 
             return (
               <div key={stars} className="flex items-center gap-3 text-xs">
                 <div className="flex w-14 items-center gap-1 font-semibold text-bodytext">
                   <span>{stars}</span>
-                  <Star className="size-3.5 fill-warning text-warning" />
+                  <Star className="size-3.5 fill-warning text-warning" aria-hidden="true" />
                 </div>
                 <Progress value={percentage} variant="warning" className="h-2.5 flex-1" aria-label={`${stars} star reviews`} />
                 <span className="w-10 text-right font-medium text-muted-foreground">
@@ -83,7 +105,7 @@ export default async function TransporterReviewsPage() {
             </CardBox>
           ) : (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              {reviews.map((r: any) => {
+              {reviews.map((r) => {
                 const reviewerName = r.reviewer?.full_name || 'Verified Traveler';
                 const avatar = r.reviewer?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(reviewerName)}&background=5d87ff&color=fff`;
 
@@ -111,10 +133,11 @@ export default async function TransporterReviewsPage() {
                           </div>
                         </div>
 
-                        <div className="flex gap-0.5" aria-label={`${r.rating} out of 5 stars`}>
+                        <div className="flex gap-0.5" role="img" aria-label={`${r.rating} out of 5 stars`}>
                           {[1, 2, 3, 4, 5].map((star) => (
                             <Star
                               key={star}
+                              aria-hidden="true"
                               className={`size-4 ${
                                 star <= r.rating
                                   ? 'fill-warning text-warning'
@@ -125,17 +148,12 @@ export default async function TransporterReviewsPage() {
                         </div>
                       </div>
 
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-bodytext">
-                        &ldquo;{r.comment || 'Smooth, on-time, and comfortable ride. Highly recommended!'}&rdquo;
-                      </p>
+                      {r.comment ? (
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-bodytext">&ldquo;{r.comment}&rdquo;</p>
+                      ) : (
+                        <p className="text-sm italic text-muted-foreground">Rating only, no written comment.</p>
+                      )}
                     </div>
-
-                    {r.vehicle?.name && (
-                      <div className="flex items-center gap-1.5 border-t border-border pt-3 text-xs text-muted-foreground">
-                        <Bus className="size-3.5" />
-                        <span>Vehicle: <strong className="text-foreground">{r.vehicle.name}</strong></span>
-                      </div>
-                    )}
                   </CardBox>
                 );
               })}
