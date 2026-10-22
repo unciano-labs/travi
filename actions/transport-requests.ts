@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireSession } from '@/lib/auth-helpers';
 import { captureException } from '@/lib/logger';
 import { logAdminAudit } from '@/lib/audit';
-import { notifyOrganizerOfStatusChange } from './notifications';
+import { notifyOrganizerOfStatusChange } from '@/lib/notifications';
 
 async function getTransporterSession() {
   const { user, profile, supabase } = await requireSession();

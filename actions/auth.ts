@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { requireSession } from '@/lib/auth-helpers';
 import { assertRateLimit, getClientIp } from '@/lib/ratelimit';
 import { captureException } from '@/lib/logger';
-import { notifySuperAdmin } from './notifications';
+import { notifySuperAdmin } from '@/lib/notifications';
 
 import { loginSchema, signupSchema, addAccountTypeSchema } from '@/lib/schemas/auth';
 

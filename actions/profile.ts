@@ -4,7 +4,7 @@ import { requireSession } from '@/lib/auth-helpers';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { captureException } from '@/lib/logger';
-import { sendOtp, verifyOtp, requireVerifiedOtp, consumeVerifiedOtp } from '@/actions/otp';
+import { sendOtp, verifyOtp, requireVerifiedOtp, consumeVerifiedOtp } from '@/lib/otp';
 
 // ─── Update Profile Name ───
 export async function updateProfileName(fullName: string) {

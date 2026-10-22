@@ -12,7 +12,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 > **Single source of truth and operating manual for every AI agent working in this repo.**
 > If anything in `docs/`, `README.md`, or `.agents/skills/*` contradicts this file, **this file wins**. If this file contradicts the code or `supabase/migrations/`, **the code wins**: fix this file.
-> **Last updated:** 2026-10-22
+> **Last updated:** 2026-10-22 (Phase 0 hardening)
 
 ---
 
@@ -76,7 +76,7 @@ A single account can hold several roles (traveler + organizer + transporter) and
 
 | Concern | Technology | Version | Notes |
 |---|---|---|---|
-| Framework | Next.js (App Router, Turbopack) | **16.3.2** | Not Next 14. Read `node_modules/next/dist/docs/` before using framework APIs |
+| Framework | Next.js (App Router, Turbopack) | **16.3.8** | Not Next 14. Read `node_modules/next/dist/docs/` before using framework APIs |
 | UI runtime | React / React DOM | **19.2.8** | |
 | Language | TypeScript | 5.9.3 | `strict: true`; path alias `@/*` → `./*` |
 | Styling | Tailwind CSS v4 (`@tailwindcss/postcss`) + `@tailwindcss/typography` + `tw-animate-css` | 4.3.3 / 1.4.0 | CSS-first config in `app/globals.css`; **no `tailwind.config.*`**. `tw-animate-css` powers the `data-[state]` animations of the UI primitives |
@@ -97,7 +97,7 @@ A single account can hold several roles (traveler + organizer + transporter) and
 | State management | **None.** RSC props plus local `useState` | | `@tanstack/react-query`, `react-hook-form`, `@hookform/resolvers` are installed but **never imported** |
 | E2E tests | Playwright (`@playwright/test`) | 1.62.1 | Chromium only |
 | Smoke / QA tests | `scripts/qa-smoke-test.ts` run with `tsx` | | Runs against the live DB |
-| Lint | ESLint 9 (flat config) + `eslint-config-next` 16.3.2 | 9.39.5 | No Prettier, no EditorConfig |
+| Lint | ESLint 9 (flat config) + `eslint-config-next` 16.3.8 | 9.39.5 | No Prettier, no EditorConfig |
 | Hosting | Vercel | | No `vercel.json`, so cron schedules are configured outside the repo |
 | Local toolchain | Node v24.15.0, npm 11.12.1 (the lockfile is npm) | | `package.json` has no `engines` field |
 
@@ -157,7 +157,7 @@ travi/
 │   │   ├── organizer/       # layout.tsx (server: onboarding gate), tours (new, [id]/edit, [id]/schedules/[scheduleId]), bookings, wallet, profile
 │   │   └── transporter/     # layout.tsx (server: onboarding gate), vehicles, availability, requests, reviews, wallet, profile
 │   ├── admin/               # Admin console: organizers, transporters, tours, bookings, reviews, payouts, notifications, settings, login
-│   ├── api/                 # Route handlers: bookings, tours, organizers, profile (Bearer auth), cron/escrow-release, webhooks/paymongo, test-login (⚠ §6)
+│   ├── api/                 # Route handlers: bookings, tours, organizers, profile (Bearer auth), cron/escrow-release, webhooks/paymongo
 │   ├── robots.ts, sitemap.ts, not-found.tsx, global-error.tsx
 ├── actions/                 # ALL Server Actions. One kebab-case file per domain noun; each starts with 'use server'
 │                            # admin, auth, availability, bookings, notifications, organizer, otp, profile, public,
@@ -180,19 +180,23 @@ travi/
 │   ├── auth-helpers.ts      # requireSession(), assertRole()   ← Server Actions / RSC
 │   ├── api-auth.ts          # verifyApiAuth(), assertApiRole() ← app/api Bearer routes
 │   ├── schemas/             # zod: admin, auth, booking, tour
-│   ├── services/            # bookings.ts, tours.ts: write logic shared by actions and API routes
+│   ├── services/            # bookings.ts, tours.ts, payments.ts (verifyBookingPayment): write logic shared by actions, pages and API routes
 │   ├── data/                # tours.ts, reviews.ts, stats.ts: cached public reads (unstable_cache, tags)
 │   ├── env.ts               # zod-validated env. Import `env`, not process.env
 │   ├── logger.ts            # pino `logger` + captureException() (pino + Sentry)
 │   ├── audit.ts             # logMutation() / logAdminAudit() → admin_audit_logs
 │   ├── ratelimit.ts         # assertRateLimit(id, 'auth' | 'mutation'), getClientIp()
 │   ├── paymongo.ts          # PayMongo REST client (intents, methods, checkout, refunds). Mocks when the key is missing
-│   ├── email.ts, sms.ts     # Resend sender; SMS console mock
+│   ├── email.ts, sms.ts     # Resend sender; SMS console mock (dev only; fails in production)
+│   ├── notifications.ts     # Internal notification senders (in-app + email). Not Server Actions
+│   ├── otp.ts               # OTP issue/verify/require/consume helpers. Not Server Actions
+│   ├── json-ld.ts           # serializeJsonLd(): escapes </script> etc. for JSON-LD
 │   ├── utils.ts             # cn(): clsx + tailwind-merge
 ├── types/supabase.ts        # Generated DB types. ⚠ STALE (see §4.7). Regenerate; never hand-edit
 ├── supabase/migrations/     # YYYYMMDDHHMMSS_snake_case.sql. Append-only
 ├── e2e/                     # Playwright specs (unauthenticated flows only)
-├── scripts/                 # Seed, fix, and QA scripts (ESLint-ignored). qa-smoke-test.ts is the QA gate
+├── scripts/                 # Seed, fix, and QA scripts (ESLint-ignored). qa-smoke-test.ts is the QA gate (read-only).
+│                            # Scripts that write call scripts/lib/write-guard.cjs: run with CONFIRM_DB_WRITE=<project-ref>
 ├── docs/                    # Reference specs (see Quick Links)
 ├── reference/               # HTML mockups + mvp-architecture.md
 ├── public/                  # Static assets. public/dashboard/ holds the template's banner and sidebar illustrations
@@ -268,7 +272,7 @@ export async function doThing(input: unknown) {
   - Legacy actions in `auth.ts`, `organizer.ts`, `transporter.ts`, `schedules.ts` return only `{ error }`. Do not copy that.
 - **`redirect()` goes outside `try/catch`.** It throws `NEXT_REDIRECT`. Use the `let success = false` flag pattern from `actions/tours.ts`.
 - **Every exported function in a `'use server'` file is a publicly callable endpoint.** Every export needs its own auth check.
-  - Internal helpers (notification senders, OTP helpers) belong in `lib/`, not as exports of `actions/*`. See §6 for existing violations.
+  - Internal helpers (notification senders, OTP helpers, payment verification) belong in `lib/`, not as exports of `actions/*`: `lib/notifications.ts`, `lib/otp.ts`, `lib/services/payments.ts`.
 - **Cache tags in use:** `tours`, `organizers`, `transporters`, `reviews`, `platform-stats`.
   - Use `updateTag()` (Next 16, Server-Action-only, read-your-writes) for those tags, plus `revalidatePath()` for the affected dashboard and admin pages.
 
@@ -356,7 +360,7 @@ export async function doThing(input: unknown) {
 ### 3.7 Anti-patterns: NEVER do these in this repo
 
 1. **Never** use `createAdminClient` in a client component or browser code, or without `{ admin: true }`. Never use it where an RLS client would work (§5.3).
-2. **Never** read or define a `NEXT_PUBLIC_`-prefixed secret. Never set `NEXT_PUBLIC_SERVICE_ROLE_KEY`, which is a legacy fallback scheduled for removal.
+2. **Never** read or define a `NEXT_PUBLIC_`-prefixed secret. Never set `NEXT_PUBLIC_SERVICE_ROLE_KEY` (removed from `lib/env.ts`; some legacy `scripts/*` still read it).
 3. **Never** export an unauthenticated function from an `actions/*` file.
 4. **Never** trust client-supplied IDs for ownership: wallet IDs, organizer IDs, prices, amounts, statuses. Re-derive them on the server from the session.
 5. **Never** compute a booking price on the client, or pass `total_amount` from the client. Price is `schedule.price_per_person ?? tour.price_per_person` × seats, on the server.
@@ -459,19 +463,20 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
   - Only on a `confirmed` booking with `dispute_status = 'none'`.
   - Only within `escrow_holding_days` after `end_date`.
   - An open dispute blocks escrow release.
-- **Organizer `updateBookingStatus`:** checks ownership via `tour_schedules!inner(tours!inner(organizer_id))`. It currently has no transition guard and no ledger effects. Add guards if you touch it.
+- **Organizer `updateBookingStatus`:** checks ownership via `tour_schedules!inner(tours!inner(organizer_id))` and allows **only `pending → canceled`** (decline). Organizers cannot confirm bookings; only a verified payment confirms one. Canceling a paid booking must go through the refund flow.
 
 ### 4.4 Payments, fees, escrow & wallets
 
 - **PayMongo flow:**
   1. `/tours/[slug]/booking/[bookingId]/pay` → `PaymentSelectionClient` → `processPayment(bookingId, 'gcash' | 'paymaya')`.
+     - Only the owning traveler, only for a `pending` booking. The return URL is built on the server (`NEXT_PUBLIC_SITE_URL`, else the request host).
      - It creates a PaymentIntent (**centavos**: `Math.round(total_amount * 100)`).
      - It stores `pi_…` in `bookings.paymongo_session_id`, then attaches a PaymentMethod and redirects.
      - Card is disabled in the UI.
-  2. The redirect returns to `/success`, whose RSC calls `verifyPaymentAndUpdateBooking`. It verifies the intent `succeeded` (or the checkout session `paid`), then:
-     - booking → `confirmed`
+  2. The redirect returns to `/success`. The RSC requires the signed-in owner, then calls `verifyBookingPayment(bookingId, profileId)` (`lib/services/payments.ts`, not a Server Action). It verifies the intent `succeeded` (or the checkout session `paid`), then:
+     - booking `pending → confirmed` only (status-guarded update). A paid booking that is no longer `pending` is **not** re-confirmed; it is reported to Sentry for manual follow-up.
      - organizer fee taken
-     - an `escrow_deposit` ledger row, deduplicated by `reference_id` + type
+     - an `escrow_deposit` ledger row, deduplicated by `reference_id` + type ⚠ silently skipped today: wrong wallet id (§6 #7)
      - `increment_escrow_balance`
      - notify the organizer
   3. `POST /api/webhooks/paymongo` handles `payment.paid` / `checkout_session.payment.paid`. It writes a **`payment_hold`** ledger row (see §6: type mismatch, and no signature check).
@@ -660,7 +665,7 @@ Record the reason in a one-line comment at the call site.
   - Some legacy modules still read `process.env` directly: `lib/email.ts`, `lib/data/*`, `actions/otp.ts`, the cron route, `app/robots.ts`, `app/sitemap.ts`.
 - **`.env.local` is the real secrets file.** It is gitignored by `.env*`, and `!.env.example` is the only exception. **Never commit real values, and never print secrets in logs, test output, or chat.**
 - **Only `NEXT_PUBLIC_*` values may reach the browser.** Never prefix a secret with `NEXT_PUBLIC_`.
-- **Never hardcode keys, passwords, or test credentials in source.** `app/api/test-login` violates this (§6).
+- **Never hardcode keys, passwords, or test credentials in source.**
 
 | Variable | Scope | Required | Purpose / behavior if missing |
 |---|---|---|---|
@@ -669,8 +674,9 @@ Record the reason in a one-line comment at the call site.
 | `SUPABASE_SERVICE_ROLE_KEY` | **server secret** | yes (prod) | Service-role client, wallets, notifications, `test:qa` |
 | `WEBSITE_ID` | server | yes | Tenant scope for roles. Unset ⇒ unscoped role checks, and signup gets **no role** |
 | `ADMIN_EMAIL` | server | yes | Super-admin notification target. Unset ⇒ admin notifications are dropped |
-| `SUPABASE_JWT_SECRET` | **server secret** | **yes (prod)** | Signs OTP JWTs. Unset ⇒ a hardcoded fallback secret (insecure) |
-| `CRON_SECRET` | **server secret** | **yes (prod)** | Bearer for `/api/cron/escrow-release`. Unset ⇒ **the endpoint is public** |
+| `APP_ENV` | server | prod | `production` turns on the strict checks in `lib/env.ts` (falls back to Vercel's `VERCEL_ENV`). In production every secret in this table marked "yes (prod)" is **required at startup**, and `PAYMONGO_SECRET_KEY` must be `sk_live_` |
+| `OTP_SECRET` | **server secret** | **yes (prod)** | ≥32 chars. Signs OTP cookies. Must NOT be the Supabase JWT secret. Unset in dev ⇒ random key per server run |
+| `CRON_SECRET` | **server secret** | **yes (prod)** | ≥32 chars. Bearer for `/api/cron/escrow-release`. Unset ⇒ the endpoint **refuses every request** |
 | `PAYMONGO_SECRET_KEY` | **server secret** | **yes (prod)** | PayMongo API. Unset ⇒ **all payment verifications and refunds are mocked as successful** |
 | `PAYMONGO_WEBHOOK_SECRET` | **server secret** | yes (prod) | For webhook signature verification (declared, not yet used) |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | **server secret** | yes (prod) | Rate limiting. Unset ⇒ rate limiting is **disabled** |
@@ -679,7 +685,8 @@ Record the reason in a one-line comment at the call site.
 | `NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_DSN` | public / server | optional | Sentry is off when unset |
 | `LOG_LEVEL` | server | optional | pino level (`info` in prod, `debug` in dev) |
 | `PLAYWRIGHT_TEST_BASE_URL`, `CI` | test | optional | Playwright target and CI mode |
-| `NEXT_PUBLIC_SERVICE_ROLE_KEY` | ⛔ | **never set** | Legacy fallback in `lib/env.ts` and scripts. It would expose the service key to the browser |
+| `NEXT_PUBLIC_SERVICE_ROLE_KEY` | ⛔ | **never set** | Read only by some legacy `scripts/*`. It would expose the service key to the browser |
+| `CONFIRM_DB_WRITE` | scripts | per run | Must equal the Supabase project ref for any write-capable `scripts/*` to run |
 
 ### 5.6 Rate limiting, CORS, webhooks, cron, data protection
 
@@ -712,46 +719,32 @@ These are verified against the code on 2026-10-16. **Do not copy these patterns.
 
 ### Critical (security / money)
 
-1. **`app/api/test-login/route.ts` is ungated in all environments.** It signs in with hardcoded credentials and returns stack traces. Remove it, or gate it to dev only.
 2. **Privilege escalation via RLS.** The `user_roles` INSERT policy (`20260801000001_legacy_migration_01.sql`) lets a user insert **any** `website_role_id` for themselves, including `admin`. The same class of hole exists for organizers updating their own `organizer_profiles.status`, travelers updating their own `bookings.status`, and any authenticated user inserting `notifications` for anyone.
 3. **The PayMongo webhook has no signature verification** (`app/api/webhooks/paymongo/route.ts`), and `PAYMONGO_WEBHOOK_SECRET` is unused.
-4. **The escrow cron is public when `CRON_SECRET` is unset** (`app/api/cron/escrow-release/route.ts`).
-5. **Unauthenticated exported Server Actions:**
-   - `verifyPaymentAndUpdateBooking` (confirms any booking for free in mock mode)
-   - `processPayment` (no ownership or status check)
-   - `createNotification`, `sendEmailNotification`, `notifySuperAdmin`, `notifyOrganizerOfNewBooking`
-   - `requireVerifiedOtp`, `consumeVerifiedOtp`
 6. **Ledger type split.**
    - The success page writes `escrow_deposit`; the webhook writes `payment_hold`.
    - The cron releases only `payment_hold`; cancel and dispute reverse only `escrow_deposit`.
    - Result: bookings confirmed via the success page are never released or completed.
-7. **Wrong wallet owner ID.** `verifyPaymentAndUpdateBooking`, `cancelBookingAsTraveler`, and `resolveDispute` (`actions/bookings.ts`) pass `organizer_profiles.id` to `ensure_user_wallet`, which expects a `user_profiles.id`.
+7. **Wrong wallet owner ID.** `verifyBookingPayment` (`lib/services/payments.ts`), `cancelBookingAsTraveler`, and `resolveDispute` (`actions/bookings.ts`) pass `organizer_profiles.id` to `ensure_user_wallet`, which expects a `user_profiles.id`.
 8. **Non-atomic money operations.**
    - `requestPayout` read-modify-writes `available_balance` (double-spend race).
    - `markPayoutPaid` doesn't check rows affected (replayable).
    - `markPayoutPaid` and `rejectPayout` trust a client-supplied `walletId`.
    - Ledger writes and balance RPCs are not in one transaction.
    - The transport payout can drive an organizer's balance negative.
-9. **Insecure secret fallbacks.**
-   - `SUPABASE_JWT_SECRET` falls back to `'fallback-secret-for-dev-only'` (`actions/otp.ts`).
-   - `NEXT_PUBLIC_SERVICE_ROLE_KEY` is a fallback in `lib/env.ts`.
-   - OTP codes are logged to the console when sending fails.
-   - `verifyOtp` has no attempt limit.
+9. **OTP weaknesses** (`lib/otp.ts`): the code sits in a signed but unencrypted cookie (readable by anyone holding the session), `Math.random` codes, and no attempt limit. Tokens are now bound to the user and carry only fixed claims.
 
 ### High
 
-10. **Late payments are orphaned.** A payment against a booking that has already expired to `canceled` is ignored by both the webhook and the success page.
+10. **Late payments need manual handling.** A payment for a booking that already expired to `canceled` is ignored by the webhook; the success page reports it to Sentry instead of re-confirming. There is no automatic refund yet.
 11. **`updatePlatformSettings` can't save.** It filters `.eq('id', 1)`, but `platform_settings.id` is a uuid, so fee settings never save. It also has no validation and no audit log.
 12. **`verifyApiAuth` doesn't attach the bearer token** to the returned client, so API-route queries run as anon.
 13. **`POST /api/organizers` writes non-existent columns** (`type`, `phone_number`, `provides_transportation`).
 14. **API routes read `ZodError.errors[0]`.** That is zod v3; v4 uses `.issues`, so this throws.
-15. **Missing page-level admin checks** in `app/admin/{bookings,tours}/page.tsx`. They rely on middleware alone, with service-role reads.
 16. **Missing app-layer auth or validation** in `actions/schedules.ts`, `actions/organizer.ts`, `actions/transporter.ts`.
     - Partner profiles auto-approve.
     - The `createTour` action doesn't check organizer approval (the API route does).
-17a. **`/admin/login` pre-fills `admin@travi.ph` / `password` and prints them as a hint** (`app/admin/login/page.tsx`). Violates §3.7 #13; remove before production.
 17b. **Payout minimum mismatch.** `components/dashboard/WalletClient.tsx` hardcodes `MIN_WITHDRAWAL = 500`; the rule (§4.4) is ₱100. Its escrow card says "Released 24h after completion" instead of `escrow_holding_days`.
-17c. **Organizer `updateBookingStatus` can confirm a `pending` booking** from the bookings dialog with no payment check and no ledger rows (see §4.3).
 17e. **The organizer tour edit page lists soft-deleted schedules.** Its `tour_schedules` query (`app/dashboard/organizer/tours/[id]/edit/page.tsx`) has no `.is('deleted_at', null)` (§3.4).
 17d. **The admin settings page reads `platform_settings` with `.eq('id', 1)`** (uuid id), so the form always shows fallback values (`|| 3`). Read-side twin of #11.
 
@@ -767,7 +760,6 @@ These are verified against the code on 2026-10-16. **Do not copy these patterns.
 23a. **Stub forms that persist nothing:** `OrganizerProfileForm` and `TravelerProfileForm` save via a TODO + `setTimeout`; the admin settings "Admin Profile" password form's action is a no-op.
 23b. **Stale client state after mutations:** admin `BookingsClient` doesn't update `bookings` after `resolveDispute` (`setBookings` unused); `ReviewsClient.handleHide` uses a stale closure (`setReviews(reviews.map(...))`). Several status labels use `.replace('_', ' ')`, which only replaces the first underscore.
 23c. **Admin dashboard charts** (`app/admin/page.tsx`) aggregate a 6-month `bookings` select in JS; past PostgREST's row cap (default 1000) they undercount. Move to a SQL aggregate/RPC when volume grows.
-24a. **`e2e/landing-page.spec.ts` test 2 is out of date.** It expects the hero h1 to match `/explore|discover|travel|experience/i`; the current heading (commit `1028fb2`) is "The Philippines, minus the planning stress." Update the spec or the copy.
 24. **Getter actions catch Next's dynamic-rendering bailout.** `getTransporterVehicles`, `getTransporterAvailability`, `getTransporterRequests`, and `getTransporterReviews` catch it and `captureException` it. `npm run build` prints 5 `"level":"error"` "Dynamic server usage" logs, but it still exits 0. The fix is `unstable_rethrow` (§3.3).
 
 ---

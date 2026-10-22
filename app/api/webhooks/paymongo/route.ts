@@ -96,7 +96,7 @@ export async function POST(req: Request) {
     }
 
     // 4. Notify the Organizer
-    const { notifyOrganizerOfNewBooking } = await import('@/actions/notifications');
+    const { notifyOrganizerOfNewBooking } = await import('@/lib/notifications');
     await notifyOrganizerOfNewBooking(booking.id);
 
     return NextResponse.json({ success: true });

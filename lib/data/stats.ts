@@ -10,14 +10,19 @@ function getPublicSupabase() {
 }
 
 export interface MarketplaceStats {
-  travelersCount: number;
   toursCount: number;
   organizersCount: number;
-  satisfactionRate: number;
+  reviewCount: number;
+  // Share of published reviews rated 4+; null until there are reviews to base it on.
+  satisfactionRate: number | null;
 }
+
+const EMPTY_STATS: MarketplaceStats = { toursCount: 0, organizersCount: 0, reviewCount: 0, satisfactionRate: null };
 
 /**
  * Cached platform aggregate stats with 1-hour TTL and 'platform-stats' cache tag.
+ * Only real counts: never fall back to invented numbers (Consumer Act RA 7394; see
+ * docs/MVP_LAUNCH_READINESS.md LEG-07).
  */
 export const getCachedPlatformStats = unstable_cache(
   async (): Promise<MarketplaceStats> => {
@@ -30,29 +35,18 @@ export const getCachedPlatformStats = unstable_cache(
         supabase.from('reviews').select('rating').eq('status', 'published').is('deleted_at', null),
       ]);
 
-      const toursCount = toursRes.count || 85;
-      const organizersCount = orgRes.count || 40;
-
-      let satisfactionRate = 98;
-      if (reviewsRes.data && reviewsRes.data.length > 0) {
-        const positiveReviews = reviewsRes.data.filter((r) => r.rating >= 4).length;
-        satisfactionRate = Math.round((positiveReviews / reviewsRes.data.length) * 100);
-      }
+      const reviews = reviewsRes.data ?? [];
+      const positiveReviews = reviews.filter((r) => r.rating >= 4).length;
 
       return {
-        travelersCount: 1200,
-        toursCount,
-        organizersCount,
-        satisfactionRate,
+        toursCount: toursRes.count ?? 0,
+        organizersCount: orgRes.count ?? 0,
+        reviewCount: reviews.length,
+        satisfactionRate: reviews.length > 0 ? Math.round((positiveReviews / reviews.length) * 100) : null,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       captureException(err, { action: 'getCachedPlatformStats exception' });
-      return {
-        travelersCount: 1200,
-        toursCount: 85,
-        organizersCount: 40,
-        satisfactionRate: 98,
-      };
+      return EMPTY_STATS;
     }
   },
   ['platform-stats-aggregate'],

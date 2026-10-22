@@ -4,18 +4,18 @@ import "./hero.css"; // We extracted the reference CSS here
 import { MapPin, Calendar, Users, Search, Minus, Plus } from "lucide-react";
 
 const DESTS = [
-  { name: "Palawan", tag: "El Nido, Coron & island hopping", tours: 58, price: 49, type: "dest" },
-  { name: "Siargao", tag: "Surf, lagoons & Naked Island", tours: 34, price: 39, type: "dest" },
-  { name: "Boracay", tag: "Sunset sails & white beach", tours: 41, price: 45, type: "dest" },
-  { name: "Cebu", tag: "Canyoneering & whale sharks", tours: 47, price: 55, type: "dest" },
-  { name: "Bohol", tag: "Chocolate Hills & tarsiers", tours: 29, price: 42, type: "dest" },
-  { name: "Sagada", tag: "Cloud seas & cave treks", tours: 18, price: 59, type: "dest" },
-  { name: "Batanes", tag: "Rolling hills & lighthouses", tours: 12, price: 89, type: "dest" },
-  { name: "Vigan", tag: "Heritage streets & calesa", tours: 10, price: 35, type: "dest" },
-  { name: "Island hopping", tag: "Activity · Palawan, Siargao & more", tours: 74, price: 39, type: "act" },
-  { name: "Canyoneering", tag: "Activity · Cebu (Kawasan)", tours: 11, price: 55, type: "act" },
-  { name: "Scuba diving", tag: "Activity · certified & discover", tours: 23, price: 70, type: "act" },
-  { name: "Sunset cruise", tag: "Activity · Boracay & Manila Bay", tours: 16, price: 45, type: "act" }
+  { name: "Palawan", tag: "El Nido, Coron & island hopping", type: "dest" },
+  { name: "Siargao", tag: "Surf, lagoons & Naked Island", type: "dest" },
+  { name: "Boracay", tag: "Sunset sails & white beach", type: "dest" },
+  { name: "Cebu", tag: "Canyoneering & whale sharks", type: "dest" },
+  { name: "Bohol", tag: "Chocolate Hills & tarsiers", type: "dest" },
+  { name: "Sagada", tag: "Cloud seas & cave treks", type: "dest" },
+  { name: "Batanes", tag: "Rolling hills & lighthouses", type: "dest" },
+  { name: "Vigan", tag: "Heritage streets & calesa", type: "dest" },
+  { name: "Island hopping", tag: "Activity · Palawan, Siargao & more", type: "act" },
+  { name: "Canyoneering", tag: "Activity · Cebu (Kawasan)", type: "act" },
+  { name: "Scuba diving", tag: "Activity · certified & discover", type: "act" },
+  { name: "Sunset cruise", tag: "Activity · Boracay & Manila Bay", type: "act" }
 ];
 
 export default function HeroSection() {
@@ -82,27 +82,9 @@ export default function HeroSection() {
             The Philippines, <em>minus the planning stress.</em>
           </h1>
           <p className="sub">
-            Compare and book 400+ tours run by vetted local experts — from Palawan island-hopping
-            to Sagada treks. Best price guaranteed, free cancellation up to 24 hours.
+            Compare and book tours run by local organizers — from Palawan island-hopping
+            to Sagada treks. Pay securely with GCash or Maya.
           </p>
-
-          <div className="flex items-center gap-3 flex-wrap mb-6">
-            <div className="flex items-center">
-              <span className="w-8 h-8 rounded-full border-2 border-[#0A1B2A] flex items-center justify-center text-[10px] font-extrabold text-white bg-blue-500 z-30">JR</span>
-              <span className="w-8 h-8 rounded-full border-2 border-[#0A1B2A] flex items-center justify-center text-[10px] font-extrabold text-white bg-orange-500 -ml-2 z-20">KL</span>
-              <span className="w-8 h-8 rounded-full border-2 border-[#0A1B2A] flex items-center justify-center text-[10px] font-extrabold text-white bg-teal-500 -ml-2 z-10">MS</span>
-            </div>
-            <span className="stars flex gap-0.5 text-amber-400" aria-hidden="true">
-              {[1, 2, 3, 4, 5].map(i => (
-                <svg key={i} width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 17.3 18.2 21l-1.6-7 5.4-4.8-7.2-.6L12 2 9.2 8.6 2 9.2l5.4 4.8-1.6 7z" />
-                </svg>
-              ))}
-            </span>
-            <p className="text-sm font-bold text-white">
-              4.8/5 <span className="font-semibold text-slate-300">· 12,400+ verified reviews</span>
-            </p>
-          </div>
 
           <form className="bg-white rounded-xl p-6 md:p-8 shadow-2xl flex flex-col gap-5 text-slate-800" id="bookingForm" role="search" aria-label="Search tours" onSubmit={handleSearch}>
             <div className="relative">
@@ -145,7 +127,6 @@ export default function HeroSection() {
                         <MapPin size={16} className="text-brand flex-shrink-0" />
                         <span className="font-bold text-slate-800">{d.name}</span>
                         <span className="text-xs text-slate-500 flex-1 truncate">{d.tag}</span>
-                        <span className="text-xs font-bold text-blue-600">from ${d.price}</span>
                       </li>
                     ))
                   ) : (
@@ -296,7 +277,7 @@ export default function HeroSection() {
             </button>
             <div className="reel-cap">
               <strong>Water that resets you</strong>
-              <span>Palawan · tours from $49</span>
+              <span>Palawan</span>
               <button className="cap-btn" type="button">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M16.6 3c.4 2.2 1.9 3.9 4.4 4.1v3c-1.7 0-3.2-.6-4.4-1.5v6.6a5.9 5.9 0 1 1-5.9-5.9c.3 0 .7 0 1 .1v3.1a2.9 2.9 0 1 0 2 2.8V3h2.9z" />

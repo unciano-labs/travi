@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath, updateTag } from 'next/cache';
 import { captureException } from '@/lib/logger';
-import { notifyTransporterOfRequest } from './notifications';
+import { notifyTransporterOfRequest } from '@/lib/notifications';
 
 export async function createSchedule(tourId: string, formData: FormData) {
   const supabase = await createClient();

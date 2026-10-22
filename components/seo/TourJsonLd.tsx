@@ -1,3 +1,5 @@
+import { serializeJsonLd } from '@/lib/json-ld';
+
 export function TourJsonLd({
   tour,
   baseUrl = 'https://travi.ph',
@@ -39,7 +41,7 @@ export function TourJsonLd({
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
     />
   );
 }

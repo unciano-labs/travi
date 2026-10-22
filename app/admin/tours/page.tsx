@@ -1,7 +1,12 @@
+import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { createAdminClient } from '@/lib/supabase/admin';
 import ToursClient from '@/components/admin/ToursClient';
 
 export default async function ToursPage() {
+  const { user } = await requireSession();
+  await assertRole(user.id, 'admin');
+
+  // Service role: admin console read, authorized above (AGENTS.md §5.3).
   const admin = createAdminClient({ admin: true });
 
   const { data: tours } = await admin

@@ -1,12 +1,20 @@
+import { timingSafeEqual } from 'crypto';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { env } from '@/lib/env';
 import { subDays, formatISO } from 'date-fns';
 import { captureException } from '@/lib/logger';
 
+function isAuthorizedCron(authHeader: string | null) {
+  if (!env.CRON_SECRET || !authHeader) return false;
+  const expected = Buffer.from(`Bearer ${env.CRON_SECRET}`);
+  const actual = Buffer.from(authHeader);
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
 export async function GET(request: Request) {
-  // 1. Verify cron secret to prevent unauthorized execution
-  const authHeader = request.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  // 1. Verify cron secret. Fail closed: with no secret configured, nobody can run the job.
+  if (!isAuthorizedCron(request.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

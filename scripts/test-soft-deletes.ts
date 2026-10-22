@@ -1,8 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
+import writeGuard from './lib/write-guard.cjs';
 
 dotenv.config({ path: resolve(process.cwd(), '.env.local') });
+writeGuard.assertWriteTarget('test-soft-deletes.ts');
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = (process.env.NEXT_PUBLIC_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)!;

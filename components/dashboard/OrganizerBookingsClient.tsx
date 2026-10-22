@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { updateBookingStatus } from '@/actions/bookings';
-import { Search, Loader2, Calendar, Users, Ticket, CheckCircle, XCircle } from 'lucide-react';
+import { Search, Loader2, Calendar, Users, Ticket, XCircle } from 'lucide-react';
 import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
 import PageHeader from '@/components/ui/PageHeader';
 import CardBox from '@/components/ui/CardBox';
@@ -62,7 +62,8 @@ export default function OrganizerBookingsClient({ initialBookings }: OrganizerBo
     currentPage * ITEMS_PER_PAGE
   );
 
-  const handleUpdateStatus = async (bookingId: string, status: 'confirmed' | 'canceled' | 'completed') => {
+  // Bookings are confirmed only by a verified payment; organizers can only decline a pending one.
+  const handleUpdateStatus = async (bookingId: string, status: 'canceled') => {
     setActionLoading(`${bookingId}-${status}`);
     const res = await updateBookingStatus(bookingId, status);
     setActionLoading(null);
@@ -333,15 +334,6 @@ export default function OrganizerBookingsClient({ initialBookings }: OrganizerBo
                   >
                     {actionLoading === `${selectedBooking.id}-canceled` ? <Loader2 className="animate-spin" /> : <XCircle />}
                     Decline Request
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="success"
-                    onClick={() => handleUpdateStatus(selectedBooking.id, 'confirmed')}
-                    disabled={!!actionLoading}
-                  >
-                    {actionLoading === `${selectedBooking.id}-confirmed` ? <Loader2 className="animate-spin" /> : <CheckCircle />}
-                    Confirm Booking
                   </Button>
                 </DialogFooter>
               )}

@@ -55,7 +55,7 @@ export default function AdminLogin() {
                 id="admin-login-email"
                 type="email"
                 name="email"
-                defaultValue="admin@travi.ph"
+                autoComplete="username"
                 required
               />
             </div>
@@ -66,7 +66,7 @@ export default function AdminLogin() {
                 id="admin-login-password"
                 type="password"
                 name="password"
-                defaultValue="password"
+                autoComplete="current-password"
                 required
               />
             </div>
@@ -76,10 +76,6 @@ export default function AdminLogin() {
               {loading ? 'Authenticating...' : 'Sign In'}
             </Button>
           </form>
-
-          <p className="text-center text-xs text-muted-foreground">
-            Hint: Use admin@travi.ph / password
-          </p>
         </CardBox>
       </div>
     </div>

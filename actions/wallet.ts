@@ -5,7 +5,7 @@ import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { captureException } from '@/lib/logger';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
-import { requireVerifiedOtp, consumeVerifiedOtp } from '@/actions/otp';
+import { requireVerifiedOtp, consumeVerifiedOtp } from '@/lib/otp';
 
 import { createClient } from '@/lib/supabase/server';
 

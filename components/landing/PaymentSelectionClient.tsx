@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { CreditCard, Wallet, Loader2 } from 'lucide-react';
 import { processPayment } from '@/actions/bookings';
 
-export default function PaymentSelectionClient({ bookingId, slug }: { bookingId: string, slug: string }) {
+export default function PaymentSelectionClient({ bookingId }: { bookingId: string }) {
   const router = useRouter();
   const [method, setMethod] = useState<'gcash' | 'paymaya' | 'card'>('gcash');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -22,10 +22,8 @@ export default function PaymentSelectionClient({ bookingId, slug }: { bookingId:
       return;
     }
 
-    const host = window.location.origin;
-    const returnUrl = `${host}/tours/${slug}/booking/${bookingId}/success`;
-
-    const res = await processPayment(bookingId, method, returnUrl);
+    // The server builds the return URL to /tours/[slug]/booking/[bookingId]/success.
+    const res = await processPayment(bookingId, method);
 
     if (res.success && res.redirectUrl) {
       window.location.href = res.redirectUrl;

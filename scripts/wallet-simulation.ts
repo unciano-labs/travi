@@ -2,9 +2,11 @@ import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 import { subDays } from 'date-fns';
+import writeGuard from './lib/write-guard.cjs';
 
 // Load environment variables
 dotenv.config({ path: resolve(process.cwd(), '.env.local') });
+writeGuard.assertWriteTarget('wallet-simulation.ts');
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.NEXT_PUBLIC_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;

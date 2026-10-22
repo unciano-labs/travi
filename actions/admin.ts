@@ -7,7 +7,7 @@ import { logMutation } from '@/lib/audit';
 import { revalidatePath, updateTag } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { captureException } from '@/lib/logger';
-import { notifyOrganizerAccountStatus, notifyTransporterAccountStatus } from './notifications';
+import { notifyOrganizerAccountStatus, notifyTransporterAccountStatus } from '@/lib/notifications';
 import { sendEmail } from '@/lib/email';
 
 import { idSchema, rejectSchema, moderateReviewSchema, modifyRoleSchema } from '@/lib/schemas/admin';

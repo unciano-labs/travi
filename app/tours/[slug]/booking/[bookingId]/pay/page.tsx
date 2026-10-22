@@ -69,10 +69,7 @@ export default async function PaymentPage({
             </span>
           </div>
 
-          <PaymentSelectionClient 
-            bookingId={booking.id} 
-            slug={slug}
-          />
+          <PaymentSelectionClient bookingId={booking.id} />
         </div>
       </main>
 

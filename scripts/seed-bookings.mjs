@@ -1,7 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import writeGuard from './lib/write-guard.cjs';
 
 dotenv.config({ path: '.env.local' });
+writeGuard.assertWriteTarget('seed-bookings.mjs');
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

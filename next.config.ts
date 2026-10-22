@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
+// Storage images come from whichever Supabase project this environment points at (staging or production).
+const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
+  ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname
+  : 'xhjkkrjnlorrayuaxbra.supabase.co';
+
 const nextConfig: NextConfig = {
   /* config options here */
   allowedDevOrigins: ['127.0.0.1'],
@@ -8,7 +13,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'xhjkkrjnlorrayuaxbra.supabase.co',
+        hostname: supabaseHost,
       },
       {
         protocol: 'https',

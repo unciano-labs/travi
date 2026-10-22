@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/auth-helpers';
 import { captureException } from '@/lib/logger';
 import { logAdminAudit } from '@/lib/audit';
-import { notifySuperAdmin } from './notifications';
+import { notifySuperAdmin } from '@/lib/notifications';
 
 export async function createTransporterProfile(formData: FormData) {
   try {

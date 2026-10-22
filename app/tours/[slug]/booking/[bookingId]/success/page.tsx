@@ -1,5 +1,7 @@
-import { verifyPaymentAndUpdateBooking } from '@/actions/bookings';
 import Link from 'next/link';
+import { redirect, unstable_rethrow } from 'next/navigation';
+import { requireSession } from '@/lib/auth-helpers';
+import { verifyBookingPayment } from '@/lib/services/payments';
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import Header from '@/components/landing/Header';
 import Footer from '@/components/landing/Footer';
@@ -10,7 +12,17 @@ export default async function BookingSuccessPage({
   params: Promise<{ slug: string; bookingId: string }>;
 }) {
   const { slug, bookingId } = await params;
-  const result = await verifyPaymentAndUpdateBooking(bookingId);
+
+  // Only the traveler who owns the booking may trigger its payment verification.
+  const session = await requireSession().catch((error: unknown) => {
+    unstable_rethrow(error);
+    return null;
+  });
+  if (!session) {
+    redirect(`/login?next=${encodeURIComponent(`/tours/${slug}/booking/${bookingId}/success`)}`);
+  }
+
+  const result = await verifyBookingPayment(bookingId, session.profile.id);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
@@ -54,7 +66,7 @@ export default async function BookingSuccessPage({
                 <XCircle className="w-10 h-10 text-red-600" />
               </div>
               <h1 className="text-2xl font-extrabold text-slate-900 mb-2 font-display">Verification Failed</h1>
-              <p className="text-slate-500 mb-8">{result.error || 'There was an issue verifying your payment.'}</p>
+              <p className="text-slate-500 mb-8">{!result.success ? result.error : 'There was an issue verifying your payment.'}</p>
               
               <Link 
                 href={`/tours/${slug}`}

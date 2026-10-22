@@ -379,6 +379,23 @@ The biggest exposure is RLS, not app code. The anon key is public, so every RLS 
 
 **Exit criteria:** `npm audit` shows no critical issues; no credentials in source; production refuses to boot without secrets; staging exists; QA gate green.
 
+#### Phase 0 status (2026-10-22, branch `fix/phase-0-hardening`)
+
+| Task | Status | Notes |
+|---|---|---|
+| 0.1 Next.js upgrade | ✅ Done | `next` + `eslint-config-next` 16.3.8; `npm audit` shows no critical |
+| 0.2 Hardcoded credentials | ✅ Code done · ⏳ **Human** | `/api/test-login` deleted; admin login pre-fill and hint removed. **Still to do:** rotate the passwords of `admin@travi.ph` and the old test account; delete `ADMIN_PWD` from `.env.local` |
+| 0.3 Fail-closed secrets | ✅ Done | `lib/env.ts`: with `APP_ENV`/`VERCEL_ENV=production`, 12 secrets are required at startup and PayMongo must be `sk_live_`. Dedicated `OTP_SECRET`; `NEXT_PUBLIC_SERVICE_ROLE_KEY` fallback removed; cron fails closed (constant-time compare); OTP codes no longer logged; SMS mock refuses in production |
+| 0.4 JSON-LD XSS | ✅ Done | `lib/json-ld.ts` `serializeJsonLd()` (unit test lands with the Phase 5 test runner) |
+| 0.5 Unsafe booking actions | ✅ Done | Organizer "Confirm" removed; `updateBookingStatus` is `pending → canceled` only. `processPayment`: owner + `pending` only, zod, rate limit, server-built return URL |
+| 0.6 Exported helpers | ✅ Done | Notification senders → `lib/notifications.ts`; OTP helpers → `lib/otp.ts` (typed claims, bound to the user); payment verification → `lib/services/payments.ts` (owner-only, `pending → confirmed` only, late payments flagged instead of re-confirmed). The success page requires the owner's session |
+| 0.7 Admin page checks | ✅ Done | `admin/bookings`, `admin/tours` |
+| 0.8 Script guards | ✅ Done | `scripts/update-bookings.js` deleted; write-capable scripts require `CONFIRM_DB_WRITE=<project-ref>`; `test:qa` audit probe is now read-only |
+| 0.9 Environments | 🟡 Partial · ⏳ **Human** | Image host now follows `NEXT_PUBLIC_SUPABASE_URL`. **Still to do:** create the staging Supabase project, enable PITR on production, set the new env vars in Vercel (`APP_ENV`, `OTP_SECRET`, `CRON_SECRET`, …) |
+| 0.10 Truthful marketing | ✅ Code done · ⏳ **Human** | Hero claims, USD prices and invented counts removed; stats show real data only. Migration `20261022120000_hide_seeded_demo_reviews.sql` written; **apply with `supabase db push` after review** |
+
+Also fixed: the outdated landing e2e spec (`e2e/landing-page.spec.ts`). QA gate: lint 0 errors (270 warnings, down from 278), build ✅, `test:qa` 27/27, `test:e2e` 20/20.
+
 ---
 
 ### Phase 1: Database security hardening (≈1.5 weeks)

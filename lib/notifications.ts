@@ -1,0 +1,422 @@
+// Internal notification senders (in-app + email). Server-only helpers, deliberately NOT
+// Server Actions: an exported 'use server' function is a public endpoint (AGENTS.md §3.2).
+// Callers must authenticate and authorize before calling these.
+import { requireSession } from '@/lib/auth-helpers';
+import { captureException } from '@/lib/logger';
+import { Resend } from 'resend';
+
+// Initialize Resend if API key is present
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+export async function createNotification(
+  userId: string, 
+  title: string, 
+  message: string, 
+  type: string, 
+  link?: string
+) {
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const admin = createAdminClient({ admin: true });
+    
+    const { error } = await admin.from('notifications').insert({
+      user_id: userId,
+      title,
+      message,
+      type,
+      link
+    });
+
+    if (error) {
+      captureException(error, { action: 'createNotification' });
+    }
+  } catch (err: any) {
+    captureException(err, { action: 'createNotification exception' });
+  }
+}
+
+export async function sendEmailNotification(
+  toEmail: string,
+  subject: string,
+  htmlContent: string
+) {
+  try {
+    if (!resend) {
+      console.log('--- EMAIL MOCK ---');
+      console.log(`To: ${toEmail}`);
+      console.log(`Subject: ${subject}`);
+      console.log(`Content: ${htmlContent}`);
+      console.log('------------------');
+      return { success: true, mock: true };
+    }
+
+    const { data, error } = await resend.emails.send({
+      from: 'Travi App <notifications@travi.app>', // Change this to a verified domain if moving to production
+      to: [toEmail],
+      subject: subject,
+      html: htmlContent,
+    });
+
+    if (error) {
+      captureException(error, { action: 'sendEmailNotification' });
+      return { success: false, error };
+    }
+
+    return { success: true, data };
+  } catch (err: any) {
+    captureException(err, { action: 'sendEmailNotification exception' });
+    return { success: false, error: err };
+  }
+}
+
+export async function notifyTransporterOfRequest(
+  transporterId: string,
+  startDate: string,
+  endDate: string
+) {
+  try {
+    const { supabase } = await requireSession();
+    
+    // Fetch transporter's user_id and email
+    const { data: tp } = await supabase
+      .from('transporter_profiles')
+      .select(`
+        company_name, 
+        display_name, 
+        user_profile:user_profiles ( user_id, email )
+      `)
+      .eq('id', transporterId)
+      .single();
+
+    if (!tp || !tp.user_profile) return;
+
+    const userProfile = Array.isArray(tp.user_profile) ? tp.user_profile[0] : tp.user_profile;
+    const transporterName = tp.display_name || tp.company_name || 'Transporter';
+
+    // 1. In-app Notification
+    await createNotification(
+      userProfile.user_id,
+      'New Vehicle Request',
+      `You have a new transport request for a tour schedule from ${startDate} to ${endDate}.`,
+      'transport_request',
+      '/dashboard/transporter/requests'
+    );
+
+    // 2. Email Notification
+    await sendEmailNotification(
+      userProfile.email,
+      'New Transport Request - Travi',
+      `
+      <div style="font-family: sans-serif; max-w-2xl mx-auto p-4 border rounded-lg">
+        <h2 style="color: #ff6b6b;">New Transport Request! 🚐</h2>
+        <p>Hello <strong>${transporterName}</strong>,</p>
+        <p>A tour organizer has requested one of your vehicles for an upcoming tour schedule!</p>
+        <p><strong>Dates:</strong> ${startDate} to ${endDate}</p>
+        <p>Please log in to your dashboard to review the request, verify your availability, and either accept or decline.</p>
+        <br/>
+        <a href="https://travi.app/dashboard/transporter/requests" style="display: inline-block; background: #ff6b6b; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">View Request</a>
+      </div>
+      `
+    );
+
+  } catch (err: any) {
+    captureException(err, { action: 'notifyTransporterOfRequest exception' });
+  }
+}
+
+export async function notifyOrganizerOfStatusChange(
+  organizerId: string,
+  tourId: string,
+  tourScheduleId: string,
+  transporterName: string,
+  status: 'accepted' | 'declined'
+) {
+  try {
+    const { supabase } = await requireSession();
+    
+    // Fetch organizer's user_id and email
+    const { data: op } = await supabase
+      .from('organizer_profiles')
+      .select(`
+        company_name, 
+        display_name, 
+        user_profile:user_profiles ( user_id, email )
+      `)
+      .eq('id', organizerId)
+      .single();
+
+    if (!op || !op.user_profile) return;
+
+    const userProfile = Array.isArray(op.user_profile) ? op.user_profile[0] : op.user_profile;
+    const organizerName = op.display_name || op.company_name || 'Organizer';
+    
+    const actionText = status === 'accepted' ? 'accepted' : 'declined';
+    const emoji = status === 'accepted' ? '✅' : '❌';
+
+    // 1. In-app Notification
+    await createNotification(
+      userProfile.user_id,
+      `Transport Request ${status === 'accepted' ? 'Accepted' : 'Declined'}`,
+      `${transporterName} has ${actionText} your transport request.`,
+      `transport_${status}`,
+      `/dashboard/organizer/tours/${tourId}/schedules`
+    );
+
+    // 2. Email Notification
+    await sendEmailNotification(
+      userProfile.email,
+      `Transport Request ${status === 'accepted' ? 'Accepted' : 'Declined'} - Travi`,
+      `
+      <div style="font-family: sans-serif; max-w-2xl mx-auto p-4 border rounded-lg">
+        <h2 style="color: #ff6b6b;">Transport Request Update ${emoji}</h2>
+        <p>Hello <strong>${organizerName}</strong>,</p>
+        <p><strong>${transporterName}</strong> has <strong>${actionText}</strong> your transport request for your tour schedule.</p>
+        <p>Please log in to your dashboard to view the updated schedule.</p>
+        <br/>
+        <a href="https://travi.app/dashboard/organizer/tours/${tourId}/schedules" style="display: inline-block; background: #ff6b6b; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">View Schedule</a>
+      </div>
+      `
+    );
+
+  } catch (err: any) {
+    captureException(err, { action: 'notifyOrganizerOfStatusChange exception' });
+  }
+}
+
+export async function notifyOrganizerAccountStatus(
+  organizerId: string,
+  status: 'activated' | 'deactivated',
+  reason?: string
+) {
+  try {
+    const { supabase } = await requireSession();
+    
+    // We must use admin client because if status was changed to rejected,
+    // the admin calling this function will not be able to read the row due to RLS.
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const admin = createAdminClient({ admin: true });
+    
+    const { data: op } = await admin
+      .from('organizer_profiles')
+      .select(`
+        company_name, 
+        display_name, 
+        user_profile:user_profiles ( user_id, email )
+      `)
+      .eq('id', organizerId)
+      .single();
+
+    if (!op || !op.user_profile) return;
+
+    const userProfile = Array.isArray(op.user_profile) ? op.user_profile[0] : op.user_profile;
+    const organizerName = op.display_name || op.company_name || 'Organizer';
+    
+    const emoji = status === 'activated' ? '🎉' : '⚠️';
+    const title = `Account ${status === 'activated' ? 'Activated' : 'Deactivated'}`;
+    const message = status === 'activated'
+      ? 'Your organizer account has been approved and activated! You can now start creating tours.'
+      : `Your organizer account has been deactivated. ${reason ? `Reason: ${reason}` : 'Please contact support for more details.'}`;
+
+    // 1. In-app Notification
+    await createNotification(
+      userProfile.user_id,
+      title,
+      message,
+      `account_${status}`,
+      '/dashboard/organizer'
+    );
+
+    // 2. Email Notification
+    await sendEmailNotification(
+      userProfile.email,
+      `${title} - Travi`,
+      `
+      <div style="font-family: sans-serif; max-w-2xl mx-auto p-4 border rounded-lg">
+        <h2 style="color: #ff6b6b;">${title} ${emoji}</h2>
+        <p>Hello <strong>${organizerName}</strong>,</p>
+        <p>${message}</p>
+        <br/>
+        <a href="https://travi.app/dashboard/organizer" style="display: inline-block; background: #ff6b6b; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">Go to Dashboard</a>
+      </div>
+      `
+    );
+
+  } catch (err: any) {
+    captureException(err, { action: 'notifyOrganizerAccountStatus exception' });
+  }
+}
+
+export async function notifyTransporterAccountStatus(
+  transporterId: string,
+  status: 'activated' | 'deactivated',
+  reason?: string
+) {
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const admin = createAdminClient({ admin: true });
+    
+    const { data: tp } = await admin
+      .from('transporter_profiles')
+      .select(`
+        company_name, 
+        display_name, 
+        user_profile:user_profiles ( user_id, email )
+      `)
+      .eq('id', transporterId)
+      .single();
+
+    if (!tp || !tp.user_profile) return;
+
+    const userProfile = Array.isArray(tp.user_profile) ? tp.user_profile[0] : tp.user_profile;
+    const transporterName = tp.display_name || tp.company_name || 'Transporter';
+    
+    const emoji = status === 'activated' ? '🎉' : '⚠️';
+    const title = `Account ${status === 'activated' ? 'Activated' : 'Deactivated'}`;
+    const message = status === 'activated'
+      ? 'Your transporter account has been approved and activated! You can now start managing your vehicles.'
+      : `Your transporter account has been deactivated. ${reason ? `Reason: ${reason}` : 'Please contact support for more details.'}`;
+
+    // 1. In-app Notification
+    await createNotification(
+      userProfile.user_id,
+      title,
+      message,
+      `account_${status}`,
+      '/dashboard/transporter'
+    );
+
+    // 2. Email Notification
+    await sendEmailNotification(
+      userProfile.email,
+      `${title} - Travi`,
+      `
+      <div style="font-family: sans-serif; max-w-2xl mx-auto p-4 border rounded-lg">
+        <h2 style="color: #ff6b6b;">${title} ${emoji}</h2>
+        <p>Hello <strong>${transporterName}</strong>,</p>
+        <p>${message}</p>
+        <br/>
+        <a href="https://travi.app/dashboard/transporter" style="display: inline-block; background: #ff6b6b; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">Go to Dashboard</a>
+      </div>
+      `
+    );
+
+  } catch (err: any) {
+    captureException(err, { action: 'notifyTransporterAccountStatus exception' });
+  }
+}
+
+export async function notifySuperAdmin(
+  title: string,
+  message: string,
+  type: string,
+  link?: string
+) {
+  try {
+    const adminEmail = process.env.ADMIN_EMAIL;
+    if (!adminEmail) {
+      console.warn('ADMIN_EMAIL not set, skipping superadmin notification');
+      return;
+    }
+
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const admin = createAdminClient({ admin: true });
+
+    // Find the user_id of the superadmin from their email in user_profiles
+    const { data: profile } = await admin
+      .from('user_profiles')
+      .select('user_id')
+      .eq('email', adminEmail)
+      .single();
+
+    if (profile?.user_id) {
+      // Re-use createNotification for the insertion logic (which requires admin client anyway)
+      await admin.from('notifications').insert({
+        user_id: profile.user_id,
+        title,
+        message,
+        type,
+        link
+      });
+    }
+  } catch (err: any) {
+    captureException(err, { action: 'notifySuperAdmin exception' });
+  }
+}
+
+export async function notifyOrganizerOfNewBooking(bookingId: string) {
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const admin = createAdminClient({ admin: true });
+
+    // 1. Fetch booking to get organizer ID and other details
+    const { data: booking, error: bookingError } = await admin
+      .from('bookings')
+      .select(`
+        id,
+        booking_ref,
+        seats,
+        user_profiles!traveler_id ( full_name ),
+        tour_schedules (
+          tours (
+            title,
+            organizer_id
+          )
+        )
+      `)
+      .eq('id', bookingId)
+      .single();
+
+    if (bookingError || !booking) return;
+
+    const organizerId = (booking.tour_schedules as any).tours.organizer_id;
+    const tourTitle = (booking.tour_schedules as any).tours.title;
+    const travelerProfile = Array.isArray(booking.user_profiles) ? booking.user_profiles[0] : booking.user_profiles;
+    const travelerName = travelerProfile?.full_name || 'A traveler';
+    const seats = booking.seats;
+
+    // 2. Fetch organizer's user_id and email
+    const { data: op } = await admin
+      .from('organizer_profiles')
+      .select(`
+        company_name, 
+        display_name, 
+        user_profile:user_profiles ( user_id, email )
+      `)
+      .eq('id', organizerId)
+      .single();
+
+    if (!op || !op.user_profile) return;
+
+    const userProfile = Array.isArray(op.user_profile) ? op.user_profile[0] : op.user_profile;
+    const organizerName = op.display_name || op.company_name || 'Organizer';
+    
+    // 3. Create In-app Notification
+    await admin.from('notifications').insert({
+      user_id: userProfile.user_id,
+      title: 'New Booking! 🎉',
+      message: `${travelerName} just booked ${seats} seat(s) for ${tourTitle}.`,
+      type: 'booking_new',
+      link: '/dashboard/organizer/bookings'
+    });
+
+    // 4. Send Email Notification
+    await sendEmailNotification(
+      userProfile.email,
+      'New Booking Received! - Travi',
+      `
+      <div style="font-family: sans-serif; max-w-2xl mx-auto p-4 border rounded-lg">
+        <h2 style="color: #059669;">New Booking Received! 🎉</h2>
+        <p>Hello <strong>${organizerName}</strong>,</p>
+        <p>Great news! <strong>${travelerName}</strong> just booked <strong>${seats} seat(s)</strong> for your tour: <strong>${tourTitle}</strong>.</p>
+        <p>Booking Reference: <strong>${booking.booking_ref}</strong></p>
+        <p>Log in to your dashboard to view the full booking details.</p>
+        <br/>
+        <a href="https://travi.app/dashboard/organizer/bookings" style="display: inline-block; background: #059669; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">View Bookings</a>
+      </div>
+      `
+    );
+
+  } catch (err: any) {
+    captureException(err, { action: 'notifyOrganizerOfNewBooking exception' });
+  }
+}

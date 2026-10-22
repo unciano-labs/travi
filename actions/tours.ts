@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { assertRateLimit } from '@/lib/ratelimit';
 import { captureException } from '@/lib/logger';
-import { notifySuperAdmin } from './notifications';
+import { notifySuperAdmin } from '@/lib/notifications';
 
 import { tourSchema } from '@/lib/schemas/tour';
 

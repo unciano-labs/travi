@@ -1,5 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config({ path: '.env.local' });
+const writeGuard = require('./lib/write-guard.cjs');
+writeGuard.assertWriteTarget('seed-reviews.js');
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,

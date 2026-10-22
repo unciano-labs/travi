@@ -20,7 +20,7 @@ test.describe('Landing Page Comprehensive E2E Tests', () => {
     // Check Hero Headlines
     const heroHeading = page.getByRole('heading', { level: 1 });
     await expect(heroHeading).toBeVisible();
-    await expect(heroHeading).toHaveText(/explore|discover|travel|experience/i);
+    await expect(heroHeading).toHaveText(/philippines/i);
 
     // Check Search Form Elements if present
     const searchInput = page.locator('input[placeholder*="destination" i], input[placeholder*="search" i]');

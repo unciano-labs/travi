@@ -133,32 +133,14 @@ async function main() {
     return { publishedToursCount: tours?.length || 0, slugs: tours?.map(t => t.slug) };
   });
 
-  await runTest('Business Logic', 'Admin audit logs table can record mutations', async () => {
-    const testAdminId = '00000000-0000-0000-0000-000000000000';
-    const { error: insertError } = await adminClient
+  // Read-only: admin_audit_logs is append-only (AGENTS.md §5.6), so the smoke test must never
+  // insert or delete rows in it.
+  await runTest('Business Logic', 'Admin audit logs table is readable', async () => {
+    const { count, error } = await adminClient
       .from('admin_audit_logs')
-      .insert({
-        admin_profile_id: testAdminId,
-        entity_type: 'qa_smoke_test',
-        entity_id: testAdminId,
-        action: 'smoke_test_probe',
-        notes: 'Automated QA health probe',
-      });
-
-    if (insertError) {
-      // If foreign key constraint on admin_profile_id is enforced, verify constraint is active
-      if (insertError.code === '23503') {
-        return { note: 'Foreign key constraint active on admin_profile_id (expected)' };
-      }
-      throw insertError;
-    } else {
-      // Clean up test probe
-      await adminClient
-        .from('admin_audit_logs')
-        .delete()
-        .eq('entity_type', 'qa_smoke_test');
-      return { note: 'Insert and cleanup successful' };
-    }
+      .select('id', { count: 'exact', head: true });
+    if (error) throw error;
+    return { note: `${count ?? 0} audit rows` };
   });
 
   // --- Suite 4: Soft Deletes Integrity ---
