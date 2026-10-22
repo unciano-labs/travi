@@ -21,7 +21,7 @@ const TX_TYPE_VARIANTS: Record<string, BadgeVariant> = {
   withdrawal_pending: 'lightPrimary',
 };
 
-export function WalletClient({ wallet, transactions, payouts }: { wallet: any, transactions: any[], payouts: any[] }) {
+export function WalletClient({ wallet, transactions, payouts, minPayout, holdingDays }: { wallet: any, transactions: any[], payouts: any[], minPayout: number, holdingDays: number }) {
   const savedMethods: SavedPayoutMethod[] = wallet.saved_payout_methods || [];
   const defaultMethod = savedMethods.find(m => m.isDefault) || savedMethods[0];
 
@@ -33,7 +33,8 @@ export function WalletClient({ wallet, transactions, payouts }: { wallet: any, t
   
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState('');
-  const MIN_WITHDRAWAL = 500;
+  // Server-enforced minimum (platform_settings.min_payout_amount); shown here for convenience.
+  const MIN_WITHDRAWAL = minPayout;
 
   const handleRequestPayout = (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,10 +69,9 @@ export function WalletClient({ wallet, transactions, payouts }: { wallet: any, t
     const method = savedMethods.find(m => m.id === selectedMethodId);
     if (!method) return;
 
-    const res = await requestPayout(wallet.id, {
+    const res = await requestPayout({
       amount: Number(payoutAmount),
-      method: method.type,
-      accountDetails: `${method.details.accountName} (${method.details.accountNumber})`,
+      methodId: method.id,
       password: confirmPassword
     });
 
@@ -136,7 +136,7 @@ export function WalletClient({ wallet, transactions, payouts }: { wallet: any, t
           value={`₱${Number(wallet.escrow_balance).toLocaleString(undefined, {minimumFractionDigits: 2})}`}
           icon={Clock}
           tone="warning"
-          hint="Funds held for upcoming tours. Released 24h after completion."
+          hint={`Funds held for confirmed tours. Released ${holdingDays} day${holdingDays === 1 ? '' : 's'} after the trip ends if there is no dispute.`}
         />
       </div>
 

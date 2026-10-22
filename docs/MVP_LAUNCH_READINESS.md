@@ -463,6 +463,33 @@ Migration `supabase/migrations/20261023090000_rls_hardening.sql`, **written and 
 
 **Exit criteria:** money-flow test suite green. A staging run with PayMongo **test** keys covers the full lifecycle (book → pay → webhook → release → payout → reject/refund) with ledger = balances and no orphaned payments.
 
+#### Phase 2 status (2026-10-23, branch `fix/phase-2-money`, stacked on `fix/phase-1-rls`)
+
+Migration `supabase/migrations/20261023120000_money_integrity.sql`, **written and tested locally, not yet applied**. `npm run test:rls` now runs 63 database tests: 38 RLS and 25 money-flow.
+
+| Task | Status | Notes |
+|---|---|---|
+| 2.1 Payments table | ✅ | `booking_payments`: one row per PayMongo payment (unique), amount, MDR fee, applied/needs_review. PaymentIntents carry `metadata.booking_id` |
+| 2.2 Confirmation | ✅ | `confirm_booking_payment()`: idempotent, amount-checked, correct organizer wallet, `escrow_deposit` only. Late payments revive the booking when seats remain, else flagged. Shared by the success page and the webhook (`applyPaidPayment`) |
+| 2.3 Webhook | ✅ | HMAC over the raw body (fails closed), re-fetches the payment from PayMongo, `webhook_events` dedupe, 500 on failure for retry |
+| 2.4 Escrow release | ✅ | `release_booking_escrow()` (row-locked, idempotent, Manila dates); scheduled daily in `vercel.json`; Sentry alerts for `no_deposit` and ledger drift |
+| 2.5 Payouts | 🟡 | Atomic `request_payout()` (approved partners, settings minimum, saved method only), `mark_payout_paid`/`reject_payout` (no replay, wallet derived, audited). **Not done:** maker-checker (OPS-07) and encrypting payout account numbers (FIN-20), both moved to Phase 3/5 |
+| 2.6 Refunds | ✅ | `booking_refunds` state machine (one active refund per booking), proportional escrow reversal; traveler cancel and dispute refund use it. Schedule-cancel cascade is Phase 3.2 |
+| 2.7 Platform revenue & MDR | 🟡 | MDR recorded per payment; fee snapshotted per booking. **Not done:** platform ledger and net revenue on organizer dashboards (FIN-15) |
+| 2.8 Settings | ✅ | Singleton read/write fixed, zod + DB bounds, `min_payout_amount`, history table + audit log, no `||` fallbacks |
+| 2.9 Audit & invariants | ✅ | Append-only ledger, non-negative balances, unique ledger references, documented sign convention, `wallet_ledger_drift()` checked by the cron |
+| 2.10 Backfill & reconciliation | 🟡 | `scripts/backfill-escrow-deposits.ts` (dry run by default, guarded). **Not done:** PayMongo settlement reconciliation job and admin finance page/CSV (Phase 3.11) |
+| 2.11 Money-flow tests | ✅ | `supabase/tests/rls/money.test.mjs`; webhook signature verified against real HMACs |
+| 2.12 Transport payouts | ⏸ Deferred (D2) | Removed from the cron (the path never ran); transport stays coordination-only |
+
+**To apply (human), after Phase 1:**
+1. `supabase db push` on staging.
+2. Set `PAYMONGO_WEBHOOK_SECRET` and register the webhook (`payment.paid`) in the PayMongo dashboard.
+3. Run the backfill dry run, then run it with `--apply`.
+4. Check `select * from wallet_ledger_drift()`.
+5. Run a full test-mode lifecycle: book → pay → return → webhook → release → payout → reject → refund.
+6. Repeat on production.
+
 ---
 
 ### Phase 3: Business-logic completion (≈2.5 weeks)

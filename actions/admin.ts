@@ -8,7 +8,7 @@ import { revalidatePath, updateTag } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { captureException } from '@/lib/logger';
 import { notifyOrganizerAccountStatus, notifyTransporterAccountStatus } from '@/lib/notifications';
-import { sendEmail } from '@/lib/email';
+import { escapeHtml, sendEmail } from '@/lib/email';
 
 import { idSchema, rejectSchema, moderateReviewSchema, modifyRoleSchema } from '@/lib/schemas/admin';
 
@@ -287,68 +287,49 @@ export async function modifyUserRole(
   }
 }
 
+const payoutIdSchema = z.string().uuid();
+const payoutReferenceSchema = z.string().trim().min(1, 'Reference number is required').max(100);
+const payoutReasonSchema = z.string().trim().max(500).optional();
+
+async function payoutRecipient(admin: ReturnType<typeof createAdminClient>, walletId: string) {
+  const { data } = await admin.from('user_wallets').select('user_profiles(full_name, email)').eq('id', walletId).single();
+  const p = Array.isArray(data?.user_profiles) ? data?.user_profiles[0] : data?.user_profiles;
+  return p as { full_name: string | null; email: string | null } | undefined;
+}
+
 /**
- * Mark a payout request as paid and update the ledger.
+ * Mark a payout request as paid (after the money was sent outside Travi).
+ * mark_payout_paid() only succeeds once per pending payout and derives the wallet from the request.
  */
-export async function markPayoutPaid(payoutId: string, walletId: string, referenceNumber: string) {
+export async function markPayoutPaid(payoutId: string, referenceNumber: string) {
   try {
+    const id = payoutIdSchema.parse(payoutId);
+    const reference = payoutReferenceSchema.parse(referenceNumber);
     const { user, profile } = await requireSession();
     await assertRole(user.id, 'admin');
+    await assertRateLimit(profile.id, 'mutation');
 
-    if (!referenceNumber) {
-      throw new Error('Reference number is required');
-    }
-
+    // Service role: payout state + ledger + audit in one database transaction (AGENTS.md §5.3).
     const admin = createAdminClient({ admin: true });
+    const { data: walletId, error } = await admin.rpc('mark_payout_paid', {
+      p_payout_id: id,
+      p_admin_profile_id: profile.id,
+      p_reference: reference,
+    });
+    if (error) throw new Error(error.message);
 
-    // Mark as paid and save the reference number as admin notes
-    const { error: payoutError } = await admin
-      .from('payout_requests')
-      .update({ 
-        status: 'paid', 
-        admin_notes: `Reference ID: ${referenceNumber}`,
-        updated_at: new Date().toISOString() 
-      })
-      .eq('id', payoutId)
-      .eq('status', 'pending');
-
-    if (payoutError) throw payoutError;
-
-    // Create completed ledger entry
-    const { data: request } = await admin.from('payout_requests').select('amount').eq('id', payoutId).single();
-    
-    if (request) {
-      await admin.from('wallet_transactions').insert({
-        wallet_id: walletId,
-        amount: request.amount,
-        type: 'withdrawal_completed',
-        balance_affected: 'available',
-        reference_type: 'payout',
-        reference_id: payoutId,
-        description: `Payout fulfilled. Ref: ${referenceNumber}`
-      });
-    }
-
-    // 5. Send Email Notification
-    const { data: walletData } = await admin
-      .from('user_wallets')
-      .select('user_profiles(full_name, email)')
-      .eq('id', walletId)
-      .single();
-    
-    // Handle potential array or object return from Supabase relations
-    const walletProfile = Array.isArray(walletData?.user_profiles) ? walletData?.user_profiles[0] : walletData?.user_profiles;
-
-    if (walletProfile?.email) {
+    const { data: request } = await admin.from('payout_requests').select('amount').eq('id', id).single();
+    const recipient = await payoutRecipient(admin, walletId as string);
+    if (recipient?.email) {
       await sendEmail({
-        to: walletProfile.email,
+        to: recipient.email,
         subject: 'Payout Request Completed',
         html: `
           <div style="font-family: sans-serif; color: #1e293b;">
             <h2>Payout Completed</h2>
-            <p>Hi ${walletProfile.full_name},</p>
-            <p>Your recent payout request for <strong>₱${Number(request?.amount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</strong> has been successfully processed!</p>
-            <p><strong>Reference Number:</strong> ${referenceNumber}</p>
+            <p>Hi ${escapeHtml(recipient.full_name ?? '')},</p>
+            <p>Your recent payout request for <strong>₱${Number(request?.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong> has been successfully processed!</p>
+            <p><strong>Reference Number:</strong> ${escapeHtml(reference)}</p>
             <p>The funds should reflect in your account shortly, depending on your bank's processing times.</p>
             <p>Thank you,<br/>Travi Support</p>
           </div>
@@ -358,70 +339,45 @@ export async function markPayoutPaid(payoutId: string, walletId: string, referen
 
     revalidatePath('/admin/payouts');
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     captureException(error, { action: 'markPayoutPaid', payoutId });
-    return { success: false, error: error.message || 'Failed to mark payout as paid' };
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to mark payout as paid' };
   }
 }
 
-export async function rejectPayout(payoutId: string, walletId: string, reason?: string) {
+/**
+ * Reject a payout request and return the money to the partner's available balance.
+ * reject_payout() only succeeds once per pending payout and derives the wallet from the request.
+ */
+export async function rejectPayout(payoutId: string, reason?: string) {
   try {
-    const { user } = await requireSession();
+    const id = payoutIdSchema.parse(payoutId);
+    const why = payoutReasonSchema.parse(reason);
+    const { user, profile } = await requireSession();
     await assertRole(user.id, 'admin');
+    await assertRateLimit(profile.id, 'mutation');
 
+    // Service role: payout state + balance + ledger + audit in one database transaction.
     const admin = createAdminClient({ admin: true });
-
-    // 1. Get the pending payout amount
-    const { data: request, error: fetchReqError } = await admin
-      .from('payout_requests')
-      .select('amount, status')
-      .eq('id', payoutId)
-      .eq('status', 'pending')
-      .single();
-
-    if (fetchReqError || !request) throw new Error('Payout request not found or not pending');
-
-    // 2. Mark as rejected
-    const { error: payoutError } = await admin
-      .from('payout_requests')
-      .update({ status: 'rejected', updated_at: new Date().toISOString() })
-      .eq('id', payoutId);
-
-    if (payoutError) throw payoutError;
-
-    // 3. Return funds to available balance
-    await admin.rpc('increment_available_balance', { w_id: walletId, amt: request.amount });
-
-    // 4. Create ledger entry
-    await admin.from('wallet_transactions').insert({
-      wallet_id: walletId,
-      amount: request.amount, // Positive amount to credit back
-      type: 'withdrawal_rejected',
-      balance_affected: 'available',
-      reference_type: 'payout',
-      reference_id: payoutId,
-      description: reason ? `Payout rejected: ${reason}` : 'Payout rejected by Admin'
+    const { data: walletId, error } = await admin.rpc('reject_payout', {
+      p_payout_id: id,
+      p_admin_profile_id: profile.id,
+      p_reason: why ?? '',
     });
+    if (error) throw new Error(error.message);
 
-    // 5. Send Email Notification
-    const { data: walletData } = await admin
-      .from('user_wallets')
-      .select('user_profiles(full_name, email)')
-      .eq('id', walletId)
-      .single();
-    
-    const walletProfile = Array.isArray(walletData?.user_profiles) ? walletData?.user_profiles[0] : walletData?.user_profiles;
-
-    if (walletProfile?.email) {
+    const { data: request } = await admin.from('payout_requests').select('amount').eq('id', id).single();
+    const recipient = await payoutRecipient(admin, walletId as string);
+    if (recipient?.email) {
       await sendEmail({
-        to: walletProfile.email,
+        to: recipient.email,
         subject: 'Payout Request Rejected',
         html: `
           <div style="font-family: sans-serif; color: #1e293b;">
             <h2>Payout Request Update</h2>
-            <p>Hi ${walletProfile.full_name},</p>
-            <p>Unfortunately, your payout request for <strong>₱${Number(request.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</strong> was rejected.</p>
-            ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
+            <p>Hi ${escapeHtml(recipient.full_name ?? '')},</p>
+            <p>Unfortunately, your payout request for <strong>₱${Number(request?.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong> was rejected.</p>
+            ${why ? `<p><strong>Reason:</strong> ${escapeHtml(why)}</p>` : ''}
             <p>The funds have been returned to your Travi available balance.</p>
             <p>If you have any questions, please contact our support team.</p>
             <p>Thank you,<br/>Travi Support</p>
@@ -432,34 +388,64 @@ export async function rejectPayout(payoutId: string, walletId: string, reason?: 
 
     revalidatePath('/admin/payouts');
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     captureException(error, { action: 'rejectPayout', payoutId });
-    return { success: false, error: error.message || 'Failed to reject payout' };
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to reject payout' };
   }
 }
 
-export async function updatePlatformSettings(data: { organizer_fee_percent: number; transporter_fee_percent: number; escrow_holding_days: number }) {
-  try {
-    const { user } = await requireSession();
-    await assertRole(user.id, 'admin');
+const platformSettingsSchema = z.object({
+  organizer_fee_percent: z.number().min(0).max(50),
+  transporter_fee_percent: z.number().min(0).max(50),
+  escrow_holding_days: z.number().int().min(0).max(60),
+  min_payout_amount: z.number().positive().max(1_000_000),
+});
 
+export async function updatePlatformSettings(input: z.input<typeof platformSettingsSchema>) {
+  try {
+    const data = platformSettingsSchema.parse(input);
+    const { user, profile } = await requireSession();
+    await assertRole(user.id, 'admin');
+    await assertRateLimit(profile.id, 'mutation');
+
+    // Service role: platform_settings is admin-only to write. The table holds a single row (uuid id).
     const admin = createAdminClient({ admin: true });
+    const { data: current, error: readError } = await admin
+      .from('platform_settings')
+      .select('*')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .single();
+    if (readError || !current) throw new Error('Platform settings row not found');
 
     const { error } = await admin
       .from('platform_settings')
-      .update({
-        organizer_fee_percent: data.organizer_fee_percent,
-        transporter_fee_percent: data.transporter_fee_percent,
-        escrow_holding_days: data.escrow_holding_days
-      })
-      .eq('id', 1);
-
+      .update({ ...data, updated_by: profile.id, updated_at: new Date().toISOString() })
+      .eq('id', current.id);
     if (error) throw error;
+
+    // platform_settings_history keeps every version (DB trigger); this adds who/why to the admin audit log.
+    await logMutation({
+      adminProfileId: profile.id,
+      entityType: 'platform_settings',
+      entityId: current.id,
+      action: 'update',
+      diff: {
+        before: {
+          organizer_fee_percent: current.organizer_fee_percent,
+          transporter_fee_percent: current.transporter_fee_percent,
+          escrow_holding_days: current.escrow_holding_days,
+          min_payout_amount: current.min_payout_amount,
+        },
+        after: data,
+      },
+    });
 
     revalidatePath('/admin/settings');
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     captureException(error, { action: 'updatePlatformSettings' });
-    return { success: false, error: error.message || 'Failed to update platform settings' };
+    const message = error instanceof z.ZodError ? error.issues[0]?.message : error instanceof Error ? error.message : null;
+    return { success: false, error: message || 'Failed to update platform settings' };
   }
 }

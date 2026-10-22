@@ -12,7 +12,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 > **Single source of truth and operating manual for every AI agent working in this repo.**
 > If anything in `docs/`, `README.md`, or `.agents/skills/*` contradicts this file, **this file wins**. If this file contradicts the code or `supabase/migrations/`, **the code wins**: fix this file.
-> **Last updated:** 2026-10-23 (Phase 1 RLS hardening)
+> **Last updated:** 2026-10-23 (Phase 2 money integrity)
 
 ---
 
@@ -100,7 +100,7 @@ A single account can hold several roles (traveler + organizer + transporter) and
 | RLS tests | `node:test` + PGlite (`@electric-sql/pglite`, dev) | 0.3.16 | In-process Postgres; replays every migration with Supabase stubs (`supabase/tests/rls/`) |
 | Smoke / QA tests | `scripts/qa-smoke-test.ts` run with `tsx` | | Runs against the live DB |
 | Lint | ESLint 9 (flat config) + `eslint-config-next` 16.3.8 | 9.39.5 | No Prettier, no EditorConfig |
-| Hosting | Vercel | | No `vercel.json`, so cron schedules are configured outside the repo |
+| Hosting | Vercel | | `vercel.json` defines the cron schedule (`/api/cron/escrow-release`, daily) |
 | Local toolchain | Node v24.15.0, npm 11.12.1 (the lockfile is npm) | | `package.json` has no `engines` field |
 
 ### 1.3 Commands
@@ -183,21 +183,23 @@ travi/
 │   ├── auth-helpers.ts      # requireSession(), assertRole()   ← Server Actions / RSC
 │   ├── api-auth.ts          # verifyApiAuth(), assertApiRole() ← app/api Bearer routes
 │   ├── schemas/             # zod: admin, auth, booking, tour
-│   ├── services/            # bookings.ts, tours.ts, payments.ts (verifyBookingPayment): write logic shared by actions, pages and API routes
+│   ├── services/            # bookings.ts, tours.ts, payments.ts (applyPaidPayment, verifyBookingPayment), refunds.ts (refundBooking)
 │   ├── data/                # tours.ts, reviews.ts, stats.ts: cached public reads (unstable_cache, tags)
 │   ├── env.ts               # zod-validated env. Import `env`, not process.env
 │   ├── logger.ts            # pino `logger` + captureException() (pino + Sentry)
 │   ├── audit.ts             # logMutation() / logAdminAudit() → admin_audit_logs
 │   ├── ratelimit.ts         # assertRateLimit(id, 'auth' | 'mutation'), getClientIp()
 │   ├── paymongo.ts          # PayMongo REST client (intents, methods, checkout, refunds). Mocks when the key is missing
-│   ├── email.ts, sms.ts     # Resend sender; SMS console mock (dev only; fails in production)
+│   ├── email.ts, sms.ts     # Resend sender + escapeHtml(); SMS console mock (dev only; fails in production)
 │   ├── notifications.ts     # Internal notification senders (in-app + email). Not Server Actions
 │   ├── otp.ts               # OTP issue/verify/require/consume helpers. Not Server Actions
 │   ├── json-ld.ts           # serializeJsonLd(): escapes </script> etc. for JSON-LD
+│   ├── datetime.ts          # manilaToday(): business dates are Asia/Manila
 │   ├── utils.ts             # cn(): clsx + tailwind-merge
 ├── types/supabase.ts        # Generated DB types. ⚠ STALE (see §4.7). Regenerate; never hand-edit
 ├── supabase/migrations/     # YYYYMMDDHHMMSS_snake_case.sql. Append-only
-├── supabase/tests/rls/      # RLS harness (harness.mjs), tests (*.test.mjs), live-policy-audit.sql (read-only drift check)
+├── supabase/tests/rls/      # DB harness (harness.mjs, fixtures.mjs), RLS + money tests (*.test.mjs), live-policy-audit.sql
+├── vercel.json              # Cron schedule
 ├── e2e/                     # Playwright specs (unauthenticated flows only)
 ├── scripts/                 # Seed, fix, and QA scripts (ESLint-ignored). qa-smoke-test.ts is the QA gate (read-only).
 │                            # Scripts that write call scripts/lib/write-guard.cjs: run with CONFIRM_DB_WRITE=<project-ref>
@@ -464,56 +466,56 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
   - The traveler pays **no added fee**.
   - `original_price` on a schedule is a display-only "compare-at" price.
 - **The pending expiry (15 minutes) frees seats.** Do not remove the cron job.
-  - A payment that arrives after expiry is currently orphaned (§6). Any change to expiry or payment must handle late payments.
-- **Traveler cancellation:**
-  - Allowed only from `pending` or `confirmed`, and only before the schedule's `start_date`.
-  - Confirmed bookings get a **full** PayMongo refund, an escrow reversal, and a `refund` ledger row.
+  - **Late payments** (paid after expiry): `confirm_booking_payment()` revives the booking if the trip has not started and seats remain; otherwise the payment is recorded in `booking_payments` as `needs_review` (`late_payment_needs_refund`), Sentry and the super-admin are alerted, and the money must be refunded by hand (no admin UI yet, §6).
+- **Traveler cancellation** (`cancelBookingAsTraveler`):
+  - Allowed only from `pending` or `confirmed`, and only before the schedule's `start_date` (Manila date, `lib/datetime.ts`).
+  - Pending (unpaid): status-guarded update to `canceled`.
+  - Confirmed: **full** refund through `refundBooking()` (`lib/services/refunds.ts`), which reverses the escrow and cancels the booking atomically.
 - **Disputes:**
-  - Only the owning traveler can open one.
-  - Only on a `confirmed` booking with `dispute_status = 'none'`.
-  - Only within `escrow_holding_days` after `end_date`.
-  - An open dispute blocks escrow release.
+  - Opened only through `open_booking_dispute()` (row-locked): the owning traveler, a `confirmed` booking with `dispute_status = 'none'`, up to `escrow_holding_days` after `end_date`. Opening one notifies the super-admin.
+  - An open dispute blocks escrow release (release locks the same row and re-checks).
+  - Admin resolution: refund → `refundBooking(…, bookingStatus 'refunded')` (sets `resolved_refunded`); deny → `deny_booking_dispute()`. Both are audited.
 - **Organizer `updateBookingStatus`:** checks ownership via `tour_schedules!inner(tours!inner(organizer_id))` and allows **only `pending → canceled`** (decline). Organizers cannot confirm bookings; only a verified payment confirms one. Canceling a paid booking must go through the refund flow.
 
 ### 4.4 Payments, fees, escrow & wallets
 
+**Every money movement is a database function** (`supabase/migrations/20261023120000_money_integrity.sql`): it locks the rows it touches, writes the ledger and the balances in one transaction, and is idempotent. App code talks to PayMongo and calls these functions with the service role; it **never** updates `user_wallets` balances or `wallet_transactions` directly. They are tested in `supabase/tests/rls/money.test.mjs`.
+
+| Function | Called by | Does |
+|---|---|---|
+| `confirm_booking_payment(booking, intent, payment, amount_centavos, fee_centavos, source)` | `applyPaidPayment()` (success page + webhook) | Records the payment in `booking_payments` (unique per PayMongo payment), checks the amount, `pending → confirmed` (or revives a late payment), credits organizer escrow with an `escrow_deposit` row. Returns `confirmed`, `already_applied`, or a needs-review outcome (`amount_mismatch`, `duplicate_payment`, `late_payment_needs_refund`, `booking_closed_needs_refund`) |
+| `release_booking_escrow(booking)` + `bookings_due_for_escrow_release()` | escrow cron | Escrow → available (two `escrow_release` rows), booking → `completed` |
+| `begin_booking_refund` → `complete_booking_refund` / `fail_booking_refund` | `refundBooking()` | One active refund per booking (`booking_refunds`), proportional escrow reversal, booking → `canceled`/`refunded` |
+| `open_booking_dispute`, `deny_booking_dispute` | dispute actions | Row-locked dispute transitions |
+| `request_payout(amount, method_id)` | `requestPayout()` with the **user's** session | Approved partners only; min from settings; destination from the caller's saved methods; atomic debit + `withdrawal_pending` + `payout_requests` |
+| `mark_payout_paid`, `reject_payout` | admin actions | Only from `pending`/`processing`; wallet derived from the request; ledger + audit log |
+| `wallet_ledger_drift()`, `bookings_missing_deposit()`, `backfill_booking_deposit()` | cron, `scripts/backfill-escrow-deposits.ts` | Reconciliation |
+
 - **PayMongo flow:**
   1. `/tours/[slug]/booking/[bookingId]/pay` → `PaymentSelectionClient` → `processPayment(bookingId, 'gcash' | 'paymaya')`.
      - Only the owning traveler, only for a `pending` booking. The return URL is built on the server (`NEXT_PUBLIC_SITE_URL`, else the request host).
-     - It creates a PaymentIntent (**centavos**: `Math.round(total_amount * 100)`).
-     - It stores `pi_…` in `bookings.paymongo_session_id`, then attaches a PaymentMethod and redirects.
-     - Card is disabled in the UI.
-  2. The redirect returns to `/success`. The RSC requires the signed-in owner, then calls `verifyBookingPayment(bookingId, profileId)` (`lib/services/payments.ts`, not a Server Action). It verifies the intent `succeeded` (or the checkout session `paid`), then:
-     - booking `pending → confirmed` only (status-guarded update). A paid booking that is no longer `pending` is **not** re-confirmed; it is reported to Sentry for manual follow-up.
-     - organizer fee taken
-     - an `escrow_deposit` ledger row, deduplicated by `reference_id` + type ⚠ silently skipped today: wrong wallet id (§6 #7)
-     - `increment_escrow_balance`
-     - notify the organizer
-  3. `POST /api/webhooks/paymongo` handles `payment.paid` / `checkout_session.payment.paid`. It writes a **`payment_hold`** ledger row (see §6: type mismatch, and no signature check).
-- **Currency conversion:** DB amounts are pesos; PayMongo amounts are centavos. Convert only at the `lib/paymongo.ts` boundary (`×100` out, `/100` in).
-- **Fees** come from the single `platform_settings` row:
-  - `organizer_fee_percent` (DB default **10.00**) is deducted from the organizer's escrow credit: `net = total × (1 − fee%)`. The fee is recorded in `fee_amount`.
-  - `transporter_fee_percent` (default 3.00) is deducted from transporter payouts. It is **0 when organizer and transporter are the same user**.
-  - `escrow_holding_days` (default 3).
-  - Code fallbacks use `|| 3`. A stored `0` therefore becomes 3. Use `??` in new code.
-- **Escrow release** (`GET /api/cron/escrow-release`, Bearer `CRON_SECRET`):
-  - **Tour bookings:** releases `confirmed` bookings whose `end_date <= today − escrow_holding_days` and whose dispute status is `none | resolved_denied`. Moves escrow → available via RPCs, writes an `escrow_release` row (deduplicated), and sets the booking → `completed`.
-  - **Transport bookings:** for `accepted` transport bookings, debits the organizer's available balance by `estimated_price`, credits the transporter `price − fee` (`manual_adjustment`, `reference_type 'transport_booking'`), and sets them → `completed`.
-  - The cron must stay **idempotent**: it always checks for an existing ledger row before writing.
-- **Wallets:**
-  - One `user_wallets` row per `user_profiles.id`, created with `ensure_user_wallet`. Currency is PHP.
-  - Two balances: `escrow_balance` and `available_balance`.
-  - **Every balance change must have a matching `wallet_transactions` row.**
-  - Users have **SELECT-only** RLS on wallets and the ledger. All money movement goes through the service-role client.
-- **Payouts** (`requestPayout`):
-  - Organizers and transporters only. Minimum **₱100**, at most `available_balance`. Requires password re-entry.
-  - Debits available, writes `withdrawal_pending`, and creates a `payout_requests` row (`pending`).
-  - Admin `markPayoutPaid` → `paid` + `withdrawal_completed`.
-  - `rejectPayout` → `rejected`, refunds available, + `withdrawal_rejected`.
-- **Saved payout methods** live in `user_wallets.saved_payout_methods` (jsonb): `{ id, type: 'bank'|'gcash'|'maya', isDefault, details: { accountName, accountNumber, bankName? } }`.
-  - Adding one requires a verified OTP (`add_payout_method`).
-  - The first method saved becomes the default.
-- **Mock mode:** with `PAYMONGO_SECRET_KEY` unset, `lib/paymongo.ts` **returns success for every verification and refund**. That is acceptable only for local dev; production must have the key.
+     - It creates a PaymentIntent (**centavos**: `Math.round(total_amount * 100)`) with `metadata.booking_id`/`booking_ref`, stores `pi_…` in `bookings.paymongo_session_id`, attaches a PaymentMethod and redirects. Card is disabled in the UI.
+  2. The redirect returns to `/success`. The RSC requires the signed-in owner, then `verifyBookingPayment()` re-fetches the intent from PayMongo and calls `applyPaidPayment()`.
+  3. `POST /api/webhooks/paymongo` (backstop when the traveler never returns): verifies the `paymongo-signature` HMAC over the raw body (fails closed with 503 without `PAYMONGO_WEBHOOK_SECRET`), skips events already in `webhook_events`, re-fetches the payment from PayMongo, finds the booking by intent id (or intent metadata), calls `applyPaidPayment()`, then records the event. Errors return 500 so PayMongo retries.
+- **Currency conversion:** DB amounts are pesos; PayMongo amounts are centavos. Convert only at the `lib/paymongo.ts` boundary.
+- **Fees** come from the single `platform_settings` row (uuid id: read the latest row, never `.eq('id', 1)`), bounded by the `platform_settings_bounds` CHECK; every change is copied to `platform_settings_history` and the admin audit log:
+  - `organizer_fee_percent` (DB default **10.00**, 0–50), **snapshotted on the booking** (`bookings.organizer_fee_percent`) when it is created. The organizer's escrow credit is `total − round(total × fee%, 2)`; the fee is stored in `fee_amount`.
+  - `transporter_fee_percent` (default 3.00, 0–50). Unused while transport is coordination-only (no on-platform transport payouts; decision D2).
+  - `escrow_holding_days` (default 3, 0–60). `min_payout_amount` (default ₱100).
+  - Never use `||` fallbacks for these; a stored 0 is valid.
+  - PayMongo's own fee (MDR) is recorded per payment in `booking_payments.fee_centavos`; who absorbs it is still an open decision (D4).
+- **Escrow release** (`GET /api/cron/escrow-release`, Bearer `CRON_SECRET`, daily at 18:00 UTC = 02:00 Manila via `vercel.json`):
+  - Releases `confirmed` bookings whose `end_date + escrow_holding_days <= manila_today()` and whose dispute status is `none | resolved_denied`.
+  - Reports `no_deposit` bookings and any `wallet_ledger_drift()` rows to Sentry.
+- **Wallets and the ledger:**
+  - One `user_wallets` row per `user_profiles.id` (`ensure_user_wallet`, race-free). Revenue goes to the organizer's **user** profile wallet (`organizer_wallet_for_booking()`). Currency is PHP.
+  - **Sign convention:** `wallet_transactions.amount` is the signed effect on the bucket in `balance_affected`, so `sum(amount)` per bucket equals the balance. `withdrawal_completed` is a 0-amount memo (the debit happened at request time).
+  - The ledger is **append-only** (trigger); corrections are new `manual_adjustment` rows. Balances can never go negative (CHECK).
+  - Users have SELECT-only RLS on wallets and the ledger; `booking_payments`, `booking_refunds`, `webhook_events` are service-role only.
+- **Payouts:** password re-entry (rate-limited) + `request_payout()`; the destination is always one of the caller's saved, OTP-verified methods (snapshotted into `payout_requests.payout_method`). Admins pay outside Travi, then `markPayoutPaid(payoutId, reference)` or `rejectPayout(payoutId, reason)`.
+- **Saved payout methods** live in `user_wallets.saved_payout_methods` (jsonb): `{ id, type: 'bank'|'gcash'|'maya', isDefault, details: { accountName, accountNumber, bankName? } }`. Adding one requires a verified OTP (`add_payout_method`). The first method saved becomes the default.
+- **Backfill:** bookings confirmed before this migration may have no deposit (old wrong-wallet bug). Run `scripts/backfill-escrow-deposits.ts` (dry run by default) after the migration is applied.
+- **Mock mode:** with `PAYMONGO_SECRET_KEY` unset (local dev only), `lib/paymongo.ts` returns successful mock intents, payments and refunds. Production refuses to start without a live key.
 
 ### 4.5 Tours, schedules, transport, vehicles, reviews
 
@@ -606,10 +608,10 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
 | Admin console (organizers, transporters, tours, bookings, reviews, payouts, notifications, settings) | Implemented on the real DB (service role) |
 | Organizer tour CRUD, schedules, itineraries, transport requests | Implemented |
 | Transporter vehicles, availability, requests, reviews view | Implemented |
-| Traveler booking → PayMongo (GCash/Maya) → confirmation, cancel, dispute | Implemented; ⚠ ledger defects in §6 |
-| Wallets, escrow cron, payouts, saved payout methods | Implemented; ⚠ defects in §6 |
+| Traveler booking → PayMongo (GCash/Maya) → confirmation, cancel, dispute | Implemented with atomic DB functions + signed webhook; ⚠ migration not yet applied (§6 #3) |
+| Wallets, escrow cron (scheduled in `vercel.json`), payouts, saved payout methods | Implemented with atomic DB functions; ⚠ see §6 #3, #6, #7 |
 | Review submission by travelers | **Not implemented** |
-| Real SMS provider; PayMongo webhook signature verification | **Not implemented** |
+| Real SMS provider; admin UI for payments needing review; maker-checker payouts; transport payouts | **Not implemented** |
 
 ---
 
@@ -695,7 +697,7 @@ Record the reason in a one-line comment at the call site.
 | `OTP_SECRET` | **server secret** | **yes (prod)** | ≥32 chars. Signs OTP cookies. Must NOT be the Supabase JWT secret. Unset in dev ⇒ random key per server run |
 | `CRON_SECRET` | **server secret** | **yes (prod)** | ≥32 chars. Bearer for `/api/cron/escrow-release`. Unset ⇒ the endpoint **refuses every request** |
 | `PAYMONGO_SECRET_KEY` | **server secret** | **yes (prod)** | PayMongo API. Unset ⇒ **all payment verifications and refunds are mocked as successful** |
-| `PAYMONGO_WEBHOOK_SECRET` | **server secret** | yes (prod) | For webhook signature verification (declared, not yet used) |
+| `PAYMONGO_WEBHOOK_SECRET` | **server secret** | **yes (prod)** | Verifies the `paymongo-signature` HMAC. Unset ⇒ the webhook returns 503 (fails closed) |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | **server secret** | yes (prod) | Rate limiting. Unset ⇒ rate limiting is **disabled** |
 | `RESEND_API_KEY` / `RESEND_FROM_EMAIL` | **server secret** / server | prod | Email. Unset ⇒ console mock |
 | `NEXT_PUBLIC_SITE_URL` | public | prod | Absolute URLs (checkout return, sitemap, robots). Fallbacks: `http://localhost:3000`, `https://travi.ph` |
@@ -712,7 +714,7 @@ Record the reason in a one-line comment at the call site.
   - `mutation`: 10 requests / 10 s per `profile.id`.
   - **Required on:** every login, signup, and OTP send/verify action; every mutating action; every public `app/api` POST. Many legacy actions lack it; add it when you touch them.
 - **CORS:** none is configured, so route handlers are same-origin by default. Do not add `Access-Control-Allow-Origin: *`. If mobile clients need CORS, allow-list explicit origins in the route handler.
-- **Webhooks:** must verify the PayMongo `paymongo-signature` HMAC with `PAYMONGO_WEBHOOK_SECRET` over the **raw body** before parsing, must be idempotent (dedupe on the ledger row), and must return 2xx only after the work is durable.
+- **Webhooks:** must verify the PayMongo `paymongo-signature` HMAC with `PAYMONGO_WEBHOOK_SECRET` over the **raw body** before parsing (`verifyWebhookSignature`), must re-fetch money data from PayMongo's API instead of trusting the payload, must be idempotent (`webhook_events` + the money functions), and must return 2xx only after the work is durable. `app/api/webhooks/paymongo` follows all four.
 - **Cron:** must require `Authorization: Bearer ${CRON_SECRET}`, fail closed when the secret is unset, and stay idempotent.
 - **Data protection:**
   - **PII:** names, emails, phones, payout account numbers. Never log it, never expose it through public reads.
@@ -737,41 +739,28 @@ These are verified against the code on 2026-10-16. **Do not copy these patterns.
 ### Critical (security / money)
 
 2. **RLS hardening migration not yet applied to the live DB.** `20261023090000_rls_hardening.sql` closes self-granted admin, booking/payout/transport/review/notification forgery and status self-edits (all verified by `npm run test:rls`), but until it is pushed (after `live-policy-audit.sql`) the live project still has those holes. Remaining after it: **signed-in** users can still read partner phone numbers and addresses, vehicle plates and other travelers' full profile rows for their bookings (SEC-13; anon is now column-limited).
-3. **The PayMongo webhook has no signature verification** (`app/api/webhooks/paymongo/route.ts`), and `PAYMONGO_WEBHOOK_SECRET` is unused.
-6. **Ledger type split.**
-   - The success page writes `escrow_deposit`; the webhook writes `payment_hold`.
-   - The cron releases only `payment_hold`; cancel and dispute reverse only `escrow_deposit`.
-   - Result: bookings confirmed via the success page are never released or completed.
-7. **Wrong wallet owner ID.** `verifyBookingPayment` (`lib/services/payments.ts`), `cancelBookingAsTraveler`, and `resolveDispute` (`actions/bookings.ts`) pass `organizer_profiles.id` to `ensure_user_wallet`, which expects a `user_profiles.id`.
-8. **Non-atomic money operations.**
-   - `requestPayout` read-modify-writes `available_balance` (double-spend race).
-   - `markPayoutPaid` doesn't check rows affected (replayable).
-   - `markPayoutPaid` and `rejectPayout` trust a client-supplied `walletId`.
-   - Ledger writes and balance RPCs are not in one transaction.
-   - The transport payout can drive an organizer's balance negative.
+3. **Phase 2 money migration not yet applied, and the FIN-01 backlog is not backfilled.** `20261023120000_money_integrity.sql` (atomic confirm/release/refund/payout functions, append-only ledger, webhook dedupe) is tested locally only. Until it is pushed and `scripts/backfill-escrow-deposits.ts --apply` has run, organizers paid through the old success page have no escrow deposit, and historical ledger rows (old `payment_hold`/`withdrawal_pending` signs) will show in `wallet_ledger_drift()`.
+6. **Payments that need review have no admin UI.** `booking_payments` rows with `status = 'needs_review'` (late payment with no seats, duplicate payment, wrong amount) alert Sentry and the super-admin, but must be refunded by hand in the PayMongo dashboard.
+7. **Payout destinations are stored in plaintext** (`user_wallets.saved_payout_methods`, `payout_requests.payout_method`), and one admin can both approve and mark a payout paid (no maker-checker). See FIN-20, OPS-07.
 9. **OTP weaknesses** (`lib/otp.ts`): the code sits in a signed but unencrypted cookie (readable by anyone holding the session), `Math.random` codes, and no attempt limit. Tokens are now bound to the user and carry only fixed claims.
 
 ### High
 
-10. **Late payments need manual handling.** A payment for a booking that already expired to `canceled` is ignored by the webhook; the success page reports it to Sentry instead of re-confirming. There is no automatic refund yet.
-11. **`updatePlatformSettings` can't save.** It filters `.eq('id', 1)`, but `platform_settings.id` is a uuid, so fee settings never save. It also has no validation and no audit log.
 12. **`verifyApiAuth` doesn't attach the bearer token** to the returned client, so API-route queries run as anon.
 13. **`POST /api/organizers` writes non-existent columns** (`type`, `phone_number`, `provides_transportation`).
 14. **API routes read `ZodError.errors[0]`.** That is zod v3; v4 uses `.issues`, so this throws.
 16. **Missing app-layer auth or validation** in `actions/schedules.ts`, `actions/organizer.ts`, `actions/transporter.ts`.
     - Partner profiles auto-approve.
     - The `createTour` action doesn't check organizer approval (the API route does).
-17b. **Payout minimum mismatch.** `components/dashboard/WalletClient.tsx` hardcodes `MIN_WITHDRAWAL = 500`; the rule (§4.4) is ₱100. Its escrow card says "Released 24h after completion" instead of `escrow_holding_days`.
 17e. **The organizer tour edit page lists soft-deleted schedules.** Its `tour_schedules` query (`app/dashboard/organizer/tours/[id]/edit/page.tsx`) has no `.is('deleted_at', null)` (§3.4).
-17d. **The admin settings page reads `platform_settings` with `.eq('id', 1)`** (uuid id), so the form always shows fallback values (`|| 3`). Read-side twin of #11.
 
 ### Medium / hygiene
 
 17. **Duplicate migration timestamp `20260831000000`** (`add_saved_payout_methods` + `wallet_v2_architecture`). Renaming either file needs human approval, because it affects remote migration history.
 18. **`types/supabase.ts` is stale**, and there are columns with no migration (see §4.7).
-19. **`|| 3` fee and holding-day fallbacks** turn a stored 0 into 3.
+19. **Organizer dashboards show gross revenue** (`app/dashboard/organizer/page.tsx`), not the net that reaches the wallet (FIN-15). Platform revenue is only derivable from `fee_amount`; there is no platform ledger.
 20. **Two email senders.** `lib/email.ts` and `sendEmailNotification` use a hardcoded `notifications@travi.app`; email links are hardcoded to `https://travi.app`.
-21. **Unused dependencies:** `stripe`, `@stripe/stripe-js`, `@tanstack/react-query`, `react-hook-form`, `@hookform/resolvers`. Also unused: the `payout_otps` table and `lib/paymongo.ts` `createCheckoutSession`.
+21. **Unused dependencies:** `stripe`, `@stripe/stripe-js`, `@tanstack/react-query`, `react-hook-form`, `@hookform/resolvers`. Also unused: the `payout_otps` table and the legacy `payments` table (replaced by `booking_payments`).
 22. **Tracked junk files at the repo root**, listed in §2.2. `.gitignore` is missing `playwright-report/`, `test-results/`, `scratch/`, `*.log`.
 23. **`README.md` is create-next-app boilerplate.**
 23a. **Stub forms that persist nothing:** `OrganizerProfileForm` and `TravelerProfileForm` save via a TODO + `setTimeout`; the admin settings "Admin Profile" password form's action is a no-op.

@@ -33,6 +33,14 @@ export default async function WalletPage() {
     .order('created_at', { ascending: false })
     .limit(20);
     
+  // Payout minimum and escrow holding period (platform_settings is publicly readable)
+  const { data: settings } = await supabase
+    .from('platform_settings')
+    .select('min_payout_amount, escrow_holding_days')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   // Fetch Pending Payouts
   const { data: payouts } = await supabase
     .from('payout_requests')
@@ -60,6 +68,8 @@ export default async function WalletPage() {
         wallet={wallet} 
         transactions={transactions || []} 
         payouts={payouts || []} 
+        minPayout={Number(settings?.min_payout_amount ?? 100)}
+        holdingDays={Number(settings?.escrow_holding_days ?? 3)}
       />
     </div>
   );

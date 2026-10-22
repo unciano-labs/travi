@@ -154,7 +154,10 @@ export async function processPayment(bookingId: string, method: 'gcash' | 'payma
 
     // Create Intent
     const amountCents = Math.round(booking.total_amount * 100);
-    const intent = await createPaymentIntent(amountCents, `Travi Booking: ${booking.booking_ref}`);
+    const intent = await createPaymentIntent(amountCents, `Travi Booking: ${booking.booking_ref}`, {
+      booking_id: booking.id,
+      booking_ref: booking.booking_ref,
+    });
 
     // Save the Intent ID to the booking so we can verify it later (still pending, so nothing paid is overwritten)
     await admin.from('bookings').update({ paymongo_session_id: intent.id }).eq('id', booking.id).eq('status', 'pending');
@@ -183,89 +186,61 @@ export async function processPayment(bookingId: string, method: 'gcash' | 'payma
   }
 }
 
+const bookingIdSchema = z.string().uuid();
+const disputeDecisionSchema = z.enum(['refund', 'deny']);
+
 export async function cancelBookingAsTraveler(bookingId: string) {
   try {
-    const { requireSession } = await import('@/lib/auth-helpers');
+    const id = bookingIdSchema.parse(bookingId);
     const { profile } = await requireSession();
+    await assertRateLimit(profile.id, 'mutation');
     const { createAdminClient } = await import('@/lib/supabase/admin');
+    // Service role: travelers have no UPDATE on bookings. Ownership checked below.
     const admin = createAdminClient({ admin: true });
 
-    // 1. Get Booking and verify ownership
     const { data: booking, error: bookingError } = await admin
       .from('bookings')
-      .select(`
-        id, 
-        status, 
-        total_amount,
-        paymongo_session_id,
-        traveler_id,
-        tour_schedules (
-          id,
-          start_date,
-          tours (organizer_id)
-        )
-      `)
-      .eq('id', bookingId)
+      .select('id, status, traveler_id, tour_schedules ( start_date )')
+      .eq('id', id)
       .single();
 
-    if (bookingError || !booking) throw new Error('Booking not found');
-    if (booking.traveler_id !== profile.id) throw new Error('Unauthorized');
-    if (booking.status !== 'pending' && booking.status !== 'confirmed') {
-      throw new Error('Booking cannot be canceled in its current status');
-    }
+    if (bookingError || !booking || booking.traveler_id !== profile.id) throw new Error('Booking not found');
 
-    // Check if start date is in the future
-    const startDate = new Date((booking.tour_schedules as any).start_date);
-    if (startDate <= new Date()) {
+    const schedule = booking.tour_schedules as unknown as { start_date: string } | null;
+    const { manilaToday } = await import('@/lib/datetime');
+    if (!schedule || schedule.start_date <= manilaToday()) {
       throw new Error('Cannot cancel a tour that has already started or ended');
     }
 
-    // 2. Process Refund if confirmed/paid
-    if (booking.status === 'confirmed') {
-      if (booking.paymongo_session_id) {
-        const { refundPayment } = await import('@/lib/paymongo');
-        await refundPayment(booking.paymongo_session_id, booking.total_amount, 'requested_by_customer');
-      }
-
-      // 3. Revert Escrow logic
-      const organizerProfileId = (booking.tour_schedules as any).tours.organizer_id;
-      const { data: walletId } = await admin.rpc('ensure_user_wallet', { profile_id: organizerProfileId });
-
-      if (walletId) {
-        const { data: depositTx } = await admin
-          .from('wallet_transactions')
-          .select('amount')
-          .eq('reference_id', booking.id)
-          .eq('type', 'escrow_deposit')
-          .single();
-
-        if (depositTx) {
-          // Deduct from escrow
-          await admin.rpc('increment_escrow_balance', { w_id: walletId, amt: -depositTx.amount });
-
-          // Record refund transaction
-          await admin.from('wallet_transactions').insert({
-            wallet_id: walletId,
-            amount: -depositTx.amount,
-            type: 'refund',
-            balance_affected: 'escrow',
-            reference_type: 'booking',
-            reference_id: booking.id,
-            description: `Refund for canceled booking ${bookingId}`
-          });
-        }
-      }
+    if (booking.status === 'pending') {
+      // Unpaid: release the seats. A payment that still arrives is handled as a late payment.
+      const { data: updated, error } = await admin
+        .from('bookings')
+        .update({ status: 'canceled' })
+        .eq('id', id)
+        .eq('status', 'pending')
+        .select('id');
+      if (error) throw error;
+      if (!updated || updated.length === 0) throw new Error('This booking changed; refresh and try again.');
+    } else if (booking.status === 'confirmed') {
+      // Paid: full refund (current policy, see AGENTS.md §4.3), escrow reversal, booking canceled.
+      const { refundBooking } = await import('@/lib/services/refunds');
+      await refundBooking({
+        bookingId: id,
+        reason: 'traveler_cancel',
+        initiatedBy: profile.id,
+        initiatedRole: 'traveler',
+        bookingStatus: 'canceled',
+      });
+    } else {
+      throw new Error('Booking cannot be canceled in its current status');
     }
 
-    // 4. Update status
-    await admin.from('bookings').update({ status: 'canceled' }).eq('id', booking.id);
-    
     const { revalidatePath } = await import('next/cache');
     revalidatePath('/dashboard/traveler/bookings');
 
     return { success: true };
   } catch (error: any) {
-    const { captureException } = await import('@/lib/logger');
     captureException(error, { action: 'cancelBookingAsTraveler', bookingId });
     return { success: false, error: error.message };
   }
@@ -273,53 +248,23 @@ export async function cancelBookingAsTraveler(bookingId: string) {
 
 export async function openDispute(bookingId: string) {
   try {
-    const { requireSession } = await import('@/lib/auth-helpers');
+    const id = bookingIdSchema.parse(bookingId);
     const { profile } = await requireSession();
+    await assertRateLimit(profile.id, 'mutation');
     const { createAdminClient } = await import('@/lib/supabase/admin');
+    // Service role: open_booking_dispute() checks ownership, status and the dispute window under a row lock.
     const admin = createAdminClient({ admin: true });
 
-    const { data: booking, error: bookingError } = await admin
-      .from('bookings')
-      .select(`
-        id, 
-        traveler_id, 
-        status, 
-        dispute_status,
-        tour_schedules (end_date)
-      `)
-      .eq('id', bookingId)
-      .single();
+    const { error } = await admin.rpc('open_booking_dispute', { p_booking_id: id, p_traveler_profile_id: profile.id });
+    if (error) throw new Error(error.message);
 
-    if (bookingError || !booking) throw new Error('Booking not found');
-    if (booking.traveler_id !== profile.id) throw new Error('Unauthorized');
-    
-    // Check if the holding period has passed
-    const { data: settings } = await admin.from('platform_settings').select('escrow_holding_days').limit(1).single();
-    const holdingDays = settings?.escrow_holding_days || 3;
-    const endDate = new Date((booking.tour_schedules as any).end_date);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - endDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (now > endDate && diffDays > holdingDays) {
-      throw new Error('Dispute period has expired. The funds have likely been released.');
-    }
+    await notifySuperAdmin('Dispute opened', `A traveler opened a dispute on booking ${id}.`, 'dispute_opened', '/admin/bookings');
 
-    if (booking.status !== 'confirmed') {
-      throw new Error('Disputes can only be opened for confirmed bookings that have not yet been completed/released.');
-    }
-    if (booking.dispute_status !== 'none') {
-      throw new Error('A dispute is already open or resolved for this booking.');
-    }
-
-    await admin.from('bookings').update({ dispute_status: 'open' }).eq('id', bookingId);
-    
     const { revalidatePath } = await import('next/cache');
     revalidatePath('/dashboard/traveler/bookings');
 
     return { success: true };
   } catch (error: any) {
-    const { captureException } = await import('@/lib/logger');
     captureException(error, { action: 'openDispute', bookingId });
     return { success: false, error: error.message };
   }
@@ -327,76 +272,38 @@ export async function openDispute(bookingId: string) {
 
 export async function resolveDispute(bookingId: string, decision: 'refund' | 'deny') {
   try {
-    const { requireSession, assertRole } = await import('@/lib/auth-helpers');
-    const { user } = await requireSession();
+    const id = bookingIdSchema.parse(bookingId);
+    const verdict = disputeDecisionSchema.parse(decision);
+    const { user, profile } = await requireSession();
     await assertRole(user.id, 'admin');
+    await assertRateLimit(profile.id, 'mutation');
 
     const { createAdminClient } = await import('@/lib/supabase/admin');
+    // Service role: dispute resolution is an admin money operation (AGENTS.md §5.3).
     const admin = createAdminClient({ admin: true });
 
-    const { data: booking, error: bookingError } = await admin
-      .from('bookings')
-      .select(`
-        id, 
-        total_amount,
-        paymongo_session_id,
-        dispute_status,
-        tour_schedules (
-          tours (organizer_id)
-        )
-      `)
-      .eq('id', bookingId)
-      .single();
+    const { data: booking } = await admin.from('bookings').select('dispute_status').eq('id', id).single();
+    if (!booking || booking.dispute_status !== 'open') throw new Error('No open dispute to resolve');
 
-    if (bookingError || !booking) throw new Error('Booking not found');
-    if (booking.dispute_status !== 'open') throw new Error('No open dispute to resolve');
-
-    if (decision === 'refund') {
-      if (booking.paymongo_session_id) {
-        const { refundPayment } = await import('@/lib/paymongo');
-        await refundPayment(booking.paymongo_session_id, booking.total_amount, 'requested_by_customer');
-      }
-
-      const organizerProfileId = (booking.tour_schedules as any).tours.organizer_id;
-      const { data: walletId } = await admin.rpc('ensure_user_wallet', { profile_id: organizerProfileId });
-
-      if (walletId) {
-        const { data: depositTx } = await admin
-          .from('wallet_transactions')
-          .select('amount')
-          .eq('reference_id', booking.id)
-          .eq('type', 'escrow_deposit')
-          .single();
-
-        if (depositTx) {
-          await admin.rpc('increment_escrow_balance', { w_id: walletId, amt: -depositTx.amount });
-          await admin.from('wallet_transactions').insert({
-            wallet_id: walletId,
-            amount: -depositTx.amount,
-            type: 'refund',
-            balance_affected: 'escrow',
-            reference_type: 'booking',
-            reference_id: booking.id,
-            description: `Refund from resolved dispute for booking ${bookingId}`
-          });
-        }
-      }
-
-      await admin.from('bookings').update({ 
-        status: 'refunded', 
-        dispute_status: 'resolved_refunded' 
-      }).eq('id', booking.id);
-
-    } else if (decision === 'deny') {
-      await admin.from('bookings').update({ dispute_status: 'resolved_denied' }).eq('id', booking.id);
+    if (verdict === 'refund') {
+      const { refundBooking } = await import('@/lib/services/refunds');
+      await refundBooking({
+        bookingId: id,
+        reason: 'dispute_refund',
+        initiatedBy: profile.id,
+        initiatedRole: 'admin',
+        bookingStatus: 'refunded',
+      });
+    } else {
+      const { error } = await admin.rpc('deny_booking_dispute', { p_booking_id: id, p_admin_profile_id: profile.id });
+      if (error) throw new Error(error.message);
     }
-    
+
     const { revalidatePath } = await import('next/cache');
     revalidatePath('/admin/bookings');
 
     return { success: true };
   } catch (error: any) {
-    const { captureException } = await import('@/lib/logger');
     captureException(error, { action: 'resolveDispute', bookingId, decision });
     return { success: false, error: error.message };
   }

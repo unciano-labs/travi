@@ -15,9 +15,11 @@ export function PlatformSettingsForm({ initialSettings }: { initialSettings: any
   const [errorMsg, setErrorMsg] = useState('');
 
   const [formData, setFormData] = useState({
-    organizer_fee_percent: initialSettings?.organizer_fee_percent || 3,
-    transporter_fee_percent: initialSettings?.transporter_fee_percent || 3,
-    escrow_holding_days: initialSettings?.escrow_holding_days || 3,
+    // ?? not ||: a stored 0 is a real value. Defaults mirror the database column defaults.
+    organizer_fee_percent: Number(initialSettings?.organizer_fee_percent ?? 10),
+    transporter_fee_percent: Number(initialSettings?.transporter_fee_percent ?? 3),
+    escrow_holding_days: Number(initialSettings?.escrow_holding_days ?? 3),
+    min_payout_amount: Number(initialSettings?.min_payout_amount ?? 100),
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,7 +60,7 @@ export function PlatformSettingsForm({ initialSettings }: { initialSettings: any
               name="organizer_fee_percent"
               step="0.1"
               min="0"
-              max="100"
+              max="50"
               value={formData.organizer_fee_percent}
               onChange={handleChange}
             />
@@ -72,7 +74,7 @@ export function PlatformSettingsForm({ initialSettings }: { initialSettings: any
               name="transporter_fee_percent"
               step="0.1"
               min="0"
-              max="100"
+              max="50"
               value={formData.transporter_fee_percent}
               onChange={handleChange}
             />
@@ -85,10 +87,24 @@ export function PlatformSettingsForm({ initialSettings }: { initialSettings: any
               type="number"
               name="escrow_holding_days"
               min="0"
+              max="60"
               value={formData.escrow_holding_days}
               onChange={handleChange}
             />
-            <p className="text-xs text-muted-foreground">Days after tour completion before funds clear.</p>
+            <p className="text-xs text-muted-foreground">Days after the trip ends before funds clear (disputes allowed until then).</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="min_payout_amount">Minimum Payout (₱)</Label>
+            <Input
+              id="min_payout_amount"
+              type="number"
+              name="min_payout_amount"
+              step="0.01"
+              min="1"
+              value={formData.min_payout_amount}
+              onChange={handleChange}
+            />
+            <p className="text-xs text-muted-foreground">Smallest withdrawal a partner can request.</p>
           </div>
         </div>
 

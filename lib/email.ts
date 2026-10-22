@@ -7,6 +7,12 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 // Note: If you don't have a verified domain on Resend, you must use 'onboarding@resend.dev'
 const SENDER_EMAIL = process.env.RESEND_FROM_EMAIL || 'Travi Support <onboarding@resend.dev>';
 
+// Escape user-supplied text (names, tour titles, reasons) before putting it in email HTML (SEC-18).
+const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+export function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => HTML_ESCAPES[char]);
+}
+
 export interface EmailParams {
   to: string;
   subject: string;

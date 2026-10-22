@@ -1,294 +1,182 @@
+import { createHmac, timingSafeEqual } from 'crypto';
 import { env } from './env';
 
-export interface PaymongoCheckoutPayload {
-  amount: number; // in cents (e.g. 10000 for PHP 100)
-  description: string;
-  reference_number: string;
-  success_url: string;
-  cancel_url: string;
-  customer_email?: string;
-  customer_name?: string;
+// PayMongo REST client. Amounts here are CENTAVOS (integers); convert from pesos only at the caller
+// boundary (AGENTS.md §4.4). Without PAYMONGO_SECRET_KEY (local dev only; production refuses to start
+// without it, see lib/env.ts) calls are mocked as successful and flagged with `mock: true`.
+
+const API = 'https://api.paymongo.com/v1';
+
+function authHeader() {
+  return `Basic ${Buffer.from(`${env.PAYMONGO_SECRET_KEY}:`).toString('base64')}`;
 }
 
-export async function createCheckoutSession(payload: PaymongoCheckoutPayload) {
-  if (!env.PAYMONGO_SECRET_KEY) {
-    console.warn('PAYMONGO_SECRET_KEY is missing. Simulating successful checkout creation.');
-    return {
-      checkout_url: payload.success_url, // For local dev, just redirect to success
-      reference_number: payload.reference_number
-    };
-  }
-
-  const options = {
-    method: 'POST',
+async function paymongo<T = any>(path: string, init: { method?: 'GET' | 'POST'; body?: unknown } = {}): Promise<T> {
+  const response = await fetch(`${API}${path}`, {
+    method: init.method ?? 'GET',
     headers: {
       accept: 'application/json',
       'content-type': 'application/json',
-      authorization: `Basic ${Buffer.from(env.PAYMONGO_SECRET_KEY + ':').toString('base64')}`
+      authorization: authHeader(),
     },
-    body: JSON.stringify({
-      data: {
-        attributes: {
-          send_email_receipt: true,
-          show_description: true,
-          show_line_items: true,
-          line_items: [
-            {
-              currency: 'PHP',
-              amount: payload.amount,
-              description: payload.description,
-              name: payload.description,
-              quantity: 1
-            }
-          ],
-          payment_method_types: ['gcash', 'paymaya', 'card'],
-          reference_number: payload.reference_number,
-          success_url: payload.success_url,
-          cancel_url: payload.cancel_url,
-          ...(payload.customer_email || payload.customer_name ? {
-            billing: {
-              email: payload.customer_email,
-              name: payload.customer_name
-            }
-          } : {})
-        }
-      }
-    })
-  };
-
-  const response = await fetch('https://api.paymongo.com/v1/checkout_sessions', options);
-  
+    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+  });
   if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Paymongo API Error:', errorText);
-    throw new Error('Failed to create Paymongo checkout session');
-  }
-
-  const json = await response.json();
-  return {
-    checkout_url: json.data.attributes.checkout_url,
-    reference_number: payload.reference_number,
-    session_id: json.data.id
-  };
-}
-
-export async function verifyCheckoutSession(sessionId: string) {
-  if (!env.PAYMONGO_SECRET_KEY) {
-    return { status: 'paid' };
-  }
-
-  const options = {
-    method: 'GET',
-    headers: {
-      accept: 'application/json',
-      authorization: `Basic ${Buffer.from(env.PAYMONGO_SECRET_KEY + ':').toString('base64')}`
+    // PayMongo error bodies can echo request data; keep only the error codes.
+    let detail = '';
+    try {
+      const json = await response.json();
+      detail = (json?.errors ?? []).map((e: { code?: string }) => e.code).filter(Boolean).join(', ');
+    } catch {
+      // non-JSON error body
     }
-  };
-
-  const response = await fetch(`https://api.paymongo.com/v1/checkout_sessions/${sessionId}`, options);
-  
-  if (!response.ok) {
-    throw new Error('Failed to retrieve Paymongo checkout session');
+    throw new Error(`PayMongo ${init.method ?? 'GET'} ${path.split('/')[1]} failed (${response.status}${detail ? `: ${detail}` : ''})`);
   }
-
-  const json = await response.json();
-  const payments = json.data.attributes.payments;
-  
-  if (payments && payments.length > 0) {
-    // Check if any payment is paid
-    const isPaid = payments.some((p: any) => p.attributes.status === 'paid');
-    if (isPaid) return { status: 'paid' };
-  }
-
-  return { status: 'pending' };
+  return response.json() as Promise<T>;
 }
 
-export async function createPaymentIntent(amount: number, description: string) {
+export interface PaymongoPayment {
+  id: string;
+  status: string;            // 'paid' | 'failed' | 'pending' | ...
+  amount: number | null;     // centavos; null only in mock mode
+  fee: number;               // centavos (PayMongo MDR)
+  paymentIntentId: string | null;
+}
+
+export interface PaymongoIntent {
+  id: string;
+  status: string;            // 'succeeded' | 'awaiting_payment_method' | 'awaiting_next_action' | 'processing'
+  metadata: Record<string, string>;
+  payments: PaymongoPayment[];
+  mock?: boolean;
+}
+
+function toPayment(resource: any): PaymongoPayment {
+  const a = resource?.attributes ?? {};
+  return {
+    id: resource.id,
+    status: a.status,
+    amount: typeof a.amount === 'number' ? a.amount : null,
+    fee: typeof a.fee === 'number' ? a.fee : 0,
+    paymentIntentId: a.payment_intent_id ?? null,
+  };
+}
+
+export async function createPaymentIntent(amountCentavos: number, description: string, metadata: Record<string, string>) {
   if (!env.PAYMONGO_SECRET_KEY) {
-    return { id: 'pi_test_123', client_key: 'client_123' };
+    return { id: `pi_mock_${metadata.booking_id ?? Date.now()}`, client_key: 'client_mock', mock: true };
   }
 
-  const options = {
+  const json = await paymongo('/payment_intents', {
     method: 'POST',
-    headers: {
-      accept: 'application/json',
-      'content-type': 'application/json',
-      authorization: `Basic ${Buffer.from(env.PAYMONGO_SECRET_KEY + ':').toString('base64')}`
-    },
-    body: JSON.stringify({
+    body: {
       data: {
         attributes: {
-          amount,
+          amount: amountCentavos,
           payment_method_allowed: ['gcash', 'paymaya', 'card'],
           payment_method_options: { card: { request_three_d_secure: 'any' } },
           currency: 'PHP',
-          description
-        }
-      }
-    })
-  };
-
-  const response = await fetch('https://api.paymongo.com/v1/payment_intents', options);
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Paymongo API Error (Intent):', errorText);
-    throw new Error('Failed to create Payment Intent');
-  }
-
-  const json = await response.json();
-  return {
-    id: json.data.id,
-    client_key: json.data.attributes.client_key
-  };
+          description,
+          // Lets the webhook find the booking even if the intent id was never stored.
+          metadata,
+        },
+      },
+    },
+  });
+  return { id: json.data.id as string, client_key: json.data.attributes.client_key as string };
 }
 
-export async function createPaymentMethod(type: 'gcash' | 'paymaya', billing?: any) {
+export async function createPaymentMethod(type: 'gcash' | 'paymaya', billing?: { email?: string; name?: string }) {
   if (!env.PAYMONGO_SECRET_KEY) {
-    return { id: 'pm_test_123' };
+    return { id: 'pm_mock' };
   }
 
-  const options = {
+  const json = await paymongo('/payment_methods', {
     method: 'POST',
-    headers: {
-      accept: 'application/json',
-      'content-type': 'application/json',
-      authorization: `Basic ${Buffer.from(env.PAYMONGO_SECRET_KEY + ':').toString('base64')}`
-    },
-    body: JSON.stringify({
-      data: {
-        attributes: {
-          type,
-          billing
-        }
-      }
-    })
-  };
-
-  const response = await fetch('https://api.paymongo.com/v1/payment_methods', options);
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Paymongo API Error (Method):', errorText);
-    throw new Error('Failed to create Payment Method');
-  }
-
-  const json = await response.json();
-  return { id: json.data.id };
+    body: { data: { attributes: { type, billing } } },
+  });
+  return { id: json.data.id as string };
 }
 
 export async function attachPaymentIntent(intentId: string, methodId: string, returnUrl: string) {
   if (!env.PAYMONGO_SECRET_KEY) {
-    return { next_action: { type: 'redirect', redirect: { url: returnUrl } } };
+    return { next_action: { type: 'redirect', redirect: { url: returnUrl } }, status: 'awaiting_next_action' };
   }
 
-  const options = {
+  const json = await paymongo(`/payment_intents/${intentId}/attach`, {
     method: 'POST',
-    headers: {
-      accept: 'application/json',
-      'content-type': 'application/json',
-      authorization: `Basic ${Buffer.from(env.PAYMONGO_SECRET_KEY + ':').toString('base64')}`
-    },
-    body: JSON.stringify({
-      data: {
-        attributes: {
-          payment_method: methodId,
-          return_url: returnUrl
-        }
-      }
-    })
-  };
-
-  const response = await fetch(`https://api.paymongo.com/v1/payment_intents/${intentId}/attach`, options);
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Paymongo API Error (Attach):', errorText);
-    throw new Error('Failed to attach Payment Method');
-  }
-
-  const json = await response.json();
+    body: { data: { attributes: { payment_method: methodId, return_url: returnUrl } } },
+  });
   return {
     next_action: json.data.attributes.next_action,
-    status: json.data.attributes.status
+    status: json.data.attributes.status as string,
   };
 }
 
-export async function verifyPaymentIntent(intentId: string) {
+export async function getPaymentIntent(intentId: string): Promise<PaymongoIntent> {
   if (!env.PAYMONGO_SECRET_KEY) {
-    return { status: 'succeeded' };
+    return {
+      id: intentId,
+      status: 'succeeded',
+      metadata: {},
+      payments: [{ id: `pay_mock_${intentId}`, status: 'paid', amount: null, fee: 0, paymentIntentId: intentId }],
+      mock: true,
+    };
   }
 
-  const options = {
-    method: 'GET',
-    headers: {
-      accept: 'application/json',
-      authorization: `Basic ${Buffer.from(env.PAYMONGO_SECRET_KEY + ':').toString('base64')}`
-    }
+  const json = await paymongo(`/payment_intents/${intentId}`);
+  const a = json.data.attributes;
+  return {
+    id: json.data.id,
+    status: a.status,
+    metadata: a.metadata ?? {},
+    payments: (a.payments ?? []).map(toPayment),
   };
-
-  const response = await fetch(`https://api.paymongo.com/v1/payment_intents/${intentId}`, options);
-  if (!response.ok) throw new Error('Failed to retrieve Payment Intent');
-
-  const json = await response.json();
-  return { status: json.data.attributes.status }; // 'succeeded', 'awaiting_payment_method', 'processing'
 }
 
-export async function refundPayment(sessionId: string, amount: number, reason: 'requested_by_customer' | 'fraudulent' | 'duplicate' | 'others' = 'requested_by_customer') {
+export async function getPayment(paymentId: string): Promise<PaymongoPayment> {
   if (!env.PAYMONGO_SECRET_KEY) {
-    console.warn('PAYMONGO_SECRET_KEY missing. Mocking refund success.');
-    return { success: true, refund_id: 'ref_test_123' };
+    return { id: paymentId, status: 'paid', amount: null, fee: 0, paymentIntentId: null };
+  }
+  const json = await paymongo(`/payments/${paymentId}`);
+  return toPayment(json.data);
+}
+
+export async function createRefund(
+  paymentId: string,
+  amountCentavos: number,
+  reason: 'requested_by_customer' | 'duplicate' | 'fraudulent' | 'others',
+  metadata: Record<string, string>
+) {
+  if (!env.PAYMONGO_SECRET_KEY) {
+    return { id: `ref_mock_${paymentId}`, status: 'succeeded', mock: true };
   }
 
-  try {
-    let paymentId = '';
-    
-    const headers = {
-      accept: 'application/json',
-      authorization: `Basic ${Buffer.from(env.PAYMONGO_SECRET_KEY + ':').toString('base64')}`
-    };
+  const json = await paymongo('/refunds', {
+    method: 'POST',
+    body: { data: { attributes: { amount: amountCentavos, payment_id: paymentId, reason, metadata } } },
+  });
+  return { id: json.data.id as string, status: json.data.attributes.status as string };
+}
 
-    if (sessionId.startsWith('pi_')) {
-      const intentRes = await fetch(`https://api.paymongo.com/v1/payment_intents/${sessionId}`, { headers });
-      const intentJson = await intentRes.json();
-      const payments = intentJson.data?.attributes?.payments || [];
-      const paidPayment = payments.find((p: any) => p.attributes.status === 'paid');
-      if (!paidPayment) throw new Error('No paid payment found on intent.');
-      paymentId = paidPayment.id;
-    } else {
-      const checkoutRes = await fetch(`https://api.paymongo.com/v1/checkout_sessions/${sessionId}`, { headers });
-      const checkoutJson = await checkoutRes.json();
-      const payments = checkoutJson.data?.attributes?.payments || [];
-      const paidPayment = payments.find((p: any) => p.attributes.status === 'paid');
-      if (!paidPayment) throw new Error('No paid payment found on checkout session.');
-      paymentId = paidPayment.id;
-    }
+/**
+ * Verify a PayMongo webhook signature. Header format: `t=<unix>,te=<test sig>,li=<live sig>`.
+ * The signature is HMAC-SHA256(secret, `${t}.${rawBody}`) in hex. Must be given the RAW body.
+ */
+export function verifyWebhookSignature(rawBody: string, header: string | null, secret: string, livemode: boolean) {
+  if (!header) return false;
+  const parts = Object.fromEntries(
+    header.split(',').map((part) => {
+      const [key, ...rest] = part.split('=');
+      return [key.trim(), rest.join('=').trim()];
+    })
+  );
+  const timestamp = parts.t;
+  const provided = livemode ? parts.li : parts.te;
+  if (!timestamp || !provided) return false;
 
-    const refundOptions = {
-      method: 'POST',
-      headers: {
-        ...headers,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        data: {
-          attributes: {
-            amount: Math.round(amount * 100),
-            payment_id: paymentId,
-            reason
-          }
-        }
-      })
-    };
-
-    const response = await fetch('https://api.paymongo.com/v1/refunds', refundOptions);
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Paymongo Refund Error:', errorText);
-      throw new Error('Failed to process Paymongo refund');
-    }
-
-    const refundJson = await response.json();
-    return { success: true, refund_id: refundJson.data.id };
-  } catch (error: any) {
-    console.error('refundPayment exception:', error);
-    throw new Error('Refund failed: ' + error.message);
-  }
+  const expected = createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('hex');
+  const a = Buffer.from(expected, 'utf8');
+  const b = Buffer.from(provided, 'utf8');
+  return a.length === b.length && timingSafeEqual(a, b);
 }

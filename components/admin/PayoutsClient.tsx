@@ -13,12 +13,12 @@ export function PayoutsClient({ initialPayouts }: { initialPayouts: any[] }) {
   const [payouts, setPayouts] = useState(initialPayouts);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  const handleMarkPaid = async (id: string, walletId: string) => {
+  const handleMarkPaid = async (id: string) => {
     const refNum = prompt('Please enter the bank/e-wallet reference number or transaction ID for this payout (required):');
     if (!refNum) return;
     
     setProcessingId(id);
-    const res = await markPayoutPaid(id, walletId, refNum);
+    const res = await markPayoutPaid(id, refNum);
     if (res.success) {
       setPayouts(payouts.map(p => p.id === id ? { ...p, status: 'paid', admin_notes: `Reference ID: ${refNum}` } : p));
     } else {
@@ -27,12 +27,12 @@ export function PayoutsClient({ initialPayouts }: { initialPayouts: any[] }) {
     setProcessingId(null);
   };
 
-  const handleReject = async (id: string, walletId: string) => {
+  const handleReject = async (id: string) => {
     const reason = prompt('Reason for rejection? (e.g. Invalid account details)');
     if (reason === null) return; // cancelled
     
     setProcessingId(id);
-    const res = await rejectPayout(id, walletId, reason);
+    const res = await rejectPayout(id, reason ?? undefined);
     if (res.success) {
       setPayouts(payouts.map(p => p.id === id ? { ...p, status: 'rejected' } : p));
     } else {
@@ -125,7 +125,7 @@ export function PayoutsClient({ initialPayouts }: { initialPayouts: any[] }) {
                         type="button"
                         variant="lightsuccess"
                         size="sm"
-                        onClick={() => handleMarkPaid(p.id, p.wallet_id)}
+                        onClick={() => handleMarkPaid(p.id)}
                         disabled={processingId === p.id}
                       >
                         {processingId === p.id ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
@@ -135,7 +135,7 @@ export function PayoutsClient({ initialPayouts }: { initialPayouts: any[] }) {
                         type="button"
                         variant="lighterror"
                         size="sm"
-                        onClick={() => handleReject(p.id, p.wallet_id)}
+                        onClick={() => handleReject(p.id)}
                         disabled={processingId === p.id}
                       >
                         {processingId === p.id ? <Loader2 className="animate-spin" /> : <XCircle />}

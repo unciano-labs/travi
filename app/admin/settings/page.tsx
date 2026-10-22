@@ -10,11 +10,13 @@ export default async function SettingsPage() {
   const { user, supabase } = await requireSession();
   await assertRole(user.id, 'admin');
 
+  // Single-row table with a uuid id: read the latest row (never .eq('id', 1)).
   const { data: settings } = await supabase
     .from('platform_settings')
     .select('*')
-    .eq('id', 1)
-    .single();
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   return (
     <>
