@@ -48,6 +48,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 | [`supabase/migrations/`](supabase/migrations/) | The real database schema | **Ground truth for the DB** |
 | [docs/DATABASE.md](docs/DATABASE.md) | Original schema and business-rule spec | ⚠️ Stale; see §4.7 for where it is wrong |
 | [docs/API.md](docs/API.md) | Functional requirements and acceptance criteria | Spec / intent, not current behavior |
+| [docs/MVP_LAUNCH_READINESS.md](docs/MVP_LAUNCH_READINESS.md) | 2026-10-22 audit: full gap register (FIN/SEC/BIZ/ENG/OPS/LEG IDs), launch roadmap, go/no-go checklist, post-launch backlog | **Current launch plan.** Supersedes §6 where they differ |
 | [docs/TODO.md](docs/TODO.md), [docs/ARCHITECTURE_ROADMAP.md](docs/ARCHITECTURE_ROADMAP.md) | Backlog and roadmap | Planning |
 | [docs/ORGANIZER.md](docs/ORGANIZER.md), [docs/TRANSPORTER.md](docs/TRANSPORTER.md), [docs/TRAVELER.md](docs/TRAVELER.md) | Per-role feature specs | Spec |
 | [docs/PAYMENT_INTEGRATION.md](docs/PAYMENT_INTEGRATION.md), [docs/WALLET_IMPLEMENTATION.md](docs/WALLET_IMPLEMENTATION.md) | Payment and wallet design notes | Spec; see §4 for actual behavior |
@@ -702,6 +703,8 @@ Record the reason in a one-line comment at the call site.
 ## 6. Known Defects Register
 
 These are verified against the code on 2026-10-16. **Do not copy these patterns.**
+
+> The 2026-10-22 audit in [docs/MVP_LAUNCH_READINESS.md](docs/MVP_LAUNCH_READINESS.md) found many more defects and shows several claims in §4 to be wrong (its Appendix B lists them). Treat that file as the full register. When you fix an item, update both files.
 
 - **If your task touches an affected file,** fix the defect or flag it in your report.
 - **When you fix one,** delete it from this list.
