@@ -199,7 +199,9 @@ travi/
 │   │                        # settings.ts (getPolicySettings, tag platform-settings), consent.ts (recordAcceptance; server-only), privacy.ts (data export)
 │   ├── services/            # bookings, tours (+ publish readiness), payments (applyPaidPayment, verifyBookingPayment), refunds (refundBooking),
 │   │                        # schedules (cancelScheduleWithBookings), partner-documents, traveler-contacts (SEC-13)
-│   ├── transport.ts, partners.ts, csv.ts, finance-format.ts   # transport helpers/ownership, partner helpers, CSV (formula-safe), money/mask formatters
+│   ├── format.ts            # The ONLY money/date display formatters: formatPHP, formatNumber, formatDate, formatDateRange, formatDateTime,
+│   │                        #   formatDateOfInstant, formatTimeOfInstant (en-PH; DATE columns in UTC, timestamps in Asia/Manila)
+│   ├── transport.ts, partners.ts, csv.ts, finance-format.ts   # transport helpers/ownership, partner helpers, CSV (formula-safe), account masking + review labels
 │   ├── data/merchant.ts     # Public organizer details for the tour page (LEG-06)
 │   ├── data/                # tours.ts (catalog search + detail), reviews.ts, stats.ts: cached public reads. tours-fallback.ts is TEMPORARY until 20261024100000 is applied
 │   ├── env.ts               # zod-validated env. Import `env`, not process.env
@@ -321,7 +323,8 @@ export async function doThing(input: unknown) {
   - Unauthenticated → 401; forbidden → 403.
   - Not found → 404; capacity conflict → 409.
 - **Route-level errors.** Only `app/global-error.tsx` exists, and it reports to Sentry. Add a segment `error.tsx` when you build a new top-level area.
-- **Don't swallow Next.js control-flow errors.** In any `try/catch` that can run during render (RSC data getters, including the `get*` functions in `actions/*`), call `unstable_rethrow(error)` from `next/navigation` **first** in the `catch`. Otherwise `redirect()`, `notFound()`, and dynamic-rendering bailouts (`cookies()`) get logged as errors and sent to Sentry. This is defect §6 #24.
+- **Don't swallow Next.js control-flow errors.** In any `try/catch` that can run during render (RSC data getters, including the `get*` functions in `actions/*`, and the `lib/data/*` / `lib/legal/settings.ts` cached readers), call `unstable_rethrow(error)` from `next/navigation` **first** in the `catch`. Otherwise `redirect()`, `notFound()`, and dynamic-rendering bailouts (`cookies()`) get logged as errors and sent to Sentry.
+- `captureException` accepts Supabase/PostgREST error objects as they are (it keeps their `message`, `code` and `hint`); no need to wrap them in `new Error()`.
 
 ### 3.4 Data fetching & state
 
@@ -361,6 +364,7 @@ export async function doThing(input: unknown) {
   - Panels: `CardBox`. Tables: `components/ui/table`. Statuses: `StatusBadge` (single status → color map). Empty lists: `EmptyState`.
   - Forms: `Input`, `Textarea`, `Label`, and **`NativeSelect`** (from `components/ui/input`) for every select inside a `FormData` form. The Radix `Select` is only for client-state filters.
   - Overlays: `Dialog` / `Sheet` / `DropdownMenu` / `Tooltip`; `ConfirmModal` keeps its old props API and is now a Radix `Dialog`.
+- **Formatting:** display money and dates **only** through `lib/format.ts`. `formatPHP` shows centavos by default (amounts people act on: totals, payments, refunds, wallet, payouts, emails); use `{ cents: 'auto' }` for listing prices. Missing amounts render "—". DATE columns use `formatDate` / `formatDateRange` (never `new Date('YYYY-MM-DD')`, which shifts a day in western time zones); timestamps use `formatDateTime` / `formatDateOfInstant` / `formatTimeOfInstant` (Asia/Manila). Never call locale-less `toLocaleString()` in components (hydration mismatch). "Today" for business rules is `manilaToday()`.
 - **Conditional classes:** use `cn()` from `@/lib/utils` (clsx + tailwind-merge). Template literals in older code are fine; don't add other ad-hoc helpers.
 - **Every list view needs an empty state.** Use centered `text-slate-500` copy, e.g. "No vehicles found."
 - **Every async route segment needs a loading state.** Use `loading.tsx` with `components/ui/PageLoader`, or a skeleton / `Suspense` (see `TourCardSkeleton`).
@@ -692,7 +696,7 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
 
 | Layer | Mechanism | Notes |
 |---|---|---|
-| 1. Middleware | `/admin/*` requires `admin` (else → `/admin/login`) and an `aal2` session (else → `/admin/mfa/*`). `/dashboard/*` requires a user with a role; admins → `/admin`; a role mismatch → the primary role's dashboard. `/login` bounces signed-in users | Roles come from `user_roles ⋈ website_roles` filtered by `WEBSITE_ID`. **`/api/*` is NOT gated by middleware** |
+| 1. Middleware | `getUser()` runs on every request (session refresh); the roles query only on `/admin*`, `/dashboard*` and `/login`. Every redirect goes through `redirectTo()`, which forwards refreshed session cookies. `/admin/*` requires `admin` (else → `/admin/login`) and an `aal2` session (else → `/admin/mfa/*`). `/dashboard/*` requires a user with a role; admins → `/admin`; a role mismatch → the primary role's dashboard. `/login` bounces signed-in users | Roles come from `user_roles ⋈ website_roles` filtered by `WEBSITE_ID`. **`/api/*` is NOT gated by middleware** |
 | 2. Page / layout | Admin pages: `requireSession()` + `assertRole(user.id, 'admin')` | ⚠ `admin/bookings`, `admin/tours`, `admin/transporters` skip this. Add it when you touch them |
 | 3. Server Action / route | `assertRole(user.id, role)` (**admin passes every role check**), **plus an ownership check on the row** | Ownership is enforced with `.eq('organizer_id', …)`, `.eq('transporter_id', …)`, or `!inner` joins |
 | 4. Postgres RLS | Partner/vehicle/availability base tables are **owner + admin only** for signed-in users; others go through `public_organizer_profiles` / `public_transporter_profiles` / `public_vehicles` (contact fields only for accepted transport counterparties), `organizer_traveler_contacts()` (name; email only for confirmed bookings) and `available_vehicles()`. Admins have SELECT-only on `payout_requests`. Owner policies (definer helpers `current_*_profile_id()` or the `user_profiles.user_id = auth.uid()` subquery); inline admin `EXISTS` checks; `is_organizer_for_traveler()`. Server-owned columns guarded by triggers; `assign_self_role`/`booking_quote` RPCs. Anonymous users get column-limited SELECT on partner/vehicle tables. Tested by `npm run test:rls` | RLS is the last line of defense, **not** the only one |
@@ -741,7 +745,7 @@ Record the reason in a one-line comment at the call site.
 
 - **All runtime env vars are declared and validated in `lib/env.ts` (zod).** New code imports `env` from `@/lib/env`, not `process.env`.
   - When you add a variable, add it to the `envSchema` **and** to `.env.example` (name, comment, and a placeholder value only) in the same change.
-  - Sentry configs/instrumentation and `app/api/health` read `VERCEL_*` from `process.env` on purpose. Some legacy modules still read `process.env` directly: `lib/email.ts`, `lib/notifications.ts`, `lib/data/*`, `lib/logger.ts`, `actions/bookings.ts`, `app/robots.ts`, `app/sitemap.ts`. (`NODE_ENV` reads are fine.)
+  - Sentry configs/instrumentation and `app/api/health` read `VERCEL_*` from `process.env` on purpose; `lib/logger.ts` reads `LOG_LEVEL` directly (importing `env` there would be circular). (`NODE_ENV` reads are fine.)
   - `.env.example` is committed and must stay in sync with `lib/env.ts`.
 - **`.env.local` is the real secrets file.** It is gitignored by `.env*`, and `!.env.example` is the only exception. **Never commit real values, and never print secrets in logs, test output, or chat.**
 - **Only `NEXT_PUBLIC_*` values may reach the browser.** Never prefix a secret with `NEXT_PUBLIC_`.

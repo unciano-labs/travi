@@ -73,8 +73,8 @@ export async function updateSession(request: NextRequest) {
   const roles = user && needsRoles ? await fetchRoles(supabase, user.id) : []
 
   // Redirect while keeping any session cookies refreshed by getUser() above.
-  const redirectTo = (path: string) => {
-    const response = NextResponse.redirect(new URL(path, request.url))
+  const redirectTo = (target: string | URL) => {
+    const response = NextResponse.redirect(typeof target === 'string' ? new URL(target, request.url) : target)
     supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie))
     return response
   }
@@ -110,14 +110,14 @@ export async function updateSession(request: NextRequest) {
       const loginUrl = new URL('/login', request.url)
       const next = safeNextPath(`${pathname}${request.nextUrl.search}`)
       if (next && next !== '/dashboard') loginUrl.searchParams.set('next', next)
-      return NextResponse.redirect(loginUrl)
+      return redirectTo(loginUrl)
     }
 
     // Prevent cross-role access, or block admin from accessing standard dashboards directly
     if (roles.length === 0 || roles.includes('admin')) {
       // Admins should go to /admin, others to /login if they somehow lack a role
-      if (roles.includes('admin')) return NextResponse.redirect(new URL('/admin', request.url))
-      return NextResponse.redirect(new URL('/login', request.url))
+      if (roles.includes('admin')) return redirectTo('/admin')
+      return redirectTo('/login')
     }
 
     // Check which dashboard they are trying to access
@@ -128,7 +128,7 @@ export async function updateSession(request: NextRequest) {
     // If they don't have the requested role, redirect to their primary role's dashboard
     if (!roles.includes(requestedRole)) {
       const primaryRole = roles.includes('traveler') ? 'traveler' : roles[0];
-      return NextResponse.redirect(new URL(`/dashboard/${primaryRole}`, request.url));
+      return redirectTo(`/dashboard/${primaryRole}`);
     }
   }
 
@@ -137,13 +137,13 @@ export async function updateSession(request: NextRequest) {
       // Already signed in: honour a safe relative ?next=, else go to the role home.
       const next = safeNextPath(request.nextUrl.searchParams.get('next'))
       if (next) {
-        return NextResponse.redirect(new URL(next, request.url))
+        return redirectTo(next)
       }
       if (roles.includes('admin')) {
-        return NextResponse.redirect(new URL('/admin', request.url))
+        return redirectTo('/admin')
       }
       const primaryRole = roles.includes('traveler') ? 'traveler' : roles[0];
-      return NextResponse.redirect(new URL(`/dashboard/${primaryRole}`, request.url))
+      return redirectTo(`/dashboard/${primaryRole}`)
     }
   }
 

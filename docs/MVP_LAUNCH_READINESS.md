@@ -8,6 +8,8 @@
 
 > **Legal and tax items (§4.6) are flagged for review by Philippine counsel.** They describe likely obligations, not legal advice.
 
+> **Status on 2026-10-24:** the engineering work in Phases 0–5 is done on branches (`fix/phase-0-hardening` … `fix/phase-4-5-launch`) and tested locally. Sections 1–4 below describe the code **as audited on 2026-10-22**, not today. Launch is now blocked only on the human steps in [Phase 6](#phase-6-launch-readiness-1-week): applying the migrations, PayMongo go-live, counsel review of the legal text, and staging UAT. Each phase's "Status" subsection lists what was built and what is left.
+
 ---
 
 ## Contents
@@ -565,6 +567,27 @@ Eight migrations (`20261024090000` … `20261025120000`) are **written and teste
 
 **Exit criteria:** counsel sign-off on policies and the payments structure; all footer and legal links live; acceptance records stored.
 
+#### Phase 4 status (2026-10-24, branch `fix/phase-4-5-launch`)
+
+Engineering is done. The policy text is a **draft** written from how the code actually behaves; it is not legal advice and is not in effect until counsel signs off. One migration (`20261026090000_legal_consent_privacy_support.sql`) is written and tested locally, not applied. QA on the branch: `test:rls` 261/261 (38 new), `test:e2e` 40/40 (13 new legal-page specs).
+
+| Task | Status | Notes |
+|---|---|---|
+| 4.1 Legal opinions | ⬜ external | Counsel + tax adviser. Blocks D1, 4.6 and the final policy text |
+| 4.2 Policy pages | ✅ draft | `/terms`, `/privacy`, `/refund-policy`, `/cookies`, `/partner-terms`, `/about`, `/faq`, `/contact`; "Draft — pending review" banner while `LEGAL_REVIEW_COMPLETE` is false; fee %, escrow days and payout minimum read live from `platform_settings`; footer business identity block. Privacy Notice covers processors, cross-border transfer, retention, RA 10173 rights, DPO, NPC route, 72-hour breach notice |
+| 4.3 Consent capture | ✅ | `legal_acceptances` (append-only, versioned): signup (18+, Terms, Privacy) via a `user_profiles` trigger, checkout (`checkout_terms` per booking, recorded before PayMongo), partner onboarding (`partner_terms`). IP stored only as an HMAC hash |
+| 4.4 Partner agreements | ✅ draft | `/partner-terms` (commission, escrow, payouts, cancellations, KYC). Contains two clauses not built yet: chargeback deduction from future earnings, liability cap. Counsel to confirm |
+| 4.5 Data subject rights | ✅ | "Your data" card on every profile: JSON export of the user's own data (audited), correction and deletion requests (`data_requests`), admin workflow at `/admin/requests`. Deletion is manual because booking and ledger records must be retained. Breach procedure in `docs/RUNBOOK.md` |
+| 4.6 Invoicing / tax | ⬜ blocked | Waits for 4.1 |
+| 4.7 Merchant transparency | ✅ | "Operated by" card on tour pages (Phase 3); `/contact` complaint topics for organizers and transporters (`support_messages`, rate-limited, honeypot) |
+| LEG-07 truthful claims | ✅ | Removed Visa/Mastercard/QRPh logos (only GCash and Maya are accepted), traveler-added transport (D2), "best organizers" superlative; "free cancellation" links to the refund policy |
+
+**To apply (human):**
+1. Fill every placeholder in `lib/legal/company.ts`: registered name, DTI/SEC authority and number, TIN, registered address, support email/phone/hours/response time, DPO name and email, NPC registration number (if required), retention periods, and each document's `effectiveDate`.
+2. Counsel reviews all five policies and the checkout wording; bump each `version` they change; then set `LEGAL_REVIEW_COMPLETE = true`.
+3. Make the support inbox and DPO addresses real, monitored mailboxes.
+4. Apply `20261026090000` **before** deploying this code: checkout and partner onboarding fail closed without `legal_acceptances`.
+
 ---
 
 ### Phase 5: Quality, observability and operations (≈1.5 weeks; tests written alongside Phases 1–3)
@@ -584,6 +607,24 @@ Eight migrations (`20261024090000` … `20261025120000`) are **written and teste
 
 **Exit criteria:** CI green and required on PRs; Sentry receiving test errors; uptime alerts firing in a drill; runbook reviewed.
 
+#### Phase 5 status (2026-10-24, branch `fix/phase-4-5-launch`)
+
+Built in parallel workstreams and merged with Phase 4. QA gate on the merged branch: lint 0 errors (warnings down to 95 from 278 at the start of Phase 0); type-check clean; build passes; `test:unit` 244/244; `test:rls` 290/290; `test:qa` 27/27; `test:e2e` 40 passed, 11 skipped (the signed-in suite skips without staging credentials). One migration (`20261026100000_otp_challenges.sql`) is written and tested locally, not applied.
+
+| Task | Status | Notes |
+|---|---|---|
+| 5.1 CI pipeline | ✅ | `.github/workflows/ci.yml`: lint, tsc, unit, RLS (PGlite), build on every PR and on pushes to `main`; e2e job against staging when the `E2E_SUPABASE_*` secrets exist. **Human:** make it a required check on `main` |
+| 5.2 Unit tests | ✅ | vitest, 244 tests: pricing/fees, Manila dates, formatters, schemas, webhook signature, email escaping, CSV, password-recovery marker, booking rules. They found and fixed an impossible-date bug (Feb 30 accepted) |
+| 5.3 Authenticated e2e | 🟡 | Per-role `storageState` suites written; they skip until staging seed users and `E2E_*` credentials exist (`e2e/README.md`) |
+| 5.4 Sentry | ✅ | Instrumentation files, `onRequestError`, PII scrubbing (`lib/sentry-scrub.ts`), source maps when `SENTRY_AUTH_TOKEN` is set. Verified against a fake collector. **Human:** DSNs and alert rules (RUNBOOK §11.2) |
+| 5.5 Monitoring & runbook | ✅ | `GET /api/health`; `docs/RUNBOOK.md`. **Human:** uptime checks on `/`, `/api/health`, `/tours` |
+| 5.6 Security headers & MFA | ✅ | CSP, HSTS, frame-ancestors, nosniff, referrer and permissions policies; admin TOTP with an `aal2` gate in middleware and `assertRole`. **Human:** test admin enrol/verify on staging; check CSP signed in |
+| 5.7 OTP rework | ✅ | Hashed codes in `otp_challenges` (expiry, 5 attempts, single use, hourly cap), opaque cookie, per-user rate limits, atomic consume; email change verified at the new address |
+| 5.8 Timezone & formatting | ✅ | `lib/format.ts` is the only money/date formatter, used on booking, payment, wallet, transport, admin and email surfaces. Fixed: schedule dates one day early in western browsers, transporter pickup times in UTC, double minus signs on wallet ledger rows |
+| 5.9 Performance | ✅ | Catalog SQL, cached tour detail, loading/error segments, `metadataBase`, `noindex` (Phase 3); middleware roles query now only on `/admin`, `/dashboard`, `/login`, and every middleware redirect keeps refreshed session cookies |
+| 5.10 Hygiene | ✅ | `unstable_rethrow` in every render-time catch; no stray `console.*`; `env` instead of `process.env`; unused packages removed; repo junk untracked; real README; Bearer API removed (D6); `captureException` keeps PostgREST error messages |
+| ENG-01 dependencies | ✅ | Next 16.4.3 (fixes an unauthenticated RCE in the image optimizer and a Server Actions DoS), Sentry 10.76.2, zod 4.6.7. `npm audit`: no critical/high in runtime dependencies |
+
 ---
 
 ### Phase 6: Launch readiness (≈1 week)
@@ -597,6 +638,31 @@ Eight migrations (`20261024090000` … `20261025120000`) are **written and teste
 | 6.5 Security review | Re-run this audit's checklist; external pen-test of auth/RLS/payments if budget allows |
 | 6.6 Soft launch | Invite-only or single destination; daily reconciliation and invariant checks; on-call rota; rollback plan (Vercel instant rollback + PITR) |
 | 6.7 Go/no-go meeting | Walk the checklist in §6 |
+
+#### Phase 6: what is left (all human; in this order)
+
+Engineering cannot do these: each one changes a shared environment, involves money or a third-party account, or needs a legal or business decision. Details for every step are in [docs/RUNBOOK.md](RUNBOOK.md).
+
+1. **Merge the branches** to `main` in order: `fix/phase-0-hardening`, `fix/phase-1-rls`, `fix/phase-2-money`, `fix/phase-3-product`, `fix/phase-4-5-launch` (or only the last, which contains them all if the earlier ones are already merged). Make CI a required check.
+2. **Create a separate staging Supabase project** (OPS-03) if dev and production still share one. Point Preview deployments and local `.env.local` at staging.
+3. **Apply the migrations on staging** (RUNBOOK §3): run `supabase/tests/rls/live-policy-audit.sql` first, then `npx supabase db push` for every migration from `20261022120000` through `20261026100000`, in filename order. Read the NOTICEs. Then:
+   - escrow backfill dry run, then `--apply` (`scripts/backfill-escrow-deposits.ts`); `wallet_ledger_drift()` explained or empty;
+   - check the `public_*` view embeds through PostgREST; delete `lib/data/tours-fallback.ts`;
+   - regenerate `types/supabase.ts`.
+4. **Supabase Auth settings** (staging, then production): site URL and `/auth/callback` redirect, "Confirm email" on, TOTP MFA enabled.
+5. **Secrets in Vercel** (RUNBOOK §4): `APP_ENV=production`, `OTP_SECRET`, `CRON_SECRET`, PayMongo keys and webhook secret, Upstash, Resend, Sentry DSNs. Production refuses to start without them.
+6. **Resend domain:** verify SPF/DKIM for the sending domain.
+7. **First admin** via SQL (RUNBOOK §5); enrol TOTP; test the MFA flow end to end.
+8. **Legal:** fill `lib/legal/company.ts`, counsel review of all policies and the funds-holding/tax structure (4.1, 4.6), then `LEGAL_REVIEW_COMPLETE = true`. Real support and DPO mailboxes.
+9. **Staging UAT** (6.3) with seeded role accounts; add their credentials as `E2E_*` secrets so the authenticated e2e suite runs in CI. Check CSP signed in (organizer map/uploads, admin charts).
+10. **PayMongo go-live** (6.1): live account, `sk_live_` key, webhook registered with its secret, one small real payment through confirm, release and refund.
+11. **Production:** repeat steps 3–7 with a second person approving the `db push`; backfill with a signed-off reconciliation report.
+12. **Monitoring:** Sentry alert rules (RUNBOOK §11.2), uptime checks on `/`, `/api/health`, `/tours`; route alerts to on-call.
+13. **Supply:** KYC and approve 5–10 real organizers; remove demo data (6.4).
+14. **Open decisions:** D1 (funds-holding model, with counsel) and D4 (who absorbs the PayMongo fee). Set `payout_dual_approval_threshold` if maker-checker is wanted from day one.
+15. **Soft launch and go/no-go** (6.6, 6.7) against the checklist below.
+
+**Known open engineering items (not launch blockers):** dispute evidence uploads and admin case notes (3.7); transport cancel after the vehicle is deactivated (AGENTS.md §6 #16); onboarding document warnings not shown (§6 #17e); duplicate migration timestamp `20260831000000` (needs approval to rename); payout destinations stored in plaintext (FIN-20); `middleware.ts` → `proxy.ts` rename waits for a session-refresh test.
 
 ---
 
