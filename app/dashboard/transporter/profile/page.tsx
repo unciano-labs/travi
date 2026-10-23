@@ -4,6 +4,8 @@ import TransporterProfileForm from '@/components/dashboard/TransporterProfileFor
 import AccountSecurityManager from '@/components/dashboard/AccountSecurityManager';
 import PageHeader from '@/components/ui/PageHeader';
 import CardBox from '@/components/ui/CardBox';
+import PartnerDocumentsManager from '@/components/dashboard/PartnerDocumentsManager';
+import { listOwnPartnerDocuments } from '@/lib/services/partner-documents';
 
 export default async function TransporterProfilePage() {
   const supabase = await createClient();
@@ -26,14 +28,17 @@ export default async function TransporterProfilePage() {
 
   const { data: profile } = await supabase
     .from('transporter_profiles')
-    .select('id, transporter_type, company_name, display_name, description, phone, service_areas, status, average_rating, review_count, user_profiles(email)')
+    .select('id, transporter_type, company_name, display_name, description, phone, service_areas, status, average_rating, review_count, legal_name, tin, business_registration_no, ltfrb_franchise_no, user_profiles(email)')
     .eq('user_profile_id', userProfile.id)
-    .single();
+    .is('deleted_at', null)
+    .maybeSingle();
 
   if (!profile) {
     // Should be handled by layout onboarding form, but just in case
     redirect('/dashboard/transporter');
   }
+
+  const documents = await listOwnPartnerDocuments(supabase, userProfile.id, 'transporter');
 
   return (
     <>
@@ -45,6 +50,10 @@ export default async function TransporterProfilePage() {
       <div className="max-w-2xl space-y-6">
         <CardBox>
           <TransporterProfileForm profile={profile} />
+        </CardBox>
+
+        <CardBox>
+          <PartnerDocumentsManager partner="transporter" documents={documents} />
         </CardBox>
 
         <AccountSecurityManager

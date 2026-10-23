@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import OrganizerBookingsClient from '@/components/dashboard/OrganizerBookingsClient';
+import { attachTravelerContacts } from '@/lib/services/traveler-contacts';
 
 export default async function OrganizerBookings() {
   const supabase = await createClient();
@@ -38,7 +39,7 @@ export default async function OrganizerBookings() {
       updated_at,
       booking_ref,
       paymongo_session_id,
-      user_profiles!traveler_id ( full_name ),
+      traveler_id,
       tour_schedules!inner (
         start_date,
         tours!inner ( title, organizer_id )
@@ -47,7 +48,8 @@ export default async function OrganizerBookings() {
     .eq('tour_schedules.tours.organizer_id', profile.id)
     .order('created_at', { ascending: false });
 
-  const bookings = (recentBookings as any[]) || [];
+  // SEC-13: traveler names come from organizer_traveler_contacts(), not the user_profiles table.
+  const bookings = await attachTravelerContacts(supabase, recentBookings ?? []);
 
-  return <OrganizerBookingsClient initialBookings={bookings} />;
+  return <OrganizerBookingsClient initialBookings={bookings as unknown as React.ComponentProps<typeof OrganizerBookingsClient>['initialBookings']} />;
 }

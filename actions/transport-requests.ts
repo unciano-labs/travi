@@ -34,15 +34,12 @@ export async function getTransporterRequests(statusFilter?: string) {
       .from('transport_bookings')
       .select(`
         *,
-        organizer:organizer_profiles (
+        organizer:public_organizer_profiles (
           id,
           company_name,
           display_name,
           phone,
-          user_profiles:user_profile_id (
-            email,
-            full_name
-          )
+          contact_email
         ),
         vehicle:vehicles (
           id,
@@ -80,7 +77,14 @@ export async function getTransporterRequests(statusFilter?: string) {
       return [];
     }
 
-    return data || [];
+    // SEC-13: organizer contact (phone, account email) comes from public_organizer_profiles and is
+    // only filled in once the request is accepted. Keep the shape the client expects.
+    return (data || []).map((req) => {
+      const organizer = Array.isArray(req.organizer) ? req.organizer[0] : req.organizer;
+      return organizer
+        ? { ...req, organizer: { ...organizer, user_profiles: organizer.contact_email ? { email: organizer.contact_email } : null } }
+        : req;
+    });
   } catch (err: any) {
     captureException(err, { action: 'getTransporterRequests exception' });
     return [];

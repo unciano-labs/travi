@@ -1,5 +1,6 @@
 import { MapPin, Users, Banknote, Ticket } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
+import { attachTravelerContacts } from '@/lib/services/traveler-contacts';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
@@ -67,7 +68,7 @@ export default async function OrganizerDashboard() {
       updated_at,
       booking_ref,
       paymongo_session_id,
-      user_profiles!traveler_id ( full_name ),
+      traveler_id,
       tour_schedules!inner (
         start_date,
         tours!inner ( title, organizer_id, location, format, duration_days )
@@ -76,7 +77,8 @@ export default async function OrganizerDashboard() {
     .eq('tour_schedules.tours.organizer_id', profile.id)
     .order('created_at', { ascending: false });
 
-  const bookings = (recentBookings as any[]) || [];
+  // SEC-13: traveler names via organizer_traveler_contacts() (20261025090000).
+  const bookings: any[] = await attachTravelerContacts(supabase, recentBookings ?? []);
 
   // Calculate stats
   const isConfirmedRevenue = (b: { status: string }) => b.status === 'confirmed' || b.status === 'completed';

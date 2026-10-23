@@ -428,6 +428,26 @@ export function partnerAccountStatusEmail(input: {
   });
 }
 
+export function partnerInfoRequestedEmail(input: {
+  name?: string | null;
+  partner: 'organizer' | 'transporter';
+  note: string;
+  profileUrl: string;
+}): EmailContent {
+  return render({
+    subject: `We need more information about your ${input.partner} application`,
+    preheader: 'Please update your details so we can finish reviewing your application.',
+    heading: 'More information needed',
+    greeting: `Hi ${greetingName(input.name)},`,
+    paragraphs: [
+      `We are reviewing your ${input.partner} application and need a little more information:`,
+      input.note.trim(),
+      'Please update your business details or upload the requested documents from your profile page.',
+    ],
+    cta: { label: 'Update my profile', url: input.profileUrl },
+  });
+}
+
 // ─── Payouts (for actions/wallet.ts and actions/admin.ts) ───
 
 export function payoutRequestedEmail(input: { name?: string | null; amount: number; methodName: string }): EmailContent {

@@ -11,6 +11,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { attachTravelerContacts } from '@/lib/services/traveler-contacts';
 
 export default async function ScheduleBookingsPage(props: {
   params: Promise<{ id: string, scheduleId: string }>
@@ -78,12 +79,13 @@ export default async function ScheduleBookingsPage(props: {
       total_amount,
       status,
       created_at,
-      user_profiles!traveler_id ( full_name, email )
+      traveler_id
     `)
     .eq('tour_schedule_id', scheduleId)
     .order('created_at', { ascending: false });
 
-  const bookings = (recentBookings as any[]) || [];
+  // SEC-13: names (and emails for confirmed bookings) via organizer_traveler_contacts().
+  const bookings = await attachTravelerContacts(supabase, recentBookings ?? []);
 
   const totalBooked = bookings.reduce((acc, b) => {
     if (['pending', 'confirmed', 'completed'].includes(b.status)) {

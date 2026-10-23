@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { updateTransporterProfile } from '@/actions/transporter';
-import { Loader2, CheckCircle2, AlertCircle, Star, Phone, Mail, Building, User } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Star, Phone, Mail } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import PartnerKycFields, { lockedKycFields } from './PartnerKycFields';
 
 type TransporterProfile = {
   id: string;
@@ -22,6 +23,10 @@ type TransporterProfile = {
   status: string;
   average_rating: number;
   review_count: number;
+  legal_name: string | null;
+  tin: string | null;
+  business_registration_no: string | null;
+  ltfrb_franchise_no: string | null;
   user_profiles: {
     email: string;
   } | { email: string; }[] | null;
@@ -32,7 +37,14 @@ export default function TransporterProfileForm({ profile }: { profile: Transport
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
-  const [transporterType, setTransporterType] = useState(profile.transporter_type || 'individual');
+  const locked = lockedKycFields(profile.status, {
+    type: profile.transporter_type,
+    companyName: profile.company_name,
+    legalName: profile.legal_name,
+    tin: profile.tin,
+    businessRegistrationNo: profile.business_registration_no,
+    accreditationNo: profile.ltfrb_franchise_no,
+  });
 
   // Handle edge cases if relation returned array
   const userProfile = Array.isArray(profile.user_profiles) 
@@ -50,20 +62,13 @@ export default function TransporterProfileForm({ profile }: { profile: Transport
     setLoading(false);
 
     if (res.success) {
-      setSuccessMsg('Transporter profile updated successfully.');
+      setSuccessMsg(res.resubmitted ? 'Profile saved and sent for review again.' : 'Transporter profile updated successfully.');
       router.refresh();
       setTimeout(() => setSuccessMsg(''), 4000);
     } else {
-      setErrorMsg(res.error || 'Failed to update profile.');
+      setErrorMsg(res.error);
     }
   }
-
-  const typeOptionClass = (active: boolean) =>
-    `flex items-center gap-3 rounded-lg border p-4 cursor-pointer transition-colors focus-within:ring-2 focus-within:ring-primary/40 ${
-      active
-        ? 'border-primary bg-lightprimary text-primary'
-        : 'border-border bg-white text-bodytext hover:bg-lightprimary/40'
-    }`;
 
   return (
     <form className="space-y-6" onSubmit={handleSubmit}>
@@ -77,11 +82,11 @@ export default function TransporterProfileForm({ profile }: { profile: Transport
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-3 py-1.5 text-xs">
             <Star className="size-4 fill-warning text-warning" />
-            <span className="font-semibold text-foreground">{Number(profile.average_rating || 5).toFixed(1)}</span>
+            <span className="font-semibold text-foreground">{profile.review_count ? Number(profile.average_rating).toFixed(1) : 'New'}</span>
             <span className="text-muted-foreground">({profile.review_count || 0})</span>
           </div>
 
-          <StatusBadge status={profile.status === 'approved' || profile.status === 'pending' ? profile.status : 'rejected'} label={profile.status} />
+          <StatusBadge status={profile.status} label={profile.status === 'pending' ? 'Pending review' : profile.status} />
         </div>
       </div>
 
@@ -99,70 +104,37 @@ export default function TransporterProfileForm({ profile }: { profile: Transport
         </Alert>
       )}
 
-      {/* Transporter Type Radio */}
-      <fieldset className="space-y-2">
-        <legend className="mb-2 text-sm font-medium text-foreground">Transporter Account Type</legend>
-        <div className="grid grid-cols-2 gap-4">
-          <label className={typeOptionClass(transporterType === 'individual')}>
-            <input
-              type="radio"
-              name="transporterType"
-              value="individual"
-              checked={transporterType === 'individual'}
-              onChange={() => setTransporterType('individual')}
-              className="sr-only"
-            />
-            <User className="size-5 shrink-0" />
-            <div>
-              <div className="text-sm font-semibold">Individual Driver</div>
-              <div className="text-xs font-normal text-muted-foreground">Independent vehicle owner</div>
-            </div>
-          </label>
+      {profile.status === 'approved' && locked.length > 0 && (
+        <p className="text-sm text-muted-foreground">Verified business details are locked. Contact support if they need to change.</p>
+      )}
+      {profile.status === 'rejected' && (
+        <p className="text-sm text-muted-foreground">Changing your business details sends your application for review again.</p>
+      )}
 
-          <label className={typeOptionClass(transporterType === 'company')}>
-            <input
-              type="radio"
-              name="transporterType"
-              value="company"
-              checked={transporterType === 'company'}
-              onChange={() => setTransporterType('company')}
-              className="sr-only"
-            />
-            <Building className="size-5 shrink-0" />
-            <div>
-              <div className="text-sm font-semibold">Transport Fleet Company</div>
-              <div className="text-xs font-normal text-muted-foreground">Registered company with multiple vehicles</div>
-            </div>
-          </label>
-        </div>
-      </fieldset>
+      <PartnerKycFields
+        partner="transporter"
+        idPrefix="tp"
+        locked={locked}
+        defaults={{
+          type: profile.transporter_type,
+          companyName: profile.company_name,
+          legalName: profile.legal_name,
+          tin: profile.tin,
+          businessRegistrationNo: profile.business_registration_no,
+          accreditationNo: profile.ltfrb_franchise_no,
+        }}
+      />
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        {transporterType === 'company' && (
-          <div className="space-y-2">
-            <Label htmlFor="tp-companyName">Registered Company Name *</Label>
-            <Input
-              id="tp-companyName"
-              type="text"
-              name="companyName"
-              required={transporterType === 'company'}
-              placeholder="e.g. Palawan Express Transport Co."
-              defaultValue={profile.company_name || ''}
-            />
-          </div>
-        )}
-
-        <div className={`space-y-2 ${transporterType === 'individual' ? 'sm:col-span-2' : ''}`}>
-          <Label htmlFor="tp-displayName">Public Display Name *</Label>
-          <Input
-            id="tp-displayName"
-            type="text"
-            name="displayName"
-            required
-            placeholder="e.g. Kuya John Van Rentals"
-            defaultValue={profile.display_name}
-          />
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor="tp-displayName">Public Display Name *</Label>
+        <Input
+          id="tp-displayName"
+          type="text"
+          name="displayName"
+          required
+          placeholder="e.g. Kuya John Van Rentals"
+          defaultValue={profile.display_name}
+        />
       </div>
 
       <div className="space-y-2">

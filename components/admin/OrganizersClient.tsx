@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import type React from 'react';
-import { Search, Loader2, Check, X, Building, User, Users, Phone, MapPin, AlignLeft, Calendar } from 'lucide-react';
-import { approveOrganizer, rejectOrganizer } from '@/actions/admin';
+import { Search, Building, User, Users, Phone, MapPin, AlignLeft, Calendar } from 'lucide-react';
+import PartnerReviewPanel, { type ReviewablePartner, type AdminPartnerDocument } from '@/components/admin/PartnerReviewPanel';
 import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
 import PageHeader from '@/components/ui/PageHeader';
 import CardBox from '@/components/ui/CardBox';
@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Organizer {
   id: string;
@@ -26,6 +26,13 @@ interface Organizer {
   description: string | null;
   created_at: string;
   user_profiles: { email: string } | null;
+  legal_name: string | null;
+  tin: string | null;
+  business_registration_no: string | null;
+  accreditation_no: string | null;
+  review_note: string | null;
+  info_requested_at: string | null;
+  documents: AdminPartnerDocument[];
   revenue?: number;
   activeTours?: number;
 }
@@ -41,7 +48,6 @@ export default function OrganizersClient({ initialOrganizers }: OrganizersClient
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedOrg, setSelectedOrg] = useState<Organizer | null>(null);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
   
   // Filter logic
   const filtered = organizers.filter((org) => {
@@ -58,31 +64,9 @@ export default function OrganizersClient({ initialOrganizers }: OrganizersClient
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-  const handleApprove = async (id: string) => {
-    setActionLoading(`${id}-approve`);
-    const res = await approveOrganizer(id);
-    setActionLoading(null);
-    if (res.success) {
-      setOrganizers(prev => prev.map(o => o.id === id ? { ...o, status: 'approved' } : o));
-      if (selectedOrg?.id === id) setSelectedOrg(prev => prev ? { ...prev, status: 'approved' } : null);
-    } else {
-      alert(res.error || 'Failed to approve');
-    }
-  };
-
-  const handleReject = async (id: string) => {
-    const reason = window.prompt("Reason for rejection (optional):");
-    if (reason === null) return; // User cancelled prompt
-
-    setActionLoading(`${id}-reject`);
-    const res = await rejectOrganizer(id, reason);
-    setActionLoading(null);
-    if (res.success) {
-      setOrganizers(prev => prev.map(o => o.id === id ? { ...o, status: 'rejected' } : o));
-      if (selectedOrg?.id === id) setSelectedOrg(prev => prev ? { ...prev, status: 'rejected' } : null);
-    } else {
-      alert(res.error || 'Failed to reject');
-    }
+  const applyUpdate = (id: string, patch: Partial<ReviewablePartner>) => {
+    setOrganizers(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p));
+    setSelectedOrg(prev => prev && prev.id === id ? { ...prev, ...patch } : prev);
   };
 
   const detailItem = (icon: React.ReactNode, label: string, value: React.ReactNode, className = '') => (
@@ -246,7 +230,7 @@ export default function OrganizersClient({ initialOrganizers }: OrganizersClient
 
       {/* Details Modal */}
       <Dialog open={!!selectedOrg} onOpenChange={(open) => { if (!open) setSelectedOrg(null); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           {selectedOrg && (
             <>
               <DialogHeader>
@@ -261,7 +245,7 @@ export default function OrganizersClient({ initialOrganizers }: OrganizersClient
                     <p className="text-lg font-semibold text-foreground">{selectedOrg.organizer_type === 'company' ? selectedOrg.company_name : selectedOrg.display_name}</p>
                     <p className="mt-1 text-sm font-medium text-muted-foreground">{selectedOrg.user_profiles?.email}</p>
                   </div>
-                  <StatusBadge status={selectedOrg.status} />
+                  <StatusBadge status={selectedOrg.status} label={selectedOrg.status === 'pending' && selectedOrg.info_requested_at ? 'Info requested' : undefined} />
                 </div>
 
                 {/* Grid Details */}
@@ -276,55 +260,12 @@ export default function OrganizersClient({ initialOrganizers }: OrganizersClient
                 </div>
               </div>
 
-              {/* Actions */}
-              <DialogFooter>
-                {selectedOrg.status === 'pending' && (
-                  <>
-                    <Button
-                      type="button"
-                      variant="outlineerror"
-                      onClick={() => handleReject(selectedOrg.id)}
-                      disabled={!!actionLoading}
-                    >
-                      {actionLoading === `${selectedOrg.id}-reject` ? <Loader2 className="animate-spin" /> : <X />}
-                      Reject
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="success"
-                      onClick={() => handleApprove(selectedOrg.id)}
-                      disabled={!!actionLoading}
-                    >
-                      {actionLoading === `${selectedOrg.id}-approve` ? <Loader2 className="animate-spin" /> : <Check />}
-                      Approve
-                    </Button>
-                  </>
-                )}
-
-                {selectedOrg.status === 'approved' && (
-                  <Button
-                    type="button"
-                    variant="outlineerror"
-                    onClick={() => handleReject(selectedOrg.id)}
-                    disabled={!!actionLoading}
-                  >
-                    {actionLoading === `${selectedOrg.id}-reject` ? <Loader2 className="animate-spin" /> : <X />}
-                    Deactivate
-                  </Button>
-                )}
-
-                {selectedOrg.status === 'rejected' && (
-                  <Button
-                    type="button"
-                    variant="success"
-                    onClick={() => handleApprove(selectedOrg.id)}
-                    disabled={!!actionLoading}
-                  >
-                    {actionLoading === `${selectedOrg.id}-approve` ? <Loader2 className="animate-spin" /> : <Check />}
-                    Activate
-                  </Button>
-                )}
-              </DialogFooter>
+              {/* KYC review (BIZ-07) */}
+              <PartnerReviewPanel
+                partnerType="organizer"
+                partner={selectedOrg}
+                onUpdated={(patch) => applyUpdate(selectedOrg.id, patch)}
+              />
             </>
           )}
         </DialogContent>

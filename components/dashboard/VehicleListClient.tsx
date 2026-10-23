@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Bus, Users, Tag, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Bus, Users, Tag, CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import Image from 'next/image';
 import VehicleModal from './VehicleModal';
 import { toggleVehicleStatus, deleteVehicle } from '@/actions/vehicles';
@@ -31,6 +32,7 @@ export default function VehicleListClient({ initialVehicles }: VehicleListClient
   const [selectedVehicle, setSelectedVehicle] = useState<any | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleOpenAdd = () => {
     setSelectedVehicle(null);
@@ -44,8 +46,10 @@ export default function VehicleListClient({ initialVehicles }: VehicleListClient
 
   const handleToggleStatus = async (vehicle: any) => {
     setActionLoading(`toggle-${vehicle.id}`);
+    setError(null);
     const res = await toggleVehicleStatus(vehicle.id, vehicle.status);
     setActionLoading(null);
+    if (!res.success) setError(res.error);
 
     if (res.success) {
       setVehicles((prev) =>
@@ -57,9 +61,11 @@ export default function VehicleListClient({ initialVehicles }: VehicleListClient
 
   const handleDelete = async (vehicleId: string) => {
     setActionLoading(`delete-${vehicleId}`);
+    setError(null);
     const res = await deleteVehicle(vehicleId);
     setActionLoading(null);
     setDeleteConfirmId(null);
+    if (!res.success) setError(res.error);
 
     if (res.success) {
       setVehicles((prev) => prev.filter((v) => v.id !== vehicleId));
@@ -83,6 +89,13 @@ export default function VehicleListClient({ initialVehicles }: VehicleListClient
           )
         }
       />
+
+      {error && (
+        <Alert variant="lighterror" className="mb-6">
+          <AlertCircle />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Vehicles Grid / Empty State */}
       {vehicles.length === 0 ? (
@@ -151,6 +164,13 @@ export default function VehicleListClient({ initialVehicles }: VehicleListClient
                         </span>
                       )}
                     </div>
+
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      OR/CR:{' '}
+                      <span className={v.orcr_status === 'verified' ? 'font-medium text-successemphasis' : 'font-medium text-foreground'}>
+                        {v.orcr_status === 'verified' ? 'Verified' : v.orcr_status === 'submitted' ? 'In review' : 'Not uploaded'}
+                      </span>
+                    </p>
 
                     {v.description && (
                       <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">

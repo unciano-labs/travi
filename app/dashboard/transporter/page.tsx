@@ -108,7 +108,7 @@ export default async function TransporterDashboard() {
         estimated_price,
         status,
         created_at,
-        organizer:organizer_profiles (
+        organizer:public_organizer_profiles (
           company_name,
           display_name
         ),

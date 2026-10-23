@@ -65,7 +65,7 @@ export default async function EditTourPage(props: {
   // Fetch schedules with their associated transport bookings
   const { data: schedules } = await supabase
     .from('tour_schedules')
-    .select('*, transport_bookings(*, vehicle:vehicles(name, photos, vehicle_type, seat_capacity), transporter:transporter_profiles(company_name, display_name)), bookings(seats, status)')
+    .select('*, transport_bookings(*, vehicle:public_vehicles(name, photos, vehicle_type, seat_capacity, plate_number), transporter:public_transporter_profiles(company_name, display_name, phone)), bookings(seats, status)')
     .eq('tour_id', id)
     .order('start_date', { ascending: true });
 

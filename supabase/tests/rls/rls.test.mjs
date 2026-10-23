@@ -222,7 +222,7 @@ describe('profiles', () => {
                       VALUES ($1, 'individual', 'New Tours', '0917', 'rejected') RETURNING id`, [p.rows[0].id]);
     }, (d, res) => one(d, `SELECT status FROM organizer_profiles WHERE id = $1`, [res?.rows[0]?.id]));
     assert.equal(r.error, null);
-    assert.equal(r.verified.status, 'approved');
+    assert.equal(r.verified.status, 'pending'); // admin approval (20261025090000, BIZ-06)
   });
 });
 
@@ -287,7 +287,8 @@ describe('tours and schedules', () => {
   });
 
   test('an organizer can read the names of travelers who booked them', async () => {
-    const r = await attempt(db, as('O'), (d) => d.query(`SELECT full_name FROM user_profiles WHERE id = $1`, [P.T]));
+    // SEC-13 (20261025090000): through organizer_traveler_contacts(), not the user_profiles table.
+    const r = await attempt(db, as('O'), (d) => d.query(`SELECT full_name FROM organizer_traveler_contacts(ARRAY[$1]::uuid[])`, [P.T]));
     assert.equal(r.result.rows[0]?.full_name, 'Tina Traveler');
   });
 });

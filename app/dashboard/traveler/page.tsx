@@ -54,7 +54,7 @@ export default async function TravelerDashboard() {
           slug,
           location,
           cover_image_url,
-          organizer_profiles (
+          organizer_profiles:public_organizer_profiles (
             display_name,
             company_name
           )
