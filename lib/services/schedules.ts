@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { captureException } from '@/lib/logger';
 import { refundBooking } from '@/lib/services/refunds';
-import { notifyTravelerBookingCanceled } from '@/lib/notifications';
+import { notifyTransporterOfCancellation, notifyTravelerBookingCanceled } from '@/lib/notifications';
 
 export interface ScheduleCancelFailure {
   bookingId: string;
@@ -16,6 +16,8 @@ export interface ScheduleCancelResult {
   refunded: number;
   /** Bookings still active; calling this again retries only these. */
   failed: ScheduleCancelFailure[];
+  /** Transport requests canceled. */
+  transportCanceled: number;
 }
 
 /**
@@ -26,6 +28,8 @@ export interface ScheduleCancelResult {
  *    and any payment that still arrives is flagged for refund (confirm_booking_payment()).
  * 2. Pending bookings are canceled (status-guarded) and the traveler is told.
  * 3. Confirmed bookings get a full refund through refundBooking(), which also tells the traveler.
+ * 4. Any pending/accepted transport request is canceled (the DB releases the vehicle's dates) and the
+ *    transporter is told.
  *
  * Idempotent per booking: a booking that already left pending/confirmed is skipped, and a refund that
  * is already in progress fails cleanly in begin_booking_refund(). Failures are returned, not thrown,
@@ -53,7 +57,7 @@ export async function cancelScheduleWithBookings(
     .order('created_at', { ascending: true });
   if (bookingsError) throw bookingsError;
 
-  const result: ScheduleCancelResult = { canceled: 0, refunded: 0, failed: [] };
+  const result: ScheduleCancelResult = { canceled: 0, refunded: 0, failed: [], transportCanceled: 0 };
 
   for (const booking of bookings ?? []) {
     try {
@@ -97,5 +101,52 @@ export async function cancelScheduleWithBookings(
     }
   }
 
+  result.transportCanceled = await cancelScheduleTransport(admin, scheduleId);
   return result;
+}
+
+// Cancel the schedule's active vehicle request so the transporter is not left holding the dates.
+async function cancelScheduleTransport(admin: ReturnType<typeof createAdminClient>, scheduleId: string) {
+  try {
+    const { data: requests } = await admin
+      .from('transport_bookings')
+      .select('id, status, transporter_id, tour_schedules ( start_date, end_date, tours ( title, organizer_profiles ( display_name, company_name ) ) )')
+      .eq('tour_schedule_id', scheduleId)
+      .in('status', ['pending', 'accepted'])
+      .is('deleted_at', null);
+
+    let canceled = 0;
+    for (const request of requests ?? []) {
+      const { data: updated, error } = await admin
+        .from('transport_bookings')
+        .update({ status: 'canceled', updated_at: new Date().toISOString() })
+        .eq('id', request.id)
+        .in('status', ['pending', 'accepted'])
+        .select('id');
+      if (error) {
+        captureException(error, { action: 'cancelScheduleTransport', scheduleId, transportBookingId: request.id });
+        continue;
+      }
+      if (!updated || updated.length === 0) continue;
+      canceled += 1;
+
+      const schedule = request.tour_schedules as unknown as {
+        start_date: string;
+        end_date: string;
+        tours: { title: string; organizer_profiles: { display_name: string | null; company_name: string | null } | null } | null;
+      } | null;
+      const organizer = schedule?.tours?.organizer_profiles;
+      await notifyTransporterOfCancellation(request.transporter_id as string, {
+        organizerName: organizer?.display_name || organizer?.company_name || 'The organizer',
+        tourTitle: schedule?.tours?.title ?? null,
+        startDate: schedule?.start_date ?? '',
+        endDate: schedule?.end_date ?? null,
+        wasAccepted: request.status === 'accepted',
+      });
+    }
+    return canceled;
+  } catch (error: unknown) {
+    captureException(error, { action: 'cancelScheduleTransport', scheduleId });
+    return 0;
+  }
 }
