@@ -12,7 +12,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 > **Single source of truth and operating manual for every AI agent working in this repo.**
 > If anything in `docs/`, `README.md`, or `.agents/skills/*` contradicts this file, **this file wins**. If this file contradicts the code or `supabase/migrations/`, **the code wins**: fix this file.
-> **Last updated:** 2026-10-23 (Phase 3 Wave A)
+> **Last updated:** 2026-10-24 (Phase 3 complete)
 
 ---
 
@@ -158,19 +158,19 @@ travi/
 │   ├── dashboard/           # Authenticated multi-role area
 │   │   ├── layout.tsx       # 'use client' shell (sidebar from pathname). NO auth logic
 │   │   ├── page.tsx         # Dispatcher: redirects to the user's primary role
-│   │   ├── traveler/        # bookings, profile
-│   │   ├── organizer/       # layout.tsx (server: onboarding gate), tours (new, [id]/edit, [id]/schedules/[scheduleId]), bookings, wallet, profile
+│   │   ├── traveler/        # bookings (+ [id] detail: receipt, pay now, cancel, dispute), profile
+│   │   ├── organizer/       # layout.tsx (server: onboarding gate + status banner), tours (new, [id]/edit, [id]/schedules/[scheduleId]), bookings, transport, wallet, profile
 │   │   └── transporter/     # layout.tsx (server: onboarding gate), vehicles, availability, requests, reviews, wallet, profile
-│   ├── admin/               # Admin console: organizers, transporters, tours, bookings, reviews, payouts, notifications, settings, login
-│   ├── api/                 # Route handlers: bookings, tours, organizers, profile (Bearer auth), cron/escrow-release, webhooks/paymongo
+│   ├── admin/               # Admin console: organizers, transporters (KYC review), tours, bookings, reviews, payouts, finance, users, transport, audit, notifications, settings, login
+│   ├── api/                 # Route handlers: bookings, tours, organizers, profile (Bearer auth), cron/{escrow-release,trip-reminders}, webhooks/paymongo, admin/export/[kind] (CSV)
 │   ├── robots.ts, sitemap.ts, not-found.tsx, global-error.tsx
 ├── actions/                 # ALL Server Actions. One kebab-case file per domain noun; each starts with 'use server'
-│                            # admin, auth, availability, bookings, notifications, organizer, otp, profile, public,
-│                            # reviews, schedules, tours, transport-requests, transporter, vehicles, wallet
+│                            # admin, auth, availability, bookings, notifications, organizer, otp, partner-documents, partner-review,
+│                            # profile, reviews, schedules, tours, transport-requests, transporter, vehicles, wallet
 ├── components/
-│   ├── admin/               # Admin *Client.tsx tables, AdminNotificationBell, AdminProfileMenu, PlatformSettingsForm, BookingMobileCard
+│   ├── admin/               # Admin *Client.tsx tables (incl. Users/Finance/PaymentsReview/Transport/Audit), PartnerReviewPanel, InputDialog, AdminPager, TourModerationActions, AdminCancelBookingDialog, AdminNotificationBell, AdminProfileMenu, PlatformSettingsForm
 │   ├── auth/                # SignupForm, LoginForm, ForgotPasswordForm, ResetPasswordForm, AuthCard
-│   ├── dashboard/           # Role dashboards: forms, modals, managers, calendars, LocationPicker, RoleSwitcher, NotificationBell
+│   ├── dashboard/           # Role dashboards: forms, modals, managers, calendars, Partner{KycFields,DocumentUpload,DocumentsManager,StatusBanner}, TourPublishChecklist, CancelSchedule*, OrganizerTransportClient, RoleSwitcher, NotificationBell
 │   ├── landing/             # Marketing sections, TourCard/TourGrid (server), CatalogFilters, TourBookingCard, PaymentSelectionClient, PublicRouteError, hero.css
 │   ├── seo/                 # TourJsonLd
 │   ├── shell/               # AppShell (sidebar + sticky header + mobile Sheet) and AppSidebar. Used by app/dashboard/layout.tsx and app/admin/layout.tsx
@@ -184,8 +184,11 @@ travi/
 │   ├── supabase/            # server.ts (cookie client), browser.ts, middleware.ts (updateSession + RBAC), admin.ts (service role)
 │   ├── auth-helpers.ts      # requireSession(), assertRole()   ← Server Actions / RSC
 │   ├── api-auth.ts          # verifyApiAuth(), assertApiRole() ← app/api Bearer routes
-│   ├── schemas/             # zod: admin, auth, booking, catalog (lenient query parsing), review, tour
-│   ├── services/            # bookings.ts, tours.ts, payments.ts (applyPaidPayment, verifyBookingPayment), refunds.ts (refundBooking)
+│   ├── schemas/             # zod: admin, admin-tools, auth, booking, catalog (lenient query parsing), partner, review, schedule, tour, transport
+│   ├── services/            # bookings, tours (+ publish readiness), payments (applyPaidPayment, verifyBookingPayment), refunds (refundBooking),
+│   │                        # schedules (cancelScheduleWithBookings), partner-documents, traveler-contacts (SEC-13)
+│   ├── transport.ts, partners.ts, csv.ts, finance-format.ts   # transport helpers/ownership, partner helpers, CSV (formula-safe), money/mask formatters
+│   ├── data/merchant.ts     # Public organizer details for the tour page (LEG-06)
 │   ├── data/                # tours.ts (catalog search + detail), reviews.ts, stats.ts: cached public reads. tours-fallback.ts is TEMPORARY until 20261024100000 is applied
 │   ├── env.ts               # zod-validated env. Import `env`, not process.env
 │   ├── logger.ts            # pino `logger` + captureException() (pino + Sentry)
@@ -437,13 +440,15 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
 | `tour_schedules.transport_status` | `not_required`, `self_provided`, `pending`, `confirmed`, `unresolved` | CHECK |
 | `tours.status` | `draft`, `published`, `archived` | CHECK |
 | `tours.format` | `joiner`, `private`, `solo` | enum |
-| `organizer_profiles.status` / `transporter_profiles.status` | `pending`, `approved`, `rejected` | CHECK. Onboarding currently inserts `approved` (auto-approve) |
+| `organizer_profiles.status` / `transporter_profiles.status` | `pending`, `approved`, `rejected` | CHECK. New partners start `pending` (DB-forced); admins approve via `actions/partner-review.ts` |
+| `partner_documents.status` | `submitted`, `verified`, `rejected` | CHECK |
+| `booking_payments.status` / `.resolution` | `applied`, `needs_review` / `refunded`, `no_refund` | CHECK. Open review item = `needs_review` with `resolved_at IS NULL` |
 | `organizer_type` / `transporter_type` | `individual`, `company` | CHECK |
 | `transport_bookings.status` | `pending`, `accepted`, `declined`, `canceled`, `completed` | CHECK |
 | `vehicles.status` / `vehicle_type` | `active`, `inactive`, `archived` / `car`, `van`, `bus`, `minibus`, `suv` | CHECK |
 | `vehicle_availability.status` | `available`, `booked`, `blocked` | CHECK |
 | `reviews.status` | `pending`, `published`, `hidden` | enum |
-| `payout_requests.status` | `pending`, `processing` (unused), `paid`, `rejected` | enum |
+| `payout_requests.status` | `pending`, `processing` (approved by one admin, awaiting a second when the dual-approval threshold applies), `paid`, `rejected` | enum |
 | `wallet_transactions.type` | `payment_hold`, `escrow_deposit`, `escrow_release`, `withdrawal_pending`, `withdrawal_completed`, `withdrawal_rejected`, `refund`, `platform_fee`, `manual_adjustment`, `penalty` | enum |
 | `wallet_transactions.balance_affected` | `available`, `escrow` | CHECK |
 
@@ -465,7 +470,8 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
 
 - **Booking inserts are validated and priced by the DB** for end users (`bookings_before_insert` → `booking_quote()`): the schedule must be `open`, not deleted, starting after today (Asia/Manila), on a `published` tour; `total_amount`, `status = 'pending'`, `dispute_status = 'none'` are set by the server. Travelers have **no UPDATE** on bookings; every status change goes through server code (service role).
 - **Seat accounting lives in the DB:**
-  - Trigger `update_tour_schedule_booked_count` (SECURITY DEFINER) counts bookings in `pending | confirmed | completed`. End users cannot change `booked_count`.
+  - `booked_count` = sum of `bookings.seats_consumed` (server-owned) over `pending | confirmed | completed`, maintained by `update_tour_schedule_booked_count` (SECURITY DEFINER). End users cannot change `booked_count`.
+  - **Private tours (D3):** a booking takes the whole group: seats = capacity, price = per-person price × capacity; a second booking on the date is refused (`booking_seats()`, `booking_quote()`).
   - A **`private`-format** booking consumes the schedule's **whole capacity**.
   - CHECK `check_capacity_not_exceeded (booked_count <= capacity)` makes overbooking impossible.
   - The service pre-checks `capacity - booked_count` for a friendly error, but **the DB constraint is the real guard. Never remove or bypass it.**
@@ -481,9 +487,11 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
   - Pending (unpaid): status-guarded update to `canceled`.
   - Confirmed: **full** refund through `refundBooking()` (`lib/services/refunds.ts`), which reverses the escrow and cancels the booking atomically.
 - **Disputes:**
-  - Opened only through `open_booking_dispute()` (row-locked): the owning traveler, a `confirmed` booking with `dispute_status = 'none'`, up to `escrow_holding_days` after `end_date`. Opening one notifies the super-admin.
+  - Opened only through `open_booking_dispute(booking, traveler, reason)` (row-locked): the owning traveler, a `confirmed` booking with `dispute_status = 'none'`, after the trip starts and up to `escrow_holding_days` after `end_date`; reason 20–2000 chars (`bookings.dispute_reason`, `dispute_opened_at`). Opening one notifies the traveler, organizer and super-admin.
   - An open dispute blocks escrow release (release locks the same row and re-checks).
   - Admin resolution: refund → `refundBooking(…, bookingStatus 'refunded')` (sets `resolved_refunded`); deny → `deny_booking_dispute()`. Both are audited.
+- **Admin cancel/refund:** `adminCancelBooking({ bookingId, amount?, reason })` cancels pending bookings or refunds confirmed ones in full or in part (`refundBooking`, `admin_refund`), audited.
+- **Pay now:** pending bookings can be paid from the booking detail page (`/dashboard/traveler/bookings/[id]`); `processPayment` reuses a live PaymentIntent (`awaiting_payment_method`/`awaiting_next_action`) instead of creating a new one.
 - **Organizer `updateBookingStatus`:** checks ownership via `tour_schedules!inner(tours!inner(organizer_id))` and allows **only `pending → canceled`** (decline). Organizers cannot confirm bookings; only a verified payment confirms one. Canceling a paid booking must go through the refund flow.
 
 ### 4.4 Payments, fees, escrow & wallets
@@ -492,12 +500,14 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
 
 | Function | Called by | Does |
 |---|---|---|
-| `confirm_booking_payment(booking, intent, payment, amount_centavos, fee_centavos, source)` | `applyPaidPayment()` (success page + webhook) | Records the payment in `booking_payments` (unique per PayMongo payment), checks the amount, `pending → confirmed` (or revives a late payment), credits organizer escrow with an `escrow_deposit` row. Returns `confirmed`, `already_applied`, or a needs-review outcome (`amount_mismatch`, `duplicate_payment`, `late_payment_needs_refund`, `booking_closed_needs_refund`) |
+| `confirm_booking_payment(booking, intent, payment, amount_centavos, fee_centavos, source)` | `applyPaidPayment()` (success page + webhook) | Payments for a cancelled/deleted schedule become `booking_closed_needs_refund`. Records the payment in `booking_payments` (unique per PayMongo payment), checks the amount, `pending → confirmed` (or revives a late payment), credits organizer escrow with an `escrow_deposit` row. Returns `confirmed`, `already_applied`, or a needs-review outcome (`amount_mismatch`, `duplicate_payment`, `late_payment_needs_refund`, `booking_closed_needs_refund`) |
 | `release_booking_escrow(booking)` + `bookings_due_for_escrow_release()` | escrow cron | Escrow → available (two `escrow_release` rows), booking → `completed` |
 | `begin_booking_refund` → `complete_booking_refund` / `fail_booking_refund` | `refundBooking()` | One active refund per booking (`booking_refunds`), proportional escrow reversal, booking → `canceled`/`refunded` |
-| `open_booking_dispute`, `deny_booking_dispute` | dispute actions | Row-locked dispute transitions |
+| `open_booking_dispute(booking, traveler, reason)`, `deny_booking_dispute` | dispute actions | Row-locked dispute transitions |
 | `request_payout(amount, method_id)` | `requestPayout()` with the **user's** session | Approved partners only; min from settings; destination from the caller's saved methods; atomic debit + `withdrawal_pending` + `payout_requests` |
-| `mark_payout_paid`, `reject_payout` | admin actions | Only from `pending`/`processing`; wallet derived from the request; ledger + audit log |
+| `approve_payout` → `mark_payout_paid`, `reject_payout` | admin actions | Only from `pending`/`processing`; wallet derived from the request; ledger + audit log. With `platform_settings.payout_dual_approval_threshold` set (NULL = off), payouts at or above it must be approved first and paid by a **different** admin; an approved payout is always paid by a different admin |
+| `begin_payment_review_refund` → `resolve_payment_review` / `fail_payment_review_refund` | `/admin/finance` | Refund or close (with note) a `needs_review` payment; one claim at a time; audited; no ledger change |
+| `admin_finance_summary(from, to)`, `admin_booking_stats(months)` | admin pages | GMV, platform fees, MDR, refunds, liabilities, pending payouts, open reviews, drift; monthly booking stats (Manila) |
 | `wallet_ledger_drift()`, `bookings_missing_deposit()`, `backfill_booking_deposit()` | cron, `scripts/backfill-escrow-deposits.ts` | Reconciliation |
 
 - **PayMongo flow:**
@@ -521,6 +531,7 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
   - **Sign convention:** `wallet_transactions.amount` is the signed effect on the bucket in `balance_affected`, so `sum(amount)` per bucket equals the balance. `withdrawal_completed` is a 0-amount memo (the debit happened at request time).
   - The ledger is **append-only** (trigger); corrections are new `manual_adjustment` rows. Balances can never go negative (CHECK).
   - Users have SELECT-only RLS on wallets and the ledger; `booking_payments`, `booking_refunds`, `webhook_events` are service-role only.
+- **Finance console** (`/admin/finance`): KPIs, payments needing review (refund / close with note), CSV exports via `/api/admin/export/[kind]` (`bookings|payments|refunds|payouts|ledger`; admin-only, rate-limited, audited, account numbers masked to the last 4, formula-injection-safe). Organizer dashboard shows **net** earnings from its own ledger.
 - **Payouts:** password re-entry (rate-limited) + `request_payout()`; the destination is always one of the caller's saved, OTP-verified methods (snapshotted into `payout_requests.payout_method`). Admins pay outside Travi, then `markPayoutPaid(payoutId, reference)` or `rejectPayout(payoutId, reason)`.
 - **Saved payout methods** live in `user_wallets.saved_payout_methods` (jsonb): `{ id, type: 'bank'|'gcash'|'maya', isDefault, details: { accountName, accountNumber, bankName? } }`. Adding one requires a verified OTP (`add_payout_method`). The first method saved becomes the default.
 - **Backfill:** bookings confirmed before this migration may have no deposit (old wrong-wallet bug). Run `scripts/backfill-escrow-deposits.ts` (dry run by default) after the migration is applied.
@@ -529,30 +540,32 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
 ### 4.5 Tours, schedules, transport, vehicles, reviews
 
 - **Tours** (`actions/tours.ts` → `lib/services/tours.ts`, `tourSchema`):
-  - Organizer only; writes are scoped by `organizer_id`.
-  - Slug is `slugify(title)-<last 6 digits of Date.now()>`, set on create and **never changed** (URLs are stable).
+  - Organizer only; writes are scoped by `organizer_id`. New tours always start as `draft`; `status` is `z.enum(['draft','published','archived'])`.
+  - Slug is `slugify(title)-<last 6 digits of Date.now()>`, set on create and **never changed** (DB-guarded).
   - Itinerary arrives as a JSON string `[{ day_number, title, description }]`. Update replaces all rows. `(tour_id, day_number)` is unique.
-  - Publish sets `status: 'published'`, `deleted_at: null`. Archive sets `status: 'archived'`, `deleted_at: now()`.
-- **Public catalog** (`search_public_tours`, `lib/data/tours.ts`): only `published`, not-deleted tours of **approved**, non-deleted organizers with an `open`, non-deleted schedule starting today or later (Manila) with at least max(guests, 1) seats left. Price = schedule price ?? tour price. Ratings come from published, non-deleted reviews (`tour_rating_summary` view). User text is matched literally (LIKE wildcards escaped).
-- **Schedules** (`actions/schedules.ts`):
-  - Created `open`. Delete is soft: `deleted_at` + `status: 'cancelled'`.
-  - `transport_status` is derived from `transport_type`:
-    - `none` → `not_required`
-    - `self_provided` → `self_provided`
-    - `external_transporter` → `unresolved`, or `pending` once a `transport_bookings` request is created.
-  - ⚠ There is no app-layer auth here (it relies on RLS). Add `requireSession` + `assertRole` when you touch this file.
-- **Transport requests** (enforced in the DB by `transport_bookings_before_write`, not just the actions):
-  - Organizers insert requests only for their own schedule with a vehicle that belongs to the named transporter; the DB forces `status = 'pending'`, `estimated_price = NULL`. Organizers may edit a `pending` request and cancel (`pending|accepted → canceled`), never accept.
-  - Transporters may only change `status`: `pending → accepted|declined`, `accepted → completed`. Nobody but the service role sets `estimated_price`.
-  - Only the owning transporter can act, and only on `pending`.
-  - **Accept** → `accepted`. Inserts `vehicle_availability {status: 'booked', transport_booking_id}`, sets schedule `transport_status: 'confirmed'` (service role: transporters cannot update schedules), notifies the organizer, and writes an audit row.
-  - **Decline** → `declined`, and sets schedule `transport_status: 'unresolved'` (service role).
+  - **Publish rules** (`getTourPublishReadiness`, shown as a live checklist in `TourForm`): approved organizer, ≥ 1 itinerary day, ≥ 1 open schedule starting after today (Manila), price > 0, cover image. The DB (`tours_publish_guard`) also refuses `published` from an unapproved organizer.
+  - Archive is refused while upcoming schedules have pending/confirmed bookings ("cancel schedules first").
+  - **Admin hold:** `admin_unpublish_tour` / `admin_republish_tour` (admin console, audited, organizer notified). While `tours.admin_hold_at` is set the organizer cannot re-publish or clear the hold (`tours_enforce_admin_hold`).
+- **Public catalog** (`search_public_tours`, `lib/data/tours.ts`): only `published`, not-deleted tours of **approved**, non-deleted organizers with an `open`, non-deleted schedule starting today or later (Manila) with at least max(guests, 1) seats left. Price = schedule price ?? tour price. Ratings come from published, non-deleted reviews (`tour_rating_summary` view). User text is matched literally (LIKE wildcards escaped). Tour detail shows an "Operated by" card (legal name, DOT no., contact email; LEG-06) via `lib/data/merchant.ts`.
+- **Schedules** (`actions/schedules.ts`, §3.2-compliant, zod in `lib/schemas/schedule.ts`):
+  - Created `open`, starting after today (Manila).
+  - `updateSchedule` rejects capacity below `booked_count`, any capacity change on a booked private date, and edits to cancelled schedules. A DB trigger blocks date changes while an **accepted** transport booking exists (error 55000, shown as its message).
+  - `transport_status` is derived from `transport_type` only when the type changes (`none` → `not_required`, `self_provided` → `self_provided`, `external_transporter` → `unresolved`), and the type cannot change while a vehicle request is pending/accepted. Requests then move it: send → `pending`, accept → `confirmed`, decline/cancel → `unresolved`.
+  - The schedule form **does not create transport requests**; vehicles are requested from the schedule page (`TransportManager` → `sendTransportRequest`).
+  - **Cancel** (no hard/soft delete for organizers): `getScheduleCancellationPreview` → `cancelSchedule` → `cancelScheduleWithBookings` (`lib/services/schedules.ts`): schedule → `cancelled` first, pending bookings canceled + travelers notified, confirmed bookings fully refunded through `refundBooking`, active transport request canceled + transporter notified. Failures are returned and retryable; audited. End users cannot cancel/soft-delete a schedule with active bookings any other way (`tour_schedules_guard_cancel`). Refused once the trip has started with active bookings.
+- **Transport requests** (D2: coordination only, no on-platform transport payments; `actions/transport-requests.ts`, `lib/transport.ts`, DB triggers in `20261023090000` + `20261025110000`):
+  - **Send** (organizer only): `sendTransportRequest({...})` derives transporter, seats and dates on the server; checks schedule ownership, not started, transport type, one active request per schedule (app-level), vehicle seat capacity, approved transporter, and that the vehicle is free (`code: 'CONFLICT'`). The DB forces `status = 'pending'`, `estimated_price = NULL`. Pending requests do not hold the vehicle.
+  - **Accept** (transporter; plain status update with the user's client): the DB inserts the `booked` availability row in the same statement and fails if the vehicle is taken (`23P01`), inactive or the schedule cancelled.
+  - **Decline / organizer cancel** (`cancelTransportRequest`, pending|accepted) / soft delete release the vehicle by soft-deleting its booked row (trigger).
+  - **Complete:** accepted only, from the Manila trip end = max(schedule `end_date`, transport return/pickup date).
+  - Times are Manila wall-clock (`manilaDateTimeToIso`, `formatManilaDateTime`). Contact details: the transporter sees the organizer's for pending/accepted requests; the organizer sees the transporter's once accepted (service-role read limited to counterparties).
+  - Organizer list: `/dashboard/organizer/transport`. Admin oversight: `/admin/transport`.
 - **Vehicles:**
-  - Default `active`; toggle between `active` and `inactive`; delete is soft.
-  - `getAvailableVehicles` excludes vehicles with **any** overlapping `vehicle_availability` row.
+  - Default `active`; toggle between `active` and `inactive`; delete is soft. Optional OR/CR upload per vehicle (private `partner-documents` bucket).
+  - Discovery: `available_vehicles(start, end, seats)` RPC (organizers/admins; approved transporters only; no live booked/blocked overlap; no phone or plate).
 - **Availability:**
-  - `blockVehicleDates` rejects `start > end` and any overlap.
-  - `removeAvailabilityBlock` refuses `booked` rows (a booked row must be released through the transport booking).
+  - No overlapping live booked/blocked rows, enforced in the DB (`vehicle_availability_no_overlap`, per-vehicle lock). `booked` rows are trigger-only (end users cannot write them).
+  - Removing a block is a soft delete. Queries must filter `deleted_at IS NULL` and `status IN ('booked','blocked')`.
 - **Reviews** (`actions/reviews.ts`):
   - Travelers review **tours only** via `createReview({ bookingId, rating, comment })`: their own `completed` booking of that tour, one review per booking (`reviews.booking_id` unique, also across soft deletes), comment ≤ 1000, inserted `pending`. Enforced by RLS + `can_review_booking()`. End users cannot set `transporter_id` (no organizer→transporter review flow yet).
   - **Only `published` reviews are public.** Admin queue (Pending / Published / Hidden): `publishReview`, `hideReview`, `deleteReview` (soft) — admin-only, service role, audited.
@@ -570,7 +583,13 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
   - `addAccountType(role)` adds a role via the `assign_self_role` RPC.
   - `RoleSwitcher` links to `/dashboard/<role>`.
   - The **primary role** is `traveler` if the user has it, else the first role.
-- **Onboarding:** the `organizer/` and `transporter/` dashboard **server layouts** render the onboarding form until a `*_profiles` row exists. Profiles are currently auto-`approved`; the admin approve/reject flows still exist.
+- **Onboarding & approval (KYC):** the `organizer/` and `transporter/` dashboard server layouts render the onboarding form until a `*_profiles` row exists, then a `PartnerStatusBanner` (pending / info requested / rejected with reason).
+  - Onboarding requires a verified email and a government ID upload, plus legal name, TIN, public contact email; companies also need the company name and DTI/SEC no. (BIZ-08); organizers may add a DOT accreditation no., transporters an LTFRB franchise no.
+  - **New partners start `pending`** (DB: `*_profiles_before_insert`). Until approved they can prepare drafts and vehicles but cannot publish tours, be discovered/requested, or request payouts.
+  - Documents: private bucket `partner-documents` (`<uid>/…`, pdf/jpeg/png/webp, 10 MB) + table `partner_documents` (`doc_type`, `status` `submitted|verified|rejected`); admins open them via 5-minute signed URLs.
+  - Admin review: `actions/partner-review.ts` (`approvePartner`, `rejectPartner(reason)`, `requestMoreInfo(note)`, `getPartnerDocumentUrl`): service role, guarded transitions, audited, partner notified. Approval verifies submitted documents.
+  - Identity fields lock after approval (fill-blank only); editing them after a rejection puts the partner back to `pending` (`partner_profiles_kyc_rules`). Rejecting an approved partner is how they are deactivated.
+- **Admin user management** (`/admin/users`): search, role add/remove (`modifyUserRole`; cannot remove your own or the last admin), suspend/unsuspend (`setUserSuspended`, Supabase ban; cannot suspend yourself or another admin; existing sessions last until token expiry).
 - **Notifications:**
   - Rows are inserted with the service-role client and keyed by **auth user id**.
   - Only `notifications` is in the `supabase_realtime` publication; the bells subscribe through the browser client.
@@ -624,7 +643,8 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
 | Wallets, escrow cron (scheduled in `vercel.json`), payouts, saved payout methods | Implemented with atomic DB functions; ⚠ see §6 #3, #6, #7 |
 | Review submission by travelers + admin moderation queue | Implemented |
 | Public `/tours` catalog with filters, hero search, password reset, email verification, traveler emails/reminders | Implemented (Phase 3 Wave A; migrations pending) |
-| Real SMS provider; admin UI for payments needing review; maker-checker payouts; transport payouts | **Not implemented** |
+| Partner KYC + approval, publish rules, schedule cancel cascade, disputes with reasons, private tours, transport conflicts, admin finance/users/audit/transport, maker-checker payouts | Implemented (Phase 3 Wave B; migrations pending) |
+| Real SMS provider; transport payouts; dispute evidence uploads | **Not implemented** |
 
 ---
 
@@ -648,7 +668,7 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
 | 1. Middleware | `/admin/*` requires `admin` (else → `/admin/login`). `/dashboard/*` requires a user with a role; admins → `/admin`; a role mismatch → the primary role's dashboard. `/login` bounces signed-in users | Roles come from `user_roles ⋈ website_roles` filtered by `WEBSITE_ID`. **`/api/*` is NOT gated by middleware** |
 | 2. Page / layout | Admin pages: `requireSession()` + `assertRole(user.id, 'admin')` | ⚠ `admin/bookings`, `admin/tours`, `admin/transporters` skip this. Add it when you touch them |
 | 3. Server Action / route | `assertRole(user.id, role)` (**admin passes every role check**) or `assertApiRole()` (no admin bypass), **plus an ownership check on the row** | Ownership is enforced with `.eq('organizer_id', …)`, `.eq('transporter_id', …)`, or `!inner` joins |
-| 4. Postgres RLS | Owner policies (definer helpers `current_*_profile_id()` or the `user_profiles.user_id = auth.uid()` subquery); inline admin `EXISTS` checks; `is_organizer_for_traveler()`. Server-owned columns guarded by triggers; `assign_self_role`/`booking_quote` RPCs. Anonymous users get column-limited SELECT on partner/vehicle tables. Tested by `npm run test:rls` | RLS is the last line of defense, **not** the only one |
+| 4. Postgres RLS | Partner/vehicle/availability base tables are **owner + admin only** for signed-in users; others go through `public_organizer_profiles` / `public_transporter_profiles` / `public_vehicles` (contact fields only for accepted transport counterparties), `organizer_traveler_contacts()` (name; email only for confirmed bookings) and `available_vehicles()`. Admins have SELECT-only on `payout_requests`. Owner policies (definer helpers `current_*_profile_id()` or the `user_profiles.user_id = auth.uid()` subquery); inline admin `EXISTS` checks; `is_organizer_for_traveler()`. Server-owned columns guarded by triggers; `assign_self_role`/`booking_quote` RPCs. Anonymous users get column-limited SELECT on partner/vehicle tables. Tested by `npm run test:rls` | RLS is the last line of defense, **not** the only one |
 
 Permissions matrix (intended):
 
@@ -752,10 +772,9 @@ These are verified against the code on 2026-10-16. **Do not copy these patterns.
 
 ### Critical (security / money)
 
-2. **RLS hardening migration not yet applied to the live DB.** `20261023090000_rls_hardening.sql` closes self-granted admin, booking/payout/transport/review/notification forgery and status self-edits (all verified by `npm run test:rls`), but until it is pushed (after `live-policy-audit.sql`) the live project still has those holes. Remaining after it: **signed-in** users can still read partner phone numbers and addresses, vehicle plates and other travelers' full profile rows for their bookings (SEC-13; anon is now column-limited).
+2. **Phase 1–3 migrations are not applied to the live DB.** `20261023090000` … `20261025120000` (RLS hardening, money integrity, accounts, catalog, communications, reviews, partners/KYC/SEC-13, bookings, transport, admin) are tested locally only (`npm run test:rls`). Until they are pushed in order (after `live-policy-audit.sql`), the live project keeps every hole they close, and the new app code depends on them (fallbacks exist only for the catalog). The `public_*` view embeds still need a check against real PostgREST.
 3. **Phase 2 money migration not yet applied, and the FIN-01 backlog is not backfilled.** `20261023120000_money_integrity.sql` (atomic confirm/release/refund/payout functions, append-only ledger, webhook dedupe) is tested locally only. Until it is pushed and `scripts/backfill-escrow-deposits.ts --apply` has run, organizers paid through the old success page have no escrow deposit, and historical ledger rows (old `payment_hold`/`withdrawal_pending` signs) will show in `wallet_ledger_drift()`.
-6. **Payments that need review have no admin UI.** `booking_payments` rows with `status = 'needs_review'` (late payment with no seats, duplicate payment, wrong amount) alert Sentry and the super-admin, but must be refunded by hand in the PayMongo dashboard.
-7. **Payout destinations are stored in plaintext** (`user_wallets.saved_payout_methods`, `payout_requests.payout_method`), and one admin can both approve and mark a payout paid (no maker-checker). See FIN-20, OPS-07.
+7. **Payout destinations are stored in plaintext** (`user_wallets.saved_payout_methods`, `payout_requests.payout_method`; FIN-20). Maker-checker exists but is off until `payout_dual_approval_threshold` is set.
 9. **OTP weaknesses** (`lib/otp.ts`): the code sits in a signed but unencrypted cookie (readable by anyone holding the session), `Math.random` codes, and no attempt limit. Tokens are now bound to the user and carry only fixed claims.
 
 ### High
@@ -763,24 +782,21 @@ These are verified against the code on 2026-10-16. **Do not copy these patterns.
 12. **`verifyApiAuth` doesn't attach the bearer token** to the returned client, so API-route queries run as anon.
 13. **`POST /api/organizers` writes non-existent columns** (`type`, `phone_number`, `provides_transportation`).
 14. **API routes read `ZodError.errors[0]`.** That is zod v3; v4 uses `.issues`, so this throws.
-16. **Missing app-layer auth or validation** in `actions/schedules.ts`, `actions/organizer.ts`, `actions/transporter.ts`.
-    - Partner profiles auto-approve.
-    - The `createTour` action doesn't check organizer approval (the API route does).
-17e. **The organizer tour edit page lists soft-deleted schedules.** Its `tour_schedules` query (`app/dashboard/organizer/tours/[id]/edit/page.tsx`) has no `.is('deleted_at', null)` (§3.4).
+16. **Transport cancel after vehicle deactivation:** the Phase 1 `transport_bookings_before_write` re-checks `transport_request_is_valid` (vehicle active, transporter approved) on organizer edits, so if the transporter deactivates the vehicle after accepting, the organizer cannot cancel. `vehicle_availability.transport_booking_id` has no FK.
+17e. **Onboarding document warnings are not displayed:** if a KYC document row fails to insert, the onboarding action returns a `warning` the forms ignore.
 
 ### Medium / hygiene
 
 17. **Duplicate migration timestamp `20260831000000`** (`add_saved_payout_methods` + `wallet_v2_architecture`). Renaming either file needs human approval, because it affects remote migration history.
 18. **`types/supabase.ts` is stale**, and there are columns with no migration (see §4.7).
-19. **Organizer dashboards show gross revenue** (`app/dashboard/organizer/page.tsx`), not the net that reaches the wallet (FIN-15). Platform revenue is only derivable from `fee_amount`; there is no platform ledger.
+19. **No platform ledger:** platform revenue is derived from `wallet_transactions.fee_amount` (`admin_finance_summary`); refunds do not reverse fee revenue in the KPIs.
 20. **`confirmEmailChange` never verifies the NEW address** (`actions/profile.ts`): the code goes to the current email, then the new email is marked verified. Fix with the OTP rework (Phase 5.7).
 21. **Unused dependencies:** `stripe`, `@stripe/stripe-js`, `@tanstack/react-query`, `react-hook-form`, `@hookform/resolvers`. Also unused: the `payout_otps` table and the legacy `payments` table (replaced by `booking_payments`).
 22. **Tracked junk files at the repo root**, listed in §2.2. `.gitignore` is missing `playwright-report/`, `test-results/`, `scratch/`, `*.log`.
 23. **`README.md` is create-next-app boilerplate.**
-23a. **Stub forms that persist nothing:** `OrganizerProfileForm` and `TravelerProfileForm` save via a TODO + `setTimeout`; the admin settings "Admin Profile" password form's action is a no-op.
-23b. **Stale client state after mutations:** admin `BookingsClient` doesn't update `bookings` after `resolveDispute` (`setBookings` unused); `ReviewsClient.handleHide` uses a stale closure (`setReviews(reviews.map(...))`). Several status labels use `.replace('_', ' ')`, which only replaces the first underscore.
-23c. **Admin dashboard charts** (`app/admin/page.tsx`) aggregate a 6-month `bookings` select in JS; past PostgREST's row cap (default 1000) they undercount. Move to a SQL aggregate/RPC when volume grows.
-24. **Getter actions catch Next's dynamic-rendering bailout.** `getTransporterVehicles`, `getTransporterAvailability` and `getTransporterRequests` (`getTransporterReviews` is fixed) catch it and `captureException` it. `npm run build` prints 5 `"level":"error"` "Dynamic server usage" logs, but it still exits 0. The fix is `unstable_rethrow` (§3.3).
+23a. **Stub form:** the admin settings "Admin Profile" password form (`app/admin/settings/page.tsx`) persists nothing.
+23b. **Files over ~400 lines:** `TourForm.tsx` (465), `actions/transport-requests.ts`, `actions/admin.ts`, `lib/notifications.ts`, `lib/email-templates.ts` grew during Phase 3; split when next touched.
+24. **Temporary catalog fallback:** `lib/data/tours-fallback.ts` (bounded PostgREST query, no ratings) runs while `search_public_tours` is missing on the live DB; the build logs one `searchPublicTours` error until `20261024100000` is applied. Delete the fallback after the migration.
 
 ---
 
