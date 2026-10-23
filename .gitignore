@@ -40,3 +40,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# test output and local scratch
+/playwright-report/
+/test-results/
+/scratch/
+*.log
+/error.html
+/lint_results.txt
+/output.json
+/script_output.txt
+/test-query.*
+/test-vehicles.ts
+/seed-other-transporter.ts
