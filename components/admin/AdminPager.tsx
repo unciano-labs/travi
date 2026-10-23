@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { formatNumber } from '@/lib/format';
 
 interface AdminPagerProps {
   basePath: string;
@@ -26,7 +27,7 @@ export default function AdminPager({ basePath, params, page, pageSize, total }: 
   return (
     <nav aria-label="Pagination" className="flex items-center justify-between border-t border-border px-6 py-4 text-sm">
       <span className="font-medium text-muted-foreground">
-        Showing {first.toLocaleString()} to {last.toLocaleString()} of {total.toLocaleString()}
+        Showing {formatNumber(first)} to {formatNumber(last)} of {formatNumber(total)}
       </span>
       <div className="flex gap-2">
         {page > 1 ? (

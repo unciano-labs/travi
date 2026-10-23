@@ -10,7 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { peso } from '@/lib/finance-format';
+import { formatNumber, formatPHP } from '@/lib/format';
 
 export interface FinanceSummary {
   gmv: number;
@@ -101,19 +101,19 @@ export default function FinanceClient({ summary, from, to, rangeError }: Finance
             </Alert>
           )}
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard title="GMV collected" value={peso(summary.gmv)} icon={ReceiptText} tone="primary"
-              hint={`${summary.paymentsCount.toLocaleString()} applied payment${summary.paymentsCount === 1 ? '' : 's'}`} />
-            <StatCard title="Platform fees" value={peso(summary.platformFees)} icon={Percent} tone="success" hint="Gross, before refunds" />
-            <StatCard title="PayMongo fees (MDR)" value={peso(summary.mdr)} icon={Landmark} tone="secondary" hint="All payments in range" />
-            <StatCard title="Refunds" value={peso(summary.refunds)} icon={RotateCcw} tone="error"
-              hint={`${summary.refundsCount.toLocaleString()} refund${summary.refundsCount === 1 ? '' : 's'}`} />
-            <StatCard title="Escrow liability" value={peso(summary.escrowLiability)} icon={Wallet} tone="info" hint="Held for upcoming / recent trips" />
-            <StatCard title="Available liability" value={peso(summary.availableLiability)} icon={Banknote} tone="warning" hint="Partners can withdraw" />
-            <StatCard title="Pending payouts" value={peso(summary.pendingPayouts)} icon={Clock} tone="warning" href="/admin/payouts"
-              hint={`${summary.pendingPayoutsCount.toLocaleString()} awaiting payment`} />
-            <StatCard title="Needs review" value={peso(summary.needsReviewAmount)} icon={ShieldAlert}
+            <StatCard title="GMV collected" value={formatPHP(summary.gmv)} icon={ReceiptText} tone="primary"
+              hint={`${formatNumber(summary.paymentsCount)} applied payment${summary.paymentsCount === 1 ? '' : 's'}`} />
+            <StatCard title="Platform fees" value={formatPHP(summary.platformFees)} icon={Percent} tone="success" hint="Gross, before refunds" />
+            <StatCard title="PayMongo fees (MDR)" value={formatPHP(summary.mdr)} icon={Landmark} tone="secondary" hint="All payments in range" />
+            <StatCard title="Refunds" value={formatPHP(summary.refunds)} icon={RotateCcw} tone="error"
+              hint={`${formatNumber(summary.refundsCount)} refund${summary.refundsCount === 1 ? '' : 's'}`} />
+            <StatCard title="Escrow liability" value={formatPHP(summary.escrowLiability)} icon={Wallet} tone="info" hint="Held for upcoming / recent trips" />
+            <StatCard title="Available liability" value={formatPHP(summary.availableLiability)} icon={Banknote} tone="warning" hint="Partners can withdraw" />
+            <StatCard title="Pending payouts" value={formatPHP(summary.pendingPayouts)} icon={Clock} tone="warning" href="/admin/payouts"
+              hint={`${formatNumber(summary.pendingPayoutsCount)} awaiting payment`} />
+            <StatCard title="Needs review" value={formatPHP(summary.needsReviewAmount)} icon={ShieldAlert}
               tone={summary.needsReviewCount > 0 ? 'error' : 'success'}
-              hint={`${summary.needsReviewCount.toLocaleString()} payment${summary.needsReviewCount === 1 ? '' : 's'} below`} />
+              hint={`${formatNumber(summary.needsReviewCount)} payment${summary.needsReviewCount === 1 ? '' : 's'} below`} />
           </div>
         </>
       )}

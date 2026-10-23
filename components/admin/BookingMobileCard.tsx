@@ -1,5 +1,6 @@
 import { Calendar } from 'lucide-react';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { formatDate, formatPHP } from '@/lib/format';
 
 interface Booking {
   id: string;
@@ -59,7 +60,7 @@ export default function BookingMobileCard({ booking, onClick }: BookingMobileCar
           </div>
           <div className="text-muted-foreground text-xs mt-0.5 flex items-center gap-1">
             <Calendar className="w-3 h-3" aria-hidden="true" />
-            {new Date(booking.tour_schedule?.start_date || '').toLocaleDateString()}
+            {formatDate(booking.tour_schedule?.start_date)}
           </div>
         </div>
 
@@ -80,7 +81,7 @@ export default function BookingMobileCard({ booking, onClick }: BookingMobileCar
         </div>
         <div className="text-sm">
           <span className="text-muted-foreground">Total:</span>{' '}
-          <span className="font-semibold text-success">₱{booking.total_amount.toLocaleString()}</span>
+          <span className="font-semibold text-success">{formatPHP(booking.total_amount)}</span>
         </div>
       </div>
     </button>

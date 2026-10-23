@@ -1,4 +1,5 @@
 import { requireSession, assertRole } from '@/lib/auth-helpers';
+import { captureException } from '@/lib/logger';
 import { WalletClient } from '@/components/dashboard/WalletClient';
 import { AlertCircle } from 'lucide-react';
 import PageHeader from '@/components/ui/PageHeader';
@@ -14,7 +15,7 @@ export default async function WalletPage() {
   const { data: walletId, error: rpcError } = await admin.rpc('ensure_user_wallet', { profile_id: profile.id });
   
   if (rpcError) {
-    console.error('ensure_user_wallet error:', rpcError);
+    captureException(rpcError, { action: 'ensure_user_wallet', page: 'transporter/wallet' });
   }
 
   // Fetch Wallet Data

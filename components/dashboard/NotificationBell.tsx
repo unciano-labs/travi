@@ -5,6 +5,7 @@ import { Bell } from 'lucide-react';
 import Link from 'next/link';
 import { getUnreadNotifications, markNotificationAsRead } from '@/actions/notifications';
 import { createClient } from '@/lib/supabase/browser';
+import { formatDateOfInstant } from '@/lib/format';
 
 function playNotificationSound() {
   try {
@@ -138,7 +139,7 @@ export function NotificationBell() {
                       <span className="block text-sm font-semibold text-foreground mb-0.5">{notification.title}</span>
                       <span className="block text-sm text-muted-foreground line-clamp-2">{notification.message}</span>
                       <span className="block text-xs text-muted-foreground/80 mt-1">
-                        {new Date(notification.created_at).toLocaleDateString()}
+                        {formatDateOfInstant(notification.created_at)}
                       </span>
                     </span>
                   </Link>

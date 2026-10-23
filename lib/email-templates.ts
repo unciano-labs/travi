@@ -3,6 +3,7 @@
 // user-controlled strings (names, tour titles, reasons, locations) are always escaped.
 // Send the result with sendEmail() from lib/email.ts. Build URLs with siteUrl() from lib/email.ts.
 import { escapeHtml } from '@/lib/email';
+import { formatBusinessDate, formatPHP } from '@/lib/format';
 
 export interface EmailContent {
   subject: string;
@@ -21,22 +22,14 @@ const FONT = "'Plus Jakarta Sans', 'Segoe UI', Helvetica, Arial, sans-serif";
 
 // ─── Formatting ───
 
-/** ₱1,234.00 */
-export function formatPeso(amount: number): string {
-  return `₱${Number(amount).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** ₱1,234.00 (lib/format.ts formatPHP: always shows centavos). */
+export function formatPeso(amount: number | string): string {
+  return formatPHP(amount);
 }
 
 /** "Sat, 24 Oct 2026" from a Postgres DATE (YYYY-MM-DD). Formatted in UTC so the day never shifts. */
 export function formatDate(date: string): string {
-  const parsed = new Date(`${date.slice(0, 10)}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime())) return date;
-  return new Intl.DateTimeFormat('en-PH', {
-    timeZone: 'UTC',
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(parsed);
+  return formatBusinessDate(date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export function formatDateRange(start: string, end?: string | null): string {

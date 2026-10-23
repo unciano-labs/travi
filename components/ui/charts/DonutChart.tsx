@@ -2,6 +2,7 @@
 
 import type { ApexOptions } from 'apexcharts';
 import Chart from '@/components/ui/charts/Chart';
+import { formatNumber } from '@/lib/format';
 
 interface DonutChartProps {
   labels: string[];
@@ -27,7 +28,7 @@ export default function DonutChart({ labels, series, colors = DEFAULT_COLORS, he
     tooltip: {
       theme: 'dark',
       fillSeriesColor: false,
-      y: { formatter: (val: number) => `${valuePrefix}${val.toLocaleString()}` },
+      y: { formatter: (val: number) => `${valuePrefix}${formatNumber(val)}` },
     },
   };
   return <Chart options={options} series={series} type="donut" height={height} width={width} />;

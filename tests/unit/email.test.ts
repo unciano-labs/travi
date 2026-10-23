@@ -180,4 +180,9 @@ describe('email template content', () => {
     expect(templates.formatDate('2026-11-03')).toMatch(/^Tue, /);
     expect(templates.formatDate('nope')).toBe('nope');
   });
+
+  it('formats amounts with the shared formatPHP (always with centavos)', () => {
+    expect(templates.formatPeso(1500)).toBe('₱1,500.00');
+    expect(templates.formatPeso('1234.5')).toBe('₱1,234.50');
+  });
 });

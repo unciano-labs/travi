@@ -8,6 +8,7 @@ import { CATALOG_FORM_ID, CatalogFilterPanel, CatalogSearchBar } from '@/compone
 import CatalogFormEnhancer from '@/components/landing/CatalogFormEnhancer';
 import { getCatalogPage } from '@/lib/data/tours';
 import { manilaToday } from '@/lib/datetime';
+import { formatDate, formatPHP } from '@/lib/format';
 import {
   CATALOG_PAGE_SIZE,
   DURATIONS,
@@ -23,16 +24,15 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type FilterKey = 'q' | 'destination' | 'from' | 'to' | 'guests' | 'min' | 'max' | 'duration' | 'format' | 'theme';
 
 function activeFilters(search: CatalogSearch) {
-  const fmtDate = (d: string) =>
-    new Date(`${d}T00:00:00Z`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const fmtDate = (d: string) => formatDate(d, { month: 'short', day: 'numeric' });
   const chips: { key: FilterKey; label: string }[] = [];
   if (search.q) chips.push({ key: 'q', label: `“${search.q}”` });
   if (search.destination) chips.push({ key: 'destination', label: search.destination });
   if (search.from) chips.push({ key: 'from', label: `From ${fmtDate(search.from)}` });
   if (search.to) chips.push({ key: 'to', label: `By ${fmtDate(search.to)}` });
   if (search.guests) chips.push({ key: 'guests', label: `${search.guests} guest${search.guests > 1 ? 's' : ''}` });
-  if (search.min !== undefined) chips.push({ key: 'min', label: `Min ₱${search.min.toLocaleString('en-PH')}` });
-  if (search.max !== undefined) chips.push({ key: 'max', label: `Max ₱${search.max.toLocaleString('en-PH')}` });
+  if (search.min !== undefined) chips.push({ key: 'min', label: `Min ${formatPHP(search.min, { cents: 'auto' })}` });
+  if (search.max !== undefined) chips.push({ key: 'max', label: `Max ${formatPHP(search.max, { cents: 'auto' })}` });
   if (search.duration) chips.push({ key: 'duration', label: DURATIONS.find((d) => d.id === search.duration)?.label ?? search.duration });
   if (search.format) chips.push({ key: 'format', label: TOUR_FORMAT_LABELS[search.format] });
   if (search.theme) chips.push({ key: 'theme', label: TOUR_THEMES.find((t) => t.id === search.theme)?.label ?? search.theme });

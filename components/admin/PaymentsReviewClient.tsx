@@ -12,7 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import InputDialog from '@/components/admin/InputDialog';
-import { REVIEW_REASON_LABELS, manilaDateTime, peso, shortDate } from '@/lib/finance-format';
+import { REVIEW_REASON_LABELS } from '@/lib/finance-format';
+import { formatDate, formatDateTime, formatPHP } from '@/lib/format';
 
 export interface ReviewPayment {
   id: string;
@@ -66,7 +67,7 @@ export default function PaymentsReviewClient({ initialOpen, recentlyResolved }: 
     setDialog(null);
     if (res.success) {
       markResolved(payment, { resolution: 'refunded', providerRefundId: res.refundId });
-      setMessage({ tone: 'success', text: `Refunded ${peso(payment.amount)} (PayMongo ${res.refundId}).` });
+      setMessage({ tone: 'success', text: `Refunded ${formatPHP(payment.amount)} (PayMongo ${res.refundId}).` });
     } else {
       setMessage({ tone: 'error', text: res.error });
     }
@@ -75,7 +76,7 @@ export default function PaymentsReviewClient({ initialOpen, recentlyResolved }: 
   const bookingCell = (p: ReviewPayment) => (
     <>
       <p className="font-mono font-semibold text-foreground">{p.bookingRef ?? '—'}</p>
-      <p className="text-xs text-muted-foreground">{p.tourTitle ?? 'Unknown tour'}{p.startDate ? ` · ${shortDate(p.startDate)}` : ''}</p>
+      <p className="text-xs text-muted-foreground">{p.tourTitle ?? 'Unknown tour'}{p.startDate ? ` · ${formatDate(p.startDate)}` : ''}</p>
       {p.travelerName && <p className="text-xs text-muted-foreground">{p.travelerName}</p>}
     </>
   );
@@ -128,8 +129,8 @@ export default function PaymentsReviewClient({ initialOpen, recentlyResolved }: 
                   headerSubtitle={p.tourTitle}
                   headerBadge={reasonBadge(p)}
                   rows={[
-                    { label: 'Amount', value: <span className="font-semibold">{peso(p.amount)}</span> },
-                    { label: 'Received', value: manilaDateTime(p.createdAt) },
+                    { label: 'Amount', value: <span className="font-semibold">{formatPHP(p.amount)}</span> },
+                    { label: 'Received', value: formatDateTime(p.createdAt) },
                     { label: 'PayMongo payment', value: <span className="font-mono text-xs">{p.providerPaymentId}</span>, fullWidth: true },
                   ]}
                   actions={actions(p)}
@@ -151,11 +152,11 @@ export default function PaymentsReviewClient({ initialOpen, recentlyResolved }: 
                 <TableBody>
                   {open.map((p) => (
                     <TableRow key={p.id}>
-                      <TableCell className="whitespace-nowrap px-6 text-muted-foreground">{manilaDateTime(p.createdAt)}</TableCell>
+                      <TableCell className="whitespace-nowrap px-6 text-muted-foreground">{formatDateTime(p.createdAt)}</TableCell>
                       <TableCell className="px-6">{bookingCell(p)}</TableCell>
                       <TableCell className="px-6">{reasonBadge(p)}</TableCell>
                       <TableCell className="px-6 font-mono text-xs text-muted-foreground">{p.providerPaymentId}</TableCell>
-                      <TableCell className="px-6 text-right font-semibold text-foreground">{peso(p.amount)}</TableCell>
+                      <TableCell className="px-6 text-right font-semibold text-foreground">{formatPHP(p.amount)}</TableCell>
                       <TableCell className="px-6 text-right">{actions(p)}</TableCell>
                     </TableRow>
                   ))}
@@ -179,13 +180,13 @@ export default function PaymentsReviewClient({ initialOpen, recentlyResolved }: 
               <li key={p.id} className="flex flex-col gap-1 px-6 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="font-medium text-foreground">
-                    {p.bookingRef ?? p.providerPaymentId} · {peso(p.amount)} ·{' '}
+                    {p.bookingRef ?? p.providerPaymentId} · {formatPHP(p.amount)} ·{' '}
                     {p.resolution === 'refunded' ? `Refunded (${p.providerRefundId})` : 'Closed without refund'}
                   </p>
                   {p.resolutionNote && <p className="truncate text-xs text-muted-foreground" title={p.resolutionNote}>{p.resolutionNote}</p>}
                 </div>
                 <p className="shrink-0 text-xs text-muted-foreground">
-                  {manilaDateTime(p.resolvedAt)}{p.resolverName ? ` · ${p.resolverName}` : ''}
+                  {formatDateTime(p.resolvedAt)}{p.resolverName ? ` · ${p.resolverName}` : ''}
                 </p>
               </li>
             ))}
@@ -198,7 +199,7 @@ export default function PaymentsReviewClient({ initialOpen, recentlyResolved }: 
         title="Refund this payment?"
         message={
           dialog?.kind === 'refund'
-            ? `PayMongo will refund ${peso(dialog.payment.amount)} (payment ${dialog.payment.providerPaymentId}) to the payer. This cannot be undone.`
+            ? `PayMongo will refund ${formatPHP(dialog.payment.amount)} (payment ${dialog.payment.providerPaymentId}) to the payer. This cannot be undone.`
             : ''
         }
         confirmText={refunding ? 'Refunding…' : 'Refund'}

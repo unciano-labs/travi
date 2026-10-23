@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { formatPHP } from '@/lib/format';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-const peso = (n: number) => `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /**
  * Admin "Cancel & refund" (OPS-06): confirmed bookings are refunded in full or in part and canceled;
@@ -77,7 +77,7 @@ export default function AdminCancelBookingDialog({
             <DialogDescription>
               Booking <span className="font-mono">{booking?.bookingRef}</span>.{' '}
               {paid
-                ? `The traveler paid ${peso(booking?.totalAmount ?? 0)}. The refund goes back through PayMongo and the organizer's escrow is reduced in proportion.`
+                ? `The traveler paid ${formatPHP(booking?.totalAmount ?? 0)}. The refund goes back through PayMongo and the organizer's escrow is reduced in proportion.`
                 : 'Nothing was paid, so no refund is needed. The seats are released.'}{' '}
               The traveler is notified. This cannot be undone.
             </DialogDescription>
@@ -88,7 +88,7 @@ export default function AdminCancelBookingDialog({
               <legend className="text-sm font-medium text-foreground">Refund amount</legend>
               <label className="flex items-center gap-2 text-sm">
                 <input type="radio" name="refund-mode" checked={mode === 'full'} onChange={() => setMode('full')} />
-                Full refund ({peso(booking?.totalAmount ?? 0)})
+                Full refund ({formatPHP(booking?.totalAmount ?? 0)})
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <input type="radio" name="refund-mode" checked={mode === 'partial'} onChange={() => setMode('partial')} />

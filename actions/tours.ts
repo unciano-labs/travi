@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath, updateTag } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 import { z } from 'zod';
 import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { assertRateLimit } from '@/lib/ratelimit';
@@ -171,6 +171,7 @@ export async function getTourPublishReadiness(
     const { getTourPublishReadiness: readinessFor } = await import('@/lib/services/tours');
     return { success: true, readiness: await readinessFor(supabase, organizerId, id) };
   } catch (err: unknown) {
+    unstable_rethrow(err);
     captureException(err, { action: 'getTourPublishReadiness', tourId });
     return { success: false, error: partnerErrorMessage(err, 'Could not load the publish checklist.') };
   }

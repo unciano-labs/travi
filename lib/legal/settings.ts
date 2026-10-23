@@ -1,9 +1,11 @@
 // Platform values quoted in the policy pages (fee %, escrow holding days, payout minimum), read from
 // the single platform_settings row so the policy text always matches the configuration.
 // Public, cached read (anon client; platform_settings is publicly readable).
+import { unstable_rethrow } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
+import { formatPHP } from '@/lib/format';
 import { captureException } from '@/lib/logger';
 
 export interface PolicySettings {
@@ -52,6 +54,7 @@ export const getPolicySettings = unstable_cache(
         fromDatabase: true,
       };
     } catch (error: unknown) {
+      unstable_rethrow(error);
       captureException(error, { action: 'getPolicySettings' });
       return DEFAULT_POLICY_SETTINGS;
     }
@@ -65,8 +68,9 @@ export function formatPercent(value: number): string {
   return `${Number(value.toFixed(2))}%`;
 }
 
+/** "₱100", or "₱99.50" when there are centavos (lib/format.ts formatPHP, cents: 'auto'). */
 export function formatPesoAmount(value: number): string {
-  return `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  return formatPHP(value, { cents: 'auto' });
 }
 
 export function formatDays(value: number): string {

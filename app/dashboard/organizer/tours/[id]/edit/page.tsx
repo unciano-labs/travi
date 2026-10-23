@@ -13,6 +13,8 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { manilaToday } from '@/lib/datetime';
+import { formatDate, formatPHP } from '@/lib/format';
 
 export default async function EditTourPage(props: { 
   params: Promise<{ id: string }>,
@@ -208,9 +210,7 @@ export default async function EditTourPage(props: {
                     ) : (
                       <div className="divide-y divide-border">
                         {schedulesWithBookings.map((schedule) => {
-                          const start = new Date(schedule.start_date);
-                          const end = new Date(schedule.end_date);
-                          const isPast = end < new Date();
+                          const isPast = schedule.end_date < manilaToday();
                           const fillPercent = schedule.capacity > 0 ? Math.round((schedule.booked_count / schedule.capacity) * 100) : 0;
                           
                           return (
@@ -219,9 +219,9 @@ export default async function EditTourPage(props: {
                                 <div className="min-w-0 flex-1">
                                   <div className="flex flex-wrap items-center gap-2 mb-2">
                                     <h3 className="font-semibold text-foreground text-base">
-                                      {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                      {formatDate(schedule.start_date)}
                                       {' - '}
-                                      {end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                      {formatDate(schedule.end_date)}
                                     </h3>
                                     {schedule.status === 'open' && !isPast && <StatusBadge status="open" />}
                                     {schedule.status === 'full' && <StatusBadge status="full" />}
@@ -233,9 +233,9 @@ export default async function EditTourPage(props: {
                                     {schedule.price_per_person && (
                                       <Badge variant="lightSuccess">
                                         {schedule.original_price && (
-                                          <span className="line-through opacity-70">₱{schedule.original_price}</span>
+                                          <span className="line-through opacity-70">{formatPHP(schedule.original_price, { cents: 'auto' })}</span>
                                         )}
-                                        Promo: ₱{schedule.price_per_person}
+                                        Promo: {formatPHP(schedule.price_per_person, { cents: 'auto' })}
                                       </Badge>
                                     )}
                                   </div>

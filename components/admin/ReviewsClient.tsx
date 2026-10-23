@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { formatDateTime } from '@/lib/format';
 
 type ReviewStatus = 'pending' | 'published' | 'hidden';
 type ModerationAction = 'publish' | 'hide' | 'delete';
@@ -60,10 +61,6 @@ const RUN: Record<ModerationAction, (id: string) => ReturnType<typeof publishRev
   hide: hideReview,
   delete: deleteReview,
 };
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-}
 
 function Rating({ value }: { value: number }) {
   return (
@@ -168,7 +165,7 @@ export default function ReviewsClient({ initialReviews }: { initialReviews: Revi
                   <TableCell className="px-6 py-4">
                     <h6 className="text-sm font-semibold text-foreground">{review.reviewer.full_name}</h6>
                     <p className="text-muted-foreground text-xs font-medium">{review.reviewer.email}</p>
-                    <p className="text-muted-foreground text-xs mt-1">{formatDate(review.created_at)}</p>
+                    <p className="text-muted-foreground text-xs mt-1">{formatDateTime(review.created_at)}</p>
                   </TableCell>
                   <TableCell className="px-6 py-4">
                     {review.target_name}
@@ -199,7 +196,7 @@ export default function ReviewsClient({ initialReviews }: { initialReviews: Revi
                 <div>
                   <div className="font-semibold text-foreground">{review.reviewer.full_name}</div>
                   <div className="text-muted-foreground text-sm">{review.target_name} ({review.tour_id ? 'Tour' : 'Transport'})</div>
-                  <div className="text-muted-foreground text-xs mt-0.5">{formatDate(review.created_at)}</div>
+                  <div className="text-muted-foreground text-xs mt-0.5">{formatDateTime(review.created_at)}</div>
                 </div>
                 <StatusBadge status={review.status} />
               </div>

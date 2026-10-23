@@ -1,12 +1,11 @@
+import { unstable_rethrow } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
+import { env } from '@/lib/env';
 import { captureException } from '@/lib/logger';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
 function getPublicSupabase() {
-  return createClient(supabaseUrl, supabaseAnonKey);
+  return createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
 
 export interface MarketplaceStats {
@@ -45,6 +44,7 @@ export const getCachedPlatformStats = unstable_cache(
         satisfactionRate: reviews.length > 0 ? Math.round((positiveReviews / reviews.length) * 100) : null,
       };
     } catch (err: unknown) {
+      unstable_rethrow(err);
       captureException(err, { action: 'getCachedPlatformStats exception' });
       return EMPTY_STATS;
     }

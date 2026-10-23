@@ -29,19 +29,3 @@ export function bookingFlags(b: BookingRuleInput, today: string, disputeWindowDa
     addDays(b.end_date as string, disputeWindowDays) >= today;
   return { canPay, canCancel, canDispute };
 }
-
-/** "₱1,234.50" */
-export function formatPeso(amount: number | string | null | undefined): string {
-  return `₱${Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-/** "Oct 23, 2026" for a DATE string, without timezone drift. */
-export function formatDate(isoDate: string | null | undefined): string {
-  if (!isoDate) return 'N/A';
-  return new Date(`${isoDate.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-}

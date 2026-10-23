@@ -6,7 +6,8 @@ import { cancelBookingAsTraveler } from '@/actions/bookings';
 import { XCircle, AlertCircle, Ticket, Star, CheckCircle2, CreditCard, Eye } from 'lucide-react';
 import ReviewDialog from '@/components/traveler/ReviewDialog';
 import DisputeDialog from '@/components/traveler/DisputeDialog';
-import { bookingFlags, formatDate, formatPeso } from '@/components/traveler/bookingRules';
+import { bookingFlags } from '@/components/traveler/bookingRules';
+import { formatDate, formatPHP } from '@/lib/format';
 import CardBox from '@/components/ui/CardBox';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import EmptyState from '@/components/ui/EmptyState';
@@ -212,7 +213,7 @@ export default function TravelerBookingsClient({
                       <div className="mt-1 text-xs font-normal text-muted-foreground">{b.seats} Pax</div>
                     </TableCell>
                     <TableCell>{formatDate(b.tour_schedules?.start_date)}</TableCell>
-                    <TableCell className="font-semibold text-foreground">{formatPeso(b.total_amount)}</TableCell>
+                    <TableCell className="font-semibold text-foreground">{formatPHP(b.total_amount)}</TableCell>
                     <TableCell>{renderStatus(b)}</TableCell>
                     <TableCell className="px-6 text-right">{renderActions(b)}</TableCell>
                   </TableRow>
@@ -229,7 +230,7 @@ export default function TravelerBookingsClient({
                 headerBadge={renderStatus(b)}
                 rows={[
                   { label: 'Travel Date', value: formatDate(b.tour_schedules?.start_date) },
-                  { label: 'Total Amount', value: formatPeso(b.total_amount) },
+                  { label: 'Total Amount', value: formatPHP(b.total_amount) },
                 ]}
                 actions={renderActions(b)}
               />
@@ -244,7 +245,7 @@ export default function TravelerBookingsClient({
         title="Cancel this booking?"
         message={
           canceling?.status === 'confirmed'
-            ? `Booking ${canceling ? label(canceling) : ''} will be canceled and ${formatPeso(canceling?.total_amount)} refunded to your original payment method.`
+            ? `Booking ${canceling ? label(canceling) : ''} will be canceled and ${formatPHP(canceling?.total_amount)} refunded to your original payment method.`
             : 'Your held seats will be released. You have not been charged.'
         }
         confirmText="Yes, cancel booking"

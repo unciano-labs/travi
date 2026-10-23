@@ -3,6 +3,7 @@
 import { Star, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRef, useState, useEffect } from 'react';
 import Image from 'next/image';
+import { formatDateTime } from '@/lib/format';
 
 type Review = {
   id: string;
@@ -126,10 +127,7 @@ export default function TourReviewsCarousel({ reviews }: TourReviewsCarouselProp
                       {fullName}
                     </div>
                     <div className="text-xs font-medium text-slate-400">
-                      {new Date(review.created_at).toLocaleDateString('en-US', {
-                        month: 'long',
-                        year: 'numeric',
-                      })}
+                      {formatDateTime(review.created_at, { month: 'long', year: 'numeric' })}
                     </div>
                   </div>
                 </div>

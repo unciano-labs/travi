@@ -13,6 +13,7 @@ import { Progress } from '@/components/ui/progress';
 import CancelScheduleButton from '@/components/dashboard/CancelScheduleButton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { attachTravelerContacts } from '@/lib/services/traveler-contacts';
+import { formatDateOfInstant, formatDateRange, formatPHP } from '@/lib/format';
 
 export default async function ScheduleBookingsPage(props: {
   params: Promise<{ id: string, scheduleId: string }>
@@ -95,8 +96,6 @@ export default async function ScheduleBookingsPage(props: {
   const totalBooked = Number(schedule.booked_count) || 0;
   const isCancelled = schedule.status === 'cancelled';
 
-  const start = new Date(schedule.start_date);
-  const end = new Date(schedule.end_date);
 
   const fillPercent = schedule.capacity > 0 ? Math.round((totalBooked / schedule.capacity) * 100) : 0;
 
@@ -133,7 +132,7 @@ export default async function ScheduleBookingsPage(props: {
           title="Dates"
           icon={CalendarDays}
           tone="primary"
-          value={<>{start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - {end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>}
+          value={<>{formatDateRange(schedule.start_date, schedule.end_date)}</>}
         />
         <StatCard
           title="Capacity"
@@ -145,7 +144,7 @@ export default async function ScheduleBookingsPage(props: {
           title="Total Revenue"
           icon={Receipt}
           tone="success"
-          value={<>₱{bookings.reduce((acc, b) => b.status === 'confirmed' || b.status === 'completed' ? acc + Number(b.total_amount) : acc, 0).toLocaleString()}</>}
+          value={<>{formatPHP(bookings.reduce((acc, b) => b.status === 'confirmed' || b.status === 'completed' ? acc + Number(b.total_amount) : acc, 0))}</>}
         />
       </div>
       
@@ -191,11 +190,11 @@ export default async function ScheduleBookingsPage(props: {
                     },
                     {
                       label: 'Amount',
-                      value: <span className="font-medium text-successemphasis">₱{(b.total_amount || 0).toLocaleString()}</span>
+                      value: <span className="font-medium text-successemphasis">{formatPHP(b.total_amount || 0)}</span>
                     },
                     {
                       label: 'Booked On',
-                      value: new Date(b.created_at).toLocaleDateString()
+                      value: formatDateOfInstant(b.created_at)
                     }
                   ]}
                 />
@@ -226,12 +225,12 @@ export default async function ScheduleBookingsPage(props: {
                         <div className="text-xs text-muted-foreground">{b.user_profiles?.email}</div>
                       </TableCell>
                       <TableCell className="px-6 font-medium text-foreground">{b.seats} Pax</TableCell>
-                      <TableCell className="px-6 font-medium text-foreground">₱{(b.total_amount || 0).toLocaleString()}</TableCell>
+                      <TableCell className="px-6 font-medium text-foreground">{formatPHP(b.total_amount || 0)}</TableCell>
                       <TableCell className="px-6">
                         <StatusBadge status={b.status} />
                       </TableCell>
                       <TableCell className="px-6 text-muted-foreground">
-                        {new Date(b.created_at).toLocaleDateString()}
+                        {formatDateOfInstant(b.created_at)}
                       </TableCell>
                     </TableRow>
                   ))}

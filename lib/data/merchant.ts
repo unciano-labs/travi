@@ -1,3 +1,4 @@
+import { unstable_rethrow } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
@@ -43,6 +44,7 @@ export const getCachedOrganizerMerchant = unstable_cache(
         dotAccreditationNo: data.dot_accreditation_no,
       };
     } catch (err: unknown) {
+      unstable_rethrow(err);
       captureException(err, { action: 'getCachedOrganizerMerchant', organizerId });
       return null;
     }

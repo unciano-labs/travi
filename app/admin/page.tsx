@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import BarChart from '@/components/ui/charts/BarChart';
 import DonutChart from '@/components/ui/charts/DonutChart';
 import { captureException } from '@/lib/logger';
+import { formatDate, formatDateOfInstant, formatNumber, formatPHP, formatTimeOfInstant } from '@/lib/format';
 
 const CHART_MONTHS = 6;
 const STATUS_BREAKDOWN: { status: string; label: string; color: string; dot: string }[] = [
@@ -39,8 +40,7 @@ interface MonthStats {
   refunded: number | string;
 }
 
-const monthLabel = (month: string) =>
-  new Date(`${month.slice(0, 7)}-15T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
+const monthLabel = (month: string) => formatDate(`${month.slice(0, 7)}-15`, { month: 'short' });
 
 export default async function AdminDashboard() {
   const { user } = await requireSession();
@@ -70,10 +70,10 @@ export default async function AdminDashboard() {
   if (statsRes.error) captureException(statsRes.error, { action: 'AdminDashboard admin_booking_stats' });
 
   const stats: { name: string; value: string; icon: typeof Users; tone: StatTone; href?: string }[] = [
-    { name: 'Total Users', value: (usersRes.count || 0).toLocaleString(), icon: Users, tone: 'primary' },
-    { name: 'Active Tours', value: (toursRes.count || 0).toLocaleString(), icon: MapIcon, tone: 'success', href: '/admin/tours' },
-    { name: 'Total Bookings', value: (bookingsRes.count || 0).toLocaleString(), icon: CreditCard, tone: 'info', href: '/admin/bookings' },
-    { name: 'Transporters', value: (transportersRes.count || 0).toLocaleString(), icon: Bus, tone: 'warning', href: '/admin/transporters' },
+    { name: 'Total Users', value: formatNumber(usersRes.count || 0), icon: Users, tone: 'primary' },
+    { name: 'Active Tours', value: formatNumber(toursRes.count || 0), icon: MapIcon, tone: 'success', href: '/admin/tours' },
+    { name: 'Total Bookings', value: formatNumber(bookingsRes.count || 0), icon: CreditCard, tone: 'info', href: '/admin/bookings' },
+    { name: 'Transporters', value: formatNumber(transportersRes.count || 0), icon: Bus, tone: 'warning', href: '/admin/transporters' },
   ];
 
   const monthStats = ((statsRes.data ?? []) as MonthStats[]).map((m) => ({ ...m, label: monthLabel(String(m.month)) }));
@@ -94,19 +94,18 @@ export default async function AdminDashboard() {
   const timelineItems: TimelineItem[] = recentBookings.map((b: any) => {
     const travelerName = b.user_profiles?.full_name || 'Anonymous';
     const tourTitle = b.tour_schedules?.tours?.title || 'Unknown Tour';
-    const created = new Date(b.created_at);
     return {
       key: b.id,
       time: (
         <>
-          {created.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          {formatDateOfInstant(b.created_at)}
           <span className="block font-normal text-muted-foreground">
-            {created.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            {formatTimeOfInstant(b.created_at)}
           </span>
         </>
       ),
       title: `New Booking: ${tourTitle}`,
-      subtitle: `${travelerName} booked for ${b.seats} pax • ₱${(b.total_amount || 0).toLocaleString()}`,
+      subtitle: `${travelerName} booked for ${b.seats} pax • ${formatPHP(b.total_amount || 0)}`,
       tone: STATUS_TONE[b.status] ?? 'primary',
     };
   });
@@ -137,11 +136,11 @@ export default async function AdminDashboard() {
               <div className="flex gap-6">
                 <div>
                   <p className="text-xs text-muted-foreground">Revenue</p>
-                  <p className="text-lg font-semibold text-foreground">₱{totalChartRevenue.toLocaleString()}</p>
+                  <p className="text-lg font-semibold text-foreground">{formatPHP(totalChartRevenue)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Bookings</p>
-                  <p className="text-lg font-semibold text-foreground">{totalChartBookings.toLocaleString()}</p>
+                  <p className="text-lg font-semibold text-foreground">{formatNumber(totalChartBookings)}</p>
                 </div>
               </div>
             </div>
@@ -177,7 +176,7 @@ export default async function AdminDashboard() {
                     <li key={s.status} className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span className={`size-2.5 shrink-0 rounded-full ${s.dot}`} aria-hidden="true" />
                       <span>{s.label}</span>
-                      <span className="ml-auto font-semibold text-foreground">{s.count.toLocaleString()}</span>
+                      <span className="ml-auto font-semibold text-foreground">{formatNumber(s.count)}</span>
                     </li>
                   ))}
                 </ul>

@@ -5,6 +5,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import CardBox from '@/components/ui/CardBox';
 import EmptyState from '@/components/ui/EmptyState';
 import { Progress } from '@/components/ui/progress';
+import { formatDateOfInstant } from '@/lib/format';
 
 type TransporterReview = {
   id: string;
@@ -124,11 +125,7 @@ export default async function TransporterReviewsPage() {
                           <div>
                             <h6 className="text-sm font-semibold text-foreground">{reviewerName}</h6>
                             <span className="text-xs text-muted-foreground">
-                              {new Date(r.created_at).toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                              })}
+                              {formatDateOfInstant(r.created_at)}
                             </span>
                           </div>
                         </div>

@@ -12,7 +12,7 @@ import { Input, NativeSelect } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AdminPager from '@/components/admin/AdminPager';
-import { manilaDateTime } from '@/lib/finance-format';
+import { formatDateTime, formatNumber } from '@/lib/format';
 
 export interface AuditEntry {
   id: string;
@@ -107,7 +107,7 @@ export default function AuditClient({ entries, filters, entityTypes, admins, tot
         </div>
       </form>
 
-      <div className="border-b border-border px-6 py-3 text-sm text-muted-foreground">{total.toLocaleString()} entr{total === 1 ? 'y' : 'ies'}</div>
+      <div className="border-b border-border px-6 py-3 text-sm text-muted-foreground">{formatNumber(total)} entr{total === 1 ? 'y' : 'ies'}</div>
 
       {entries.length === 0 ? (
         <EmptyState icon={ScrollText} title={hasFilters ? 'No audit entries match these filters.' : 'No audit entries yet.'} />
@@ -118,7 +118,7 @@ export default function AuditClient({ entries, filters, entityTypes, admins, tot
               <LazyMobileCard
                 key={e.id}
                 headerTitle={e.action}
-                headerSubtitle={manilaDateTime(e.createdAt)}
+                headerSubtitle={formatDateTime(e.createdAt)}
                 headerBadge={<Badge variant="gray">{e.entityType}</Badge>}
                 rows={[
                   { label: 'Admin', value: e.adminName },
@@ -142,7 +142,7 @@ export default function AuditClient({ entries, filters, entityTypes, admins, tot
               <TableBody>
                 {entries.map((e) => (
                   <TableRow key={e.id} className="align-top">
-                    <TableCell className="whitespace-nowrap px-6 text-muted-foreground">{manilaDateTime(e.createdAt)}</TableCell>
+                    <TableCell className="whitespace-nowrap px-6 text-muted-foreground">{formatDateTime(e.createdAt)}</TableCell>
                     <TableCell className="px-6 font-medium text-foreground">{e.adminName}</TableCell>
                     <TableCell className="px-6">
                       <Badge variant="gray">{e.entityType.replace(/_/g, ' ')}</Badge>

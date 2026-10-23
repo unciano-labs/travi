@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import InputDialog from '@/components/admin/InputDialog';
-import { manilaDateTime, peso } from '@/lib/finance-format';
+import { formatDateTime, formatPHP } from '@/lib/format';
 
 export interface AdminPayout {
   id: string;
@@ -116,7 +116,7 @@ export function PayoutsClient({ initialPayouts, currentAdminId, dualApprovalThre
         <span className="text-[10px] text-warningemphasis">Needs 2 admins</span>
       )}
       {(p.status === 'paid' || p.status === 'rejected') && (
-        <span className="whitespace-nowrap text-[10px] text-muted-foreground">{manilaDateTime(p.updatedAt)}</span>
+        <span className="whitespace-nowrap text-[10px] text-muted-foreground">{formatDateTime(p.updatedAt)}</span>
       )}
       {p.adminNotes && (
         <span className="max-w-[160px] truncate text-center font-mono text-[10px] text-muted-foreground" title={p.adminNotes}>
@@ -161,8 +161,8 @@ export function PayoutsClient({ initialPayouts, currentAdminId, dualApprovalThre
                   headerSubtitle={p.partnerEmail}
                   headerBadge={statusCell(p)}
                   rows={[
-                    { label: 'Amount', value: <span className="font-semibold">{peso(p.amount)}</span> },
-                    { label: 'Requested', value: manilaDateTime(p.createdAt) },
+                    { label: 'Amount', value: <span className="font-semibold">{formatPHP(p.amount)}</span> },
+                    { label: 'Requested', value: formatDateTime(p.createdAt) },
                     { label: 'Method', value: methodText(p), fullWidth: true },
                   ]}
                   actions={renderActions(p)}
@@ -185,14 +185,14 @@ export function PayoutsClient({ initialPayouts, currentAdminId, dualApprovalThre
                 <TableBody>
                   {payouts.map((p) => (
                     <TableRow key={p.id}>
-                      <TableCell className="whitespace-nowrap px-6 text-muted-foreground">{manilaDateTime(p.createdAt)}</TableCell>
+                      <TableCell className="whitespace-nowrap px-6 text-muted-foreground">{formatDateTime(p.createdAt)}</TableCell>
                       <TableCell className="px-6">
                         <p className="font-semibold text-foreground">{p.partnerName}</p>
                         <p className="text-xs text-muted-foreground">{p.partnerEmail}</p>
                         {p.partnerPerson && <p className="mt-0.5 text-xs text-muted-foreground">{p.partnerPerson}</p>}
                       </TableCell>
                       <TableCell className="px-6">{methodText(p)}</TableCell>
-                      <TableCell className="px-6 text-right font-semibold text-foreground">{peso(p.amount)}</TableCell>
+                      <TableCell className="px-6 text-right font-semibold text-foreground">{formatPHP(p.amount)}</TableCell>
                       <TableCell className="px-6 text-center">{statusCell(p)}</TableCell>
                       <TableCell className="px-6 text-right">{renderActions(p)}</TableCell>
                     </TableRow>
@@ -209,7 +209,7 @@ export function PayoutsClient({ initialPayouts, currentAdminId, dualApprovalThre
         title="Approve payout?"
         message={
           dialog?.kind === 'approve'
-            ? `Approve ${peso(dialog.payout.amount)} to ${dialog.payout.partnerName}. A different admin must then send the money and mark it paid.`
+            ? `Approve ${formatPHP(dialog.payout.amount)} to ${dialog.payout.partnerName}. A different admin must then send the money and mark it paid.`
             : ''
         }
         confirmText={approving ? 'Approving…' : 'Approve'}
@@ -222,7 +222,7 @@ export function PayoutsClient({ initialPayouts, currentAdminId, dualApprovalThre
         title="Mark payout as paid"
         description={
           dialog?.kind === 'pay'
-            ? `Only after you have sent ${peso(dialog.payout.amount)} to ${dialog.payout.partnerName} (${dialog.payout.method?.toUpperCase() ?? 'saved method'} ${dialog.payout.accountMasked ?? ''}).`
+            ? `Only after you have sent ${formatPHP(dialog.payout.amount)} to ${dialog.payout.partnerName} (${dialog.payout.method?.toUpperCase() ?? 'saved method'} ${dialog.payout.accountMasked ?? ''}).`
             : undefined
         }
         label="Bank / e-wallet reference number"

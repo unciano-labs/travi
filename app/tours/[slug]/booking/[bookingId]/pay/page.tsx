@@ -3,6 +3,7 @@ import { redirect, unstable_rethrow } from 'next/navigation';
 import { requireSession } from '@/lib/auth-helpers';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { captureException } from '@/lib/logger';
+import { formatPHP, formatTimeOfInstant } from '@/lib/format';
 import Header from '@/components/landing/Header';
 import Footer from '@/components/landing/Footer';
 import PaymentSelectionClient from '@/components/landing/PaymentSelectionClient';
@@ -86,7 +87,7 @@ export default async function PaymentPage({
   }
 
   const holdUntil = new Date(new Date(booking.created_at).getTime() + HOLD_MINUTES * 60_000);
-  const holdLabel = holdUntil.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' });
+  const holdLabel = formatTimeOfInstant(holdUntil);
   const isPrivate = schedule?.tours?.format === 'private';
 
   return (
@@ -104,7 +105,7 @@ export default async function PaymentPage({
       <div className="mb-8 p-4 bg-slate-50 rounded-xl flex justify-between items-center">
         <span className="text-slate-600 font-medium">Total Amount</span>
         <span className="text-2xl font-black text-brand-navy">
-          ₱{Number(booking.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          {formatPHP(booking.total_amount)}
         </span>
       </div>
 

@@ -2,6 +2,7 @@
 
 import type { ApexOptions } from 'apexcharts';
 import Chart from '@/components/ui/charts/Chart';
+import { formatNumber } from '@/lib/format';
 
 interface BarChartProps {
   categories: string[];
@@ -36,7 +37,7 @@ export default function BarChart({
         formatter: (val: number) => (Math.abs(val) >= 1000 ? `${valuePrefix}${(val / 1000).toFixed(1)}k` : `${valuePrefix}${Math.round(val)}`),
       },
     },
-    tooltip: { theme: 'dark', y: { formatter: (val: number) => `${valuePrefix}${val.toLocaleString()}` } },
+    tooltip: { theme: 'dark', y: { formatter: (val: number) => `${valuePrefix}${formatNumber(val)}` } },
   };
   return <Chart options={options} series={series} type="bar" height={height} width="100%" />;
 }

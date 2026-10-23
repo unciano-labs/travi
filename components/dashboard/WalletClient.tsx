@@ -14,6 +14,7 @@ import { Input, NativeSelect } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { formatDateTime, formatPHP } from '@/lib/format';
 
 const TX_TYPE_VARIANTS: Record<string, BadgeVariant> = {
   payment_hold: 'lightWarning',
@@ -48,7 +49,7 @@ export function WalletClient({ wallet, transactions, payouts, minPayout, holding
     }
     
     if (payoutAmount < MIN_WITHDRAWAL) {
-      setErrorMsg(`Minimum withdrawal amount is ₱${MIN_WITHDRAWAL.toLocaleString(undefined, {minimumFractionDigits: 2})}`);
+      setErrorMsg(`Minimum withdrawal amount is ${formatPHP(MIN_WITHDRAWAL)}`);
       return;
     }
 
@@ -102,7 +103,7 @@ export function WalletClient({ wallet, transactions, payouts, minPayout, holding
     const csvRows = transactions.map(tx => {
       // Escape quotes in description to avoid breaking CSV format
       const description = `"${(tx.description || '').replace(/"/g, '""')}"`;
-      const date = `"${new Date(tx.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}"`;
+      const date = `"${formatDateTime(tx.created_at)}"`;
       return `${date},${description},${tx.type},${tx.amount}`;
     });
 
@@ -126,14 +127,14 @@ export function WalletClient({ wallet, transactions, payouts, minPayout, holding
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 mb-6">
         <StatCard
           title="Available Balance"
-          value={`₱${Number(wallet.available_balance).toLocaleString(undefined, {minimumFractionDigits: 2})}`}
+          value={formatPHP(wallet.available_balance)}
           icon={Banknote}
           tone="success"
           hint="Ready for withdrawal"
         />
         <StatCard
           title="Escrow Balance"
-          value={`₱${Number(wallet.escrow_balance).toLocaleString(undefined, {minimumFractionDigits: 2})}`}
+          value={formatPHP(wallet.escrow_balance)}
           icon={Clock}
           tone="warning"
           hint={`Funds held for confirmed tours. Released ${holdingDays} day${holdingDays === 1 ? '' : 's'} after the trip ends if there is no dispute.`}
@@ -194,7 +195,7 @@ export function WalletClient({ wallet, transactions, payouts, minPayout, holding
                   value={payoutAmount}
                   onChange={(e) => setPayoutAmount(Number(e.target.value))}
                 />
-                <p className="text-xs text-muted-foreground">Min: ₱{MIN_WITHDRAWAL.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                <p className="text-xs text-muted-foreground">Min: {formatPHP(MIN_WITHDRAWAL)}</p>
               </div>
 
               {errorMsg && <p className="text-sm font-medium text-error">{errorMsg}</p>}
@@ -240,11 +241,11 @@ export function WalletClient({ wallet, transactions, payouts, minPayout, holding
                     <div>
                       <p className="font-medium capitalize text-foreground">{payout.status}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {payout.payout_method?.method.toUpperCase()} • {new Date(payout.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                        {payout.payout_method?.method.toUpperCase()} • {formatDateTime(payout.created_at)}
                       </p>
                     </div>
                   </div>
-                  <span className="font-semibold text-foreground">₱{Number(payout.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                  <span className="font-semibold text-foreground">{formatPHP(payout.amount)}</span>
                 </div>
               ))}
             </div>
@@ -282,7 +283,7 @@ export function WalletClient({ wallet, transactions, payouts, minPayout, holding
                 {transactions.map((tx: any) => (
                   <TableRow key={tx.id}>
                     <TableCell className="whitespace-nowrap px-6 text-muted-foreground">
-                      {new Date(tx.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      {formatDateTime(tx.created_at)}
                     </TableCell>
                     <TableCell className="font-medium text-foreground">{tx.description}</TableCell>
                     <TableCell>
@@ -291,9 +292,9 @@ export function WalletClient({ wallet, transactions, payouts, minPayout, holding
                       </Badge>
                     </TableCell>
                     <TableCell className={`whitespace-nowrap px-6 text-right font-semibold ${
-                      (tx.type === 'withdrawal_pending' || tx.type === 'refund') ? 'text-error' : 'text-successemphasis'
+                      Number(tx.amount) < 0 ? 'text-error' : 'text-successemphasis'
                     }`}>
-                      {(tx.type === 'withdrawal_pending' || tx.type === 'refund') ? '-' : '+'}₱{Number(tx.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                      {formatPHP(tx.amount, { signDisplay: 'exceptZero' })}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -315,7 +316,7 @@ export function WalletClient({ wallet, transactions, payouts, minPayout, holding
           <div className="space-y-4 rounded-lg border border-border bg-muted/50 p-5">
             <div className="flex items-center justify-between border-b border-border pb-4">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Amount</span>
-              <span className="text-xl font-bold text-foreground">₱{Number(payoutAmount).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+              <span className="text-xl font-bold text-foreground">{formatPHP(payoutAmount)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Method</span>

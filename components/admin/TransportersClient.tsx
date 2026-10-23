@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { formatDateTime } from '@/lib/format';
 
 interface Transporter {
   id: string;
@@ -266,7 +267,7 @@ export default function TransportersClient({ initialTransporters }: Transporters
                 {/* Grid Details */}
                 <div className="grid grid-cols-2 gap-4 rounded-lg border border-border bg-muted/50 p-4">
                   {detailItem(<User className="size-3.5" />, 'Type', <span className="capitalize">{selectedTrp.transporter_type}</span>, 'sm:col-span-1')}
-                  {detailItem(<Calendar className="size-3.5" />, 'Applied On', new Date(selectedTrp.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }), 'sm:col-span-1')}
+                  {detailItem(<Calendar className="size-3.5" />, 'Applied On', formatDateTime(selectedTrp.created_at), 'sm:col-span-1')}
                   {detailItem(<Bus className="size-3.5" />, 'Active Vehicles', <span className="font-semibold">{selectedTrp.activeVehicles || 0}</span>, 'sm:col-span-1')}
                   {detailItem(<Star className="size-3.5" />, 'Rating', <span className="font-semibold">{selectedTrp.average_rating > 0 ? Number(selectedTrp.average_rating).toFixed(1) : 'No Ratings'} ({selectedTrp.review_count} reviews)</span>, 'sm:col-span-1')}
                   {detailItem(<MapPin className="size-3.5" />, 'Service Areas', selectedTrp.service_areas?.join(', ') || 'None')}
