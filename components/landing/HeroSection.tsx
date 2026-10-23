@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import "./hero.css"; // We extracted the reference CSS here
 import { MapPin, Calendar, Users, Search, Minus, Plus } from "lucide-react";
@@ -202,7 +203,7 @@ export default function HeroSection() {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="text-brand" aria-hidden="true">
                     <path d="m4 12.5 5 5L20 6.5" />
                   </svg>
-                  Free cancellation before your trip
+                  <Link href="/refund-policy" className="hover:text-brand hover:underline">Free cancellation before your trip</Link>
                 </span>
                 <span className="flex items-center gap-1.5 hidden sm:flex">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="text-brand" aria-hidden="true">
@@ -212,34 +213,10 @@ export default function HeroSection() {
                 </span>
               </div>
               <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
-                <span className="hidden md:inline">Secure Payment:</span>
+                <span className="hidden md:inline">Pay with:</span>
                 <div className="flex items-center gap-2">
-                  <div className="bg-white px-2 py-1.5 rounded flex items-center justify-center border border-slate-200 h-7 w-11 shadow-sm">
-                    <svg className="h-[10px] w-auto" viewBox="0 0 25.5 8.3" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M11 0l-1.7 8.3h2.6l1.7-8.3zm7-0.2c-1.3 0-2.3.4-2.8 1.1-.5.7-.6 1.3-.6 1.8 0 1 .8 1.5 1.5 1.8.7.3 1 .6 1 .9 0 .5-.6.7-1.1.7-.8 0-1.3-.1-1.8-.4l-.2-.1-.3 1.7c.5.2 1.3.4 2.1.4 2.3 0 3.8-1 3.8-2.6 0-.8-.4-1.5-1.5-2-.6-.3-1-.5-1-.8 0-.3.3-.6 1-.6.7 0 1.2.2 1.6.3l.2.1.3-1.7c-.5-.2-1.1-.4-1.9-.4zm-8.8 8.4h2.5L9.6 0H7.7c-.4 0-.7.2-.8.5l-3 7h-.1l-.1-.4-1.4-5.9c-.1-.4-.5-.6-.9-.6H0l.1.3c1 .2 2.1.6 2.8 1l.2.4 1.7 6h2.7l1.7-8.3zm15.1-8.3h-2c-.4 0-.7.1-.9.5L17.7 8.1h2.6l.5-1.4h3.1l.3 1.4h2.4L24.3-0.1h.1zM21 5.4l.7-1.9c0-.1.1-.2.1-.2.3.9 1 2.9 1 2.9H21z" fill="#1434CB"/>
-                    </svg>
-                  </div>
-                  <div className="bg-white px-2 py-1 rounded flex items-center justify-center border border-slate-200 h-7 w-11 shadow-sm">
-                    <svg className="h-[14px] w-auto" viewBox="0 0 36 24" xmlns="http://www.w3.org/2000/svg">
-                      <circle cx="12" cy="12" r="12" fill="#EB001B"/>
-                      <circle cx="24" cy="12" r="12" fill="#F79E1B" fillOpacity="0.85"/>
-                    </svg>
-                  </div>
-                  <div className="bg-white px-1.5 py-1 rounded flex items-center justify-center border border-slate-200 h-7 shadow-sm">
-                    <div className="flex items-center gap-1 font-bold text-[#0D3B66] text-[10px] tracking-tight">
-                      <svg className="h-3.5 w-3.5 text-[#E63946]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="3" width="7" height="7" rx="1.5"/>
-                        <rect x="14" y="3" width="7" height="7" rx="1.5"/>
-                        <rect x="14" y="14" width="7" height="7" rx="1.5"/>
-                        <rect x="3" y="14" width="7" height="7" rx="1.5"/>
-                        <circle cx="6.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
-                        <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
-                        <circle cx="17.5" cy="17.5" r="1" fill="currentColor" stroke="none" />
-                        <circle cx="6.5" cy="17.5" r="1" fill="currentColor" stroke="none" />
-                      </svg>
-                      QRPh
-                    </div>
-                  </div>
+                  <span className="bg-white px-2 py-1 rounded border border-slate-200 h-7 flex items-center shadow-sm text-brand-dark font-bold">GCash</span>
+                  <span className="bg-white px-2 py-1 rounded border border-slate-200 h-7 flex items-center shadow-sm text-brand-dark font-bold">Maya</span>
                 </div>
               </div>
             </div>

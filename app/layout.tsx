@@ -23,12 +23,12 @@ export const metadata: Metadata = {
   // Resolves relative canonical/OpenGraph URLs (e.g. alternates.canonical: "/tours").
   metadataBase: new URL(env.NEXT_PUBLIC_SITE_URL || "https://travi.ph"),
   title: "Travi — Discover the Philippines Your Way",
-  description: "Book local Philippine tour packages online. Find the best organizers and trusted transport for your next adventure.",
+  description: "Book local Philippine tour packages online. Book tours from verified local organizers for your next adventure.",
   keywords: ["Philippines", "Tours", "Travel", "Palawan", "Siargao", "Batanes", "Vacation", "Island Hopping"],
   authors: [{ name: "Travi Team" }],
   openGraph: {
     title: "Travi — Discover the Philippines Your Way",
-    description: "Book local Philippine tour packages online. Find the best organizers and trusted transport for your next adventure.",
+    description: "Book local Philippine tour packages online. Book tours from verified local organizers for your next adventure.",
     url: "https://travi.ph",
     siteName: "Travi",
     images: [
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Travi — Discover the Philippines Your Way",
-    description: "Book local Philippine tour packages online. Find the best organizers and trusted transport for your next adventure.",
+    description: "Book local Philippine tour packages online. Book tours from verified local organizers for your next adventure.",
     images: ["https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?auto=format&fit=crop&w=1200&q=80"],
   },
 };

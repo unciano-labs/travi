@@ -3,17 +3,17 @@ export default function HowItWorksSection() {
     {
       num: "1",
       title: "Find Your Tour",
-      desc: "Search by destination, dates, and number of travelers. Browse options from trusted local organizers."
+      desc: "Search by destination, dates, and number of travelers. Browse tours from local organizers verified by Travi."
     },
     {
       num: "2",
-      title: "Customize & Book",
-      desc: "Add optional transport, specify your requirements, and securely checkout your booking online."
+      title: "Book & Pay",
+      desc: "Pick a date, choose your number of seats, and pay securely online with GCash or Maya."
     },
     {
       num: "3",
       title: "Enjoy the Journey",
-      desc: "Receive instant confirmation. Meet your organizer at the location and enjoy your Philippine adventure."
+      desc: "Your booking is confirmed as soon as your payment goes through. Meet your organizer at the location and enjoy your Philippine adventure."
     }
   ];
 
