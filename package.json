@@ -10,7 +10,8 @@
     "test:qa": "npx tsx scripts/qa-smoke-test.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:rls": "node --test supabase/tests/rls/*.test.mjs"
+    "test:rls": "node --test supabase/tests/rls/*.test.mjs",
+    "test:unit": "vitest run"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -74,6 +75,7 @@
     "eslint": "^9",
     "eslint-config-next": "^16.3.8",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.11"
   }
 }

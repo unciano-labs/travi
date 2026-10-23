@@ -1,0 +1,167 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+  # Never set APP_ENV/VERCEL_ENV here: lib/env.ts would then require every production secret.
+
+jobs:
+  checks:
+    name: Lint, types, unit and RLS tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Unit tests (vitest, no network)
+        run: npm run test:unit
+
+      - name: RLS and money tests (PGlite, every migration replayed in-process)
+        run: npm run test:rls
+
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Placeholders only: the build must not need secrets or a reachable database.
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Cache Next.js build cache
+        uses: actions/cache@v4
+        with:
+          # Compiler cache only. The data cache (fetch-cache) holds query results from whatever DB the
+          # build used, and a later build would prerender them; never share it between builds.
+          path: |
+            .next/cache
+            !.next/cache/fetch-cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('app/**', 'components/**', 'lib/**', 'actions/**') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+
+      - name: Build
+        run: npm run build
+
+  e2e:
+    name: Playwright e2e (staging)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [checks]
+    env:
+      # STAGING project only. The build inlines NEXT_PUBLIC_* values, so e2e builds its own bundle.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
+      WEBSITE_ID: ${{ secrets.E2E_WEBSITE_ID }}
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      PORT: '3000'
+      # Signed-in specs (e2e/authenticated). Each role skips itself when its secrets are missing.
+      E2E_TRAVELER_EMAIL: ${{ secrets.E2E_TRAVELER_EMAIL }}
+      E2E_TRAVELER_PASSWORD: ${{ secrets.E2E_TRAVELER_PASSWORD }}
+      E2E_ORGANIZER_EMAIL: ${{ secrets.E2E_ORGANIZER_EMAIL }}
+      E2E_ORGANIZER_PASSWORD: ${{ secrets.E2E_ORGANIZER_PASSWORD }}
+      E2E_TRANSPORTER_EMAIL: ${{ secrets.E2E_TRANSPORTER_EMAIL }}
+      E2E_TRANSPORTER_PASSWORD: ${{ secrets.E2E_TRANSPORTER_PASSWORD }}
+      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      E2E_TOUR_SLUG: ${{ vars.E2E_TOUR_SLUG }}
+      # Staging only: lets the suite create a pending booking and a draft tour. Set the repository
+      # variable E2E_ALLOW_WRITES to 0 to keep the run read-only.
+      E2E_ALLOW_WRITES: ${{ vars.E2E_ALLOW_WRITES || '1' }}
+    steps:
+      - name: Check for staging secrets
+        id: gate
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
+            echo "::notice title=e2e skipped::Set the repository secrets E2E_SUPABASE_URL and E2E_SUPABASE_ANON_KEY (staging) to run the Playwright suite."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.enabled == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.enabled == 'true'
+        with:
+          node-version: 24
+          cache: npm
+
+      - if: steps.gate.outputs.enabled == 'true'
+        run: npm ci
+
+      - name: Resolve Playwright version
+        if: steps.gate.outputs.enabled == 'true'
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        if: steps.gate.outputs.enabled == 'true'
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium
+
+      - name: Install Chromium and system dependencies
+        if: steps.gate.outputs.enabled == 'true' && steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install system dependencies (browser cached)
+        if: steps.gate.outputs.enabled == 'true' && steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Build against staging
+        if: steps.gate.outputs.enabled == 'true'
+        run: npm run build
+
+      - name: Run Playwright (serves the build with next start)
+        if: steps.gate.outputs.enabled == 'true'
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure() && steps.gate.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
