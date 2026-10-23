@@ -1,6 +1,7 @@
 import Link from 'next/link';
+import { COMPANY, LEGAL_REVIEW_COMPLETE, isPlaceholder, legalValue, registrationAuthorityLabel } from '@/lib/legal/company';
 
-// /about, /contact, /terms, /privacy, /cookies and /refund-policy are built in Phase 4.
+// Business identity comes from lib/legal/company.ts (LEG-04); placeholders show as "(to be provided)".
 const COLUMNS = [
   {
     title: 'Travelers',
@@ -8,6 +9,7 @@ const COLUMNS = [
       { label: 'Browse Tours', href: '/tours' },
       { label: 'Popular Destinations', href: '/#destinations' },
       { label: 'About Travi', href: '/about' },
+      { label: 'FAQ', href: '/faq' },
       { label: 'Contact & Support', href: '/contact' },
     ],
   },
@@ -17,16 +19,18 @@ const COLUMNS = [
       { label: 'Become an Organizer', href: '/signup?role=organizer' },
       { label: 'Register as Transport', href: '/signup?role=transporter' },
       { label: 'Partner Dashboard', href: '/dashboard' },
-      { label: 'Partner Support', href: '/contact' },
+      { label: 'Partner Terms', href: '/partner-terms' },
+      { label: 'Partner Support', href: '/contact?topic=partner' },
     ],
   },
   {
     title: 'Legal',
     links: [
       { label: 'Terms of Service', href: '/terms' },
-      { label: 'Privacy Policy', href: '/privacy' },
+      { label: 'Privacy Notice', href: '/privacy' },
       { label: 'Cookie Policy', href: '/cookies' },
-      { label: 'Refund Policy', href: '/refund-policy' },
+      { label: 'Refund & Cancellation', href: '/refund-policy' },
+      { label: 'File a Complaint', href: '/contact?topic=complaint_organizer' },
     ],
   },
 ];
@@ -45,7 +49,7 @@ export default function Footer() {
               </svg>
               <span className="text-lg font-extrabold text-white tracking-tight">Travi</span>
             </Link>
-            <p className="text-xs mb-6 max-w-xs leading-relaxed">The premier marketplace for local tours and transport in the Philippines. Discover your next adventure.</p>
+            <p className="text-xs mb-6 max-w-xs leading-relaxed">A marketplace for local tours and transport in the Philippines. Discover your next adventure.</p>
           </div>
 
           {COLUMNS.map((column) => (
@@ -65,8 +69,15 @@ export default function Footer() {
 
         </div>
 
-        <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4 text-xs">
-          <p>&copy; {new Date().getFullYear()} Travi Philippines. All rights reserved.</p>
+        <address className="not-italic pt-8 border-t border-white/10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-2 text-xs mb-6">
+          <p><span className="text-slate-300 font-semibold">Operated by:</span> {legalValue(COMPANY.registeredName)}</p>
+          <p><span className="text-slate-300 font-semibold">{registrationAuthorityLabel()} reg. no.:</span> {legalValue(COMPANY.registrationNumber)}</p>
+          <p><span className="text-slate-300 font-semibold">Address:</span> {legalValue(COMPANY.registeredAddress)}</p>
+          <p><span className="text-slate-300 font-semibold">Support:</span> {legalValue(COMPANY.supportEmail)}</p>
+        </address>
+
+        <div className="pt-6 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4 text-xs">
+          <p>&copy; {new Date().getFullYear()} {isPlaceholder(COMPANY.registeredName) ? COMPANY.brandName : COMPANY.registeredName}. All rights reserved.{!LEGAL_REVIEW_COMPLETE && ' Policies are drafts pending legal review.'}</p>
           <div className="flex items-center gap-4">
             <span>Made in PH 🇵🇭</span>
           </div>

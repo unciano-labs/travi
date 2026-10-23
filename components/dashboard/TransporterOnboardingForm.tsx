@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import PartnerKycFields from './PartnerKycFields';
 import PartnerDocumentUpload from './PartnerDocumentUpload';
 import type { PartnerDocumentInput } from '@/lib/schemas/partner';
+import PartnerTermsCheckbox from '@/components/legal/PartnerTermsCheckbox';
 
 export default function TransporterOnboardingForm() {
   const [error, setError] = useState<string | null>(null);
@@ -111,6 +112,8 @@ export default function TransporterOnboardingForm() {
           />
         </div>
       </fieldset>
+
+      <PartnerTermsCheckbox partner="transporter" />
 
       <div className="flex justify-end gap-3">
         <Button type="submit" disabled={loading} className="w-full sm:w-auto">

@@ -4,6 +4,7 @@ import TravelerProfileForm from '@/components/dashboard/TravelerProfileForm';
 import AccountSecurityManager from '@/components/dashboard/AccountSecurityManager';
 import PageHeader from '@/components/ui/PageHeader';
 import CardBox from '@/components/ui/CardBox';
+import YourDataSection from '@/components/legal/YourDataSection';
 
 export default async function TravelerProfilePage() {
   const supabase = await createClient();
@@ -44,6 +45,8 @@ export default async function TravelerProfilePage() {
           emailVerifiedAt={profile.email_verified_at ?? user.email_confirmed_at ?? null}
           phoneVerifiedAt={profile.phone_verified_at}
         />
+
+        <YourDataSection supabase={supabase} userProfileId={profile.id} />
       </div>
     </>
   );

@@ -12,6 +12,8 @@ import {
   partnerDocumentsFieldSchema,
 } from '@/lib/schemas/partner';
 import { insertPartnerDocuments } from '@/lib/services/partner-documents';
+import { recordAcceptance } from '@/lib/legal/consent';
+import { acceptedCheckboxSchema } from '@/lib/schemas/legal';
 import { formText, partnerDbErrorMessage, partnerErrorMessage } from '@/lib/partners';
 
 function organizerRaw(formData: FormData) {
@@ -40,6 +42,8 @@ export async function createOrganizerProfile(formData: FormData) {
     const data = organizerProfileSchema.parse(organizerRaw(formData));
     const documents = partnerDocumentsFieldSchema.parse(formText(formData, 'documents'));
     assertHasGovernmentId(documents);
+    // LEG-05: the Partner Terms click-through is required.
+    acceptedCheckboxSchema.parse(formData.get('acceptPartnerTerms'));
 
     const { user, profile, supabase } = await requireSession();
     assertEmailVerified(user);
@@ -52,6 +56,9 @@ export async function createOrganizerProfile(formData: FormData) {
       .eq('user_profile_id', profile.id)
       .maybeSingle();
     if (existing) return { success: false as const, error: 'You already have an organizer profile.' };
+
+    // Record the Partner Terms acceptance first: no record, no application.
+    await recordAcceptance(supabase, { userProfileId: profile.id, document: 'partner_terms' });
 
     const { data: created, error } = await supabase
       .from('organizer_profiles')

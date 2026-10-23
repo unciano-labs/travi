@@ -17,6 +17,8 @@ import {
 } from '@/lib/accounts';
 import { clearPasswordRecovery, hasPasswordRecovery } from '@/lib/password-recovery';
 import { safeNextPath } from '@/lib/safe-next';
+import { signupAcceptanceMetadata } from '@/lib/legal/consent';
+import { acceptedCheckboxSchema } from '@/lib/schemas/legal';
 import {
   addAccountTypeSchema,
   forgotPasswordSchema,
@@ -147,6 +149,8 @@ export async function signupUser(formData: FormData): Promise<ActionFailure | vo
       lastName: formData.get('lastName'),
       next: formData.get('next') || undefined,
     });
+    // LEG-01/02: the Terms of Service + Privacy Notice checkbox is required.
+    acceptedCheckboxSchema.parse(formData.get('acceptTerms'));
 
     const fullName = `${validated.firstName} ${validated.lastName}`.trim();
     const home = safeNextPath(validated.next) ?? `/dashboard/${validated.role}`;
@@ -165,6 +169,9 @@ export async function signupUser(formData: FormData): Promise<ActionFailure | vo
           last_name: validated.lastName,
           signup_role: validated.role,
           ...(env.WEBSITE_ID ? { signup_website_id: env.WEBSITE_ID } : {}),
+          // LEG-01/02: copied into legal_acceptances when the profile is created
+          // (trigger user_profiles_record_signup_acceptances, migration 20261026090000).
+          legal_acceptance: await signupAcceptanceMetadata(),
         },
       },
     });

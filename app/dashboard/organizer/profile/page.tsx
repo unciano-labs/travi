@@ -4,6 +4,7 @@ import OrganizerProfileForm from '@/components/dashboard/OrganizerProfileForm';
 import AccountSecurityManager from '@/components/dashboard/AccountSecurityManager';
 import PageHeader from '@/components/ui/PageHeader';
 import CardBox from '@/components/ui/CardBox';
+import YourDataSection from '@/components/legal/YourDataSection';
 import PartnerDocumentsManager from '@/components/dashboard/PartnerDocumentsManager';
 import { listOwnPartnerDocuments } from '@/lib/services/partner-documents';
 
@@ -66,6 +67,10 @@ export default async function OrganizerProfilePage() {
             emailVerifiedAt={userProfile.email_verified_at}
             phoneVerifiedAt={userProfile.phone_verified_at}
           />
+        </div>
+
+        <div className="col-span-12 lg:col-span-8">
+          <YourDataSection supabase={supabase} userProfileId={userProfile.id} />
         </div>
       </div>
     </>

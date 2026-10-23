@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import PartnerKycFields from './PartnerKycFields';
 import PartnerDocumentUpload from './PartnerDocumentUpload';
 import type { PartnerDocumentInput } from '@/lib/schemas/partner';
+import PartnerTermsCheckbox from '@/components/legal/PartnerTermsCheckbox';
 
 export default function OrganizerOnboardingForm({ defaultContactEmail = '' }: { defaultContactEmail?: string }) {
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +133,8 @@ export default function OrganizerOnboardingForm({ defaultContactEmail = '' }: { 
           />
         </div>
       </fieldset>
+
+      <PartnerTermsCheckbox partner="organizer" />
 
       <div className="flex justify-end gap-3">
         <Button type="submit" disabled={loading}>
