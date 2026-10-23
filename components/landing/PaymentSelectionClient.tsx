@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { CreditCard, Loader2 } from 'lucide-react';
 import { processPayment } from '@/actions/bookings';
 
@@ -8,8 +9,13 @@ export default function PaymentSelectionClient({ bookingId }: { bookingId: strin
   const [method, setMethod] = useState<'gcash' | 'paymaya' | 'card'>('gcash');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const handlePay = async () => {
+    if (!acceptedTerms) {
+      setError('Please agree to the Terms of Service and the Refund & Cancellation Policy before paying.');
+      return;
+    }
     setIsProcessing(true);
     setError(null);
     
@@ -21,7 +27,7 @@ export default function PaymentSelectionClient({ bookingId }: { bookingId: strin
     }
 
     // The server builds the return URL to /tours/[slug]/booking/[bookingId]/success.
-    const res = await processPayment(bookingId, method);
+    const res = await processPayment(bookingId, method, acceptedTerms);
 
     if (res.success) {
       window.location.href = res.redirectUrl;
@@ -90,10 +96,28 @@ export default function PaymentSelectionClient({ bookingId }: { bookingId: strin
         </button>
       </div>
 
+      {/* LEG-01/03: checkout acceptance, recorded with the booking by processPayment. */}
+      <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <input
+          id="checkout-accept-terms"
+          type="checkbox"
+          checked={acceptedTerms}
+          onChange={(e) => setAcceptedTerms(e.target.checked)}
+          className="mt-0.5 size-4 shrink-0 accent-coral focus-visible:ring-2 focus-visible:ring-coral/40"
+        />
+        <label htmlFor="checkout-accept-terms" className="text-sm text-slate-600">
+          I agree to the{' '}
+          <Link href="/terms" target="_blank" className="font-semibold text-brand-dark underline-offset-2 hover:underline">Terms of Service</Link>
+          {' '}and the{' '}
+          <Link href="/refund-policy" target="_blank" className="font-semibold text-brand-dark underline-offset-2 hover:underline">Refund &amp; Cancellation Policy</Link>.
+          {' '}A paid booking can be canceled for a full refund before the trip starts.
+        </label>
+      </div>
+
       <button
         type="button"
         onClick={handlePay}
-        disabled={isProcessing}
+        disabled={isProcessing || !acceptedTerms}
         className="w-full py-4 px-6 bg-brand-navy text-white rounded-xl font-bold hover:bg-brand-navy/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
       >
         {isProcessing ? (
@@ -107,7 +131,7 @@ export default function PaymentSelectionClient({ bookingId }: { bookingId: strin
       </button>
       
       <p className="text-center text-xs text-slate-400 mt-4">
-        By proceeding, you agree to our terms of service and payment provider's terms. You will be securely redirected to {method === 'gcash' ? 'GCash' : method === 'paymaya' ? 'Maya' : 'your bank'} to authorize the transaction.
+        Payments are processed by PayMongo under its own terms. You will be securely redirected to {method === 'gcash' ? 'GCash' : method === 'paymaya' ? 'Maya' : 'your bank'} to authorize the transaction.
       </p>
     </div>
   );

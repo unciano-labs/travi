@@ -650,6 +650,8 @@ export async function updatePlatformSettings(input: z.input<typeof platformSetti
 
     revalidatePath('/admin/settings');
     revalidatePath('/admin/payouts');
+    // Policy pages quote the fee %, holding days and payout minimum (lib/legal/settings.ts).
+    updateTag('platform-settings');
     return { success: true };
   } catch (error: unknown) {
     captureException(error, { action: 'updatePlatformSettings' });

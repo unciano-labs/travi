@@ -4,6 +4,7 @@ import TransporterProfileForm from '@/components/dashboard/TransporterProfileFor
 import AccountSecurityManager from '@/components/dashboard/AccountSecurityManager';
 import PageHeader from '@/components/ui/PageHeader';
 import CardBox from '@/components/ui/CardBox';
+import YourDataSection from '@/components/legal/YourDataSection';
 import PartnerDocumentsManager from '@/components/dashboard/PartnerDocumentsManager';
 import { listOwnPartnerDocuments } from '@/lib/services/partner-documents';
 
@@ -62,6 +63,8 @@ export default async function TransporterProfilePage() {
           emailVerifiedAt={userProfile.email_verified_at}
           phoneVerifiedAt={userProfile.phone_verified_at}
         />
+
+        <YourDataSection supabase={supabase} userProfileId={userProfile.id} />
       </div>
     </>
   );

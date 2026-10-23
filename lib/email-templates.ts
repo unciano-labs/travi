@@ -540,3 +540,66 @@ export function payoutRejectedEmail(input: { name?: string | null; amount: numbe
     ],
   });
 }
+
+// ─── Support and privacy requests (actions/support.ts, actions/privacy.ts) ───
+
+// Internal: a /contact form message, sent to the support inbox. Every value is user-supplied (escaped).
+export function supportMessageEmail(input: {
+  name: string;
+  email: string;
+  topicLabel: string;
+  bookingRef?: string | null;
+  message: string;
+  signedIn: boolean;
+  adminUrl: string;
+}): EmailContent {
+  return render({
+    subject: `[Support] ${input.topicLabel}${input.bookingRef ? ` (${input.bookingRef})` : ''}`,
+    preheader: `New message from ${input.name} via the contact form.`,
+    heading: 'New support message',
+    greeting: 'Hi team,',
+    paragraphs: [input.message],
+    details: [
+      ['From', input.name],
+      ['Email', input.email],
+      ['Topic', input.topicLabel],
+      ...(input.bookingRef ? ([['Booking reference', input.bookingRef]] as [string, string][]) : []),
+      ['Signed in', input.signedIn ? 'Yes' : 'No'],
+    ],
+    callout: 'Reply to the sender from the support inbox, then update the status in the admin console.',
+    cta: { label: 'Open in admin', url: input.adminUrl },
+  });
+}
+
+export function dataRequestReceivedEmail(input: { name?: string | null; typeLabel: string; retentionNote: string }): EmailContent {
+  return render({
+    subject: `We received your request: ${input.typeLabel}`,
+    preheader: 'Our privacy team will review your request.',
+    heading: 'We received your request',
+    greeting: `Hi ${greetingName(input.name)},`,
+    paragraphs: [
+      `We received your request (${input.typeLabel}). Our privacy team will review it and may contact you at this email address to verify your identity.`,
+      input.retentionNote,
+    ],
+  });
+}
+
+export function dataRequestUpdatedEmail(input: {
+  name?: string | null;
+  typeLabel: string;
+  status: 'in_progress' | 'completed' | 'rejected';
+  note?: string | null;
+}): EmailContent {
+  const statusText = { in_progress: 'is being processed', completed: 'has been completed', rejected: 'could not be completed' }[input.status];
+  return render({
+    subject: `Your request ${statusText}: ${input.typeLabel}`,
+    preheader: `Your request (${input.typeLabel}) ${statusText}.`,
+    heading: `Your request ${statusText}`,
+    greeting: `Hi ${greetingName(input.name)},`,
+    paragraphs: [
+      `Your request (${input.typeLabel}) ${statusText}.`,
+      ...(input.note?.trim() ? [`Note from our privacy team: ${input.note.trim()}`] : []),
+      'If you have questions, please write to us through the contact page on the Travi website.',
+    ],
+  });
+}

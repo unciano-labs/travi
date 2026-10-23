@@ -137,6 +137,8 @@ export async function updateBookingStatus(bookingId: string, status: 'canceled')
 const processPaymentSchema = z.object({
   bookingId: z.string().uuid(),
   method: z.enum(['gcash', 'paymaya']),
+  // LEG-01/03: the checkout terms checkbox (Terms of Service + Refund & Cancellation Policy).
+  acceptedTerms: z.literal(true, { error: 'Please agree to the Terms of Service and the Refund & Cancellation Policy before paying.' }),
 });
 
 // PaymentIntent states in which a new payment method can still be attached (BIZ-18 "Pay now").
@@ -144,11 +146,12 @@ const REUSABLE_INTENT_STATES = new Set(['awaiting_payment_method', 'awaiting_nex
 
 export async function processPayment(
   bookingId: string,
-  method: 'gcash' | 'paymaya'
+  method: 'gcash' | 'paymaya',
+  acceptedTerms: boolean
 ): Promise<{ success: true; redirectUrl: string } | Failure> {
   try {
-    const data = processPaymentSchema.parse({ bookingId, method });
-    const { user, profile } = await requireSession();
+    const data = processPaymentSchema.parse({ bookingId, method, acceptedTerms });
+    const { user, profile, supabase } = await requireSession();
     await assertRole(user.id, 'traveler');
     await assertRateLimit(profile.id, 'mutation');
 
@@ -170,6 +173,11 @@ export async function processPayment(
     const schedule = booking.tour_schedules as unknown as { tours: { slug: string } } | null;
     const slug = schedule?.tours.slug;
     if (!slug) throw new Error('Booking not found');
+
+    // Record the checkout acceptance before any money moves (user's RLS client; the DB checks the
+    // booking is the caller's own). No record, no payment.
+    const { recordAcceptance } = await import('@/lib/legal/consent');
+    await recordAcceptance(supabase, { userProfileId: profile.id, document: 'checkout_terms', referenceId: booking.id });
 
     // Build the return URL on the server so it can never point off-site.
     const { headers } = await import('next/headers');

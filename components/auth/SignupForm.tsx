@@ -102,6 +102,31 @@ export default function SignupForm({ initialRole, next }: { initialRole: SignupR
           <p id="signup-password-hint" className="mt-1 text-xs text-slate-500">At least 8 characters.</p>
         </div>
 
+        {/* LEG-01/02: required consent; the accepted versions are recorded with the account. */}
+        <div className="flex items-start gap-3">
+          <input
+            id="signup-accept-terms"
+            type="checkbox"
+            name="acceptTerms"
+            required
+            className="mt-0.5 size-4 shrink-0 accent-coral focus-visible:ring-2 focus-visible:ring-coral/40"
+          />
+          <label htmlFor="signup-accept-terms" className="text-sm text-slate-600">
+            I am at least 18 years old and I agree to the{' '}
+            <Link href="/terms" target="_blank" className="font-medium text-coral hover:text-coral/80 underline-offset-2 hover:underline">
+              Terms of Service
+            </Link>{' '}
+            and the{' '}
+            <Link href="/privacy" target="_blank" className="font-medium text-coral hover:text-coral/80 underline-offset-2 hover:underline">
+              Privacy Notice
+            </Link>
+            , including how Travi processes my personal data.
+            {role !== 'traveler' && (
+              <> Partners also accept the <Link href="/partner-terms" target="_blank" className="font-medium text-coral hover:text-coral/80 underline-offset-2 hover:underline">Partner Terms</Link> during onboarding.</>
+            )}
+          </label>
+        </div>
+
         <button type="submit" disabled={pending} className={`${AUTH_BUTTON_CLASS} mt-4`}>
           {pending ? (
             <><Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" /> Creating account…</>
