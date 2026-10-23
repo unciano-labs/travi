@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input, NativeSelect } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import PartnerDocumentUpload from './PartnerDocumentUpload';
+import type { PartnerDocumentInput } from '@/lib/schemas/partner';
 
 interface VehicleModalProps {
   isOpen: boolean;
@@ -29,6 +31,7 @@ export default function VehicleModal({
   const [errorMsg, setErrorMsg] = useState('');
   const [photos, setPhotos] = useState<string[]>(vehicleToEdit?.photos || []);
   const [uploading, setUploading] = useState(false);
+  const [orcr, setOrcr] = useState<PartnerDocumentInput | null>(null);
 
   const supabase = createClient();
 
@@ -85,6 +88,7 @@ export default function VehicleModal({
 
     const formData = new FormData(e.currentTarget);
     formData.set('photos', JSON.stringify(photos));
+    if (orcr) formData.set('orcrDocument', JSON.stringify(orcr));
 
     let res;
     if (isEditing) {
@@ -99,7 +103,7 @@ export default function VehicleModal({
       onSuccess();
       onClose();
     } else {
-      setErrorMsg(res.error || 'Operation failed. Please check your inputs.');
+      setErrorMsg(res.error);
     }
   }
 
@@ -254,6 +258,23 @@ export default function VehicleModal({
             />
           </div>
 
+          <div className="space-y-2 rounded-md border border-border bg-muted/40 p-3">
+            <PartnerDocumentUpload
+              docType="vehicle_orcr"
+              label={vehicleToEdit?.orcr_status ? 'Upload a new OR/CR' : 'OR/CR (Official Receipt / Certificate of Registration)'}
+              hint={
+                vehicleToEdit?.orcr_status === 'verified'
+                  ? 'Your OR/CR is verified.'
+                  : vehicleToEdit?.orcr_status
+                    ? 'Your OR/CR is being reviewed.'
+                    : 'Private: only the Travi review team sees it. Speeds up approval.'
+              }
+              value={orcr}
+              onChange={setOrcr}
+              onError={setErrorMsg}
+            />
+          </div>
+
           {isEditing && (
             <div className="space-y-2">
               <Label htmlFor="vehicle-status">Fleet Status</Label>
@@ -273,7 +294,7 @@ export default function VehicleModal({
             <Button type="button" variant="neutral" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || uploading}>
               {loading && <Loader2 className="animate-spin" />}
               {isEditing ? 'Save Changes' : 'Add Vehicle'}
             </Button>

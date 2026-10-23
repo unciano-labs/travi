@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { createTour, updateTour } from '@/actions/tours';
-import { getAvailableVehicles } from '@/actions/vehicles';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Image as ImageIcon, MapPin, AlertCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { ItineraryBuilder, ItineraryDay } from './ItineraryBuilder';
+import TourStatusField from './TourStatusField';
 import { createClient } from '@/lib/supabase/browser';
 import PageHeader from '@/components/ui/PageHeader';
 import CardBox from '@/components/ui/CardBox';
@@ -55,6 +55,24 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
   const [longitude, setLongitude] = useState<number | null>(initialData?.longitude || null);
   const [status, setStatus] = useState<string>(initialData?.status || 'draft');
   const [format, setFormat] = useState<'joiner'|'private'|'solo'>(initialData?.format || 'joiner');
+  const [price, setPrice] = useState<number>(Number(initialData?.price_per_person) || 0);
+  const [itineraryDays, setItineraryDays] = useState<number>(
+    (initialData?.tour_itineraries || []).filter((d) => d.title?.trim()).length
+  );
+
+  // The itinerary builder keeps its days in a hidden JSON input; re-count titled days after edits.
+  const syncItinerary = (form: HTMLFormElement) => {
+    setTimeout(() => {
+      const input = form.elements.namedItem('itineraries');
+      if (!(input instanceof HTMLInputElement)) return;
+      try {
+        const days = JSON.parse(input.value) as { title?: string }[];
+        setItineraryDays(days.filter((d) => d.title?.trim()).length);
+      } catch {
+        // keep the previous count
+      }
+    }, 0);
+  };
   
   const [themes, setThemes] = useState<string[]>(initialData?.themes || []);
   const availableThemes = [
@@ -176,14 +194,12 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
     
     setLoading(false);
     
-    if (res?.error) {
+    if (res && !res.success) {
       setError(res.error);
     }
     // if successful, server action will redirect
   }
 
-  const segClass = (active: boolean) =>
-    `flex-1 text-sm font-medium py-1.5 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${active ? 'bg-primary text-white shadow-sm' : 'text-bodytext hover:bg-lightprimary hover:text-primary'}`;
   const formatClass = (active: boolean) =>
     `flex flex-col items-start p-3 border rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${active ? 'border-primary bg-lightprimary ring-1 ring-primary/20' : 'border-border hover:border-primary/40'}`;
 
@@ -209,7 +225,12 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
         />
       )}
 
-      <form action={handleSubmit} className="max-w-4xl mx-auto flex flex-col gap-6">
+      <form
+        action={handleSubmit}
+        onInput={(e) => syncItinerary(e.currentTarget)}
+        onClick={(e) => syncItinerary(e.currentTarget)}
+        className="max-w-4xl mx-auto flex flex-col gap-6"
+      >
         {error && (
           <Alert variant="lighterror">
             <AlertCircle />
@@ -278,21 +299,14 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
               <Input id="tour-title" type="text" name="title" defaultValue={initialData?.title} required placeholder="e.g. Ultimate El Nido Island Hopping" />
             </div>
 
-            <div className="md:col-span-1 space-y-2">
-              <Label>Status</Label>
-              <div className="flex gap-1 bg-muted/50 p-1 rounded-lg border border-border" role="group" aria-label="Status">
-                <input type="hidden" name="status" value={status} />
-                <button type="button" onClick={() => setStatus('draft')} aria-pressed={status === 'draft'} className={segClass(status === 'draft')}>
-                  Draft
-                </button>
-                <button type="button" onClick={() => setStatus('published')} aria-pressed={status === 'published'} className={segClass(status === 'published')}>
-                  Published
-                </button>
-                <button type="button" onClick={() => setStatus('archived')} aria-pressed={status === 'archived'} className={segClass(status === 'archived')}>
-                  Archived
-                </button>
-              </div>
-            </div>
+            <TourStatusField
+              isEdit={isEdit}
+              tourId={initialData?.id}
+              initialStatus={initialData?.status}
+              status={status}
+              onStatusChange={setStatus}
+              live={{ price, hasCover: Boolean(coverImageUrl || imageUrls[0]), itineraryDays }}
+            />
 
             <div className="md:col-span-2 space-y-2">
               <Label>Tour Format</Label>
@@ -405,7 +419,7 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
 
             <div className="space-y-2">
               <Label htmlFor="tour-price">Price per Person (₱)</Label>
-              <Input id="tour-price" type="number" name="pricePerPerson" defaultValue={initialData?.price_per_person} required min="1" step="0.01" placeholder="1500" />
+              <Input id="tour-price" type="number" name="pricePerPerson" defaultValue={initialData?.price_per_person} onChange={(e) => setPrice(Number(e.target.value) || 0)} required min="1" step="0.01" placeholder="1500" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="tour-duration">Duration (Days)</Label>

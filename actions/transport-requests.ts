@@ -46,10 +46,10 @@ type ActionResult<T extends object = object> = ({ success: true } & T) | Transpo
 const REQUEST_SELECT = `
   id, status, created_at, pickup_location, dropoff_location, pickup_datetime, return_datetime,
   seats_required, organizer_id, transporter_id,
-  vehicle:vehicles ( id, name, vehicle_type, plate_number, seat_capacity ),
+  vehicle:public_vehicles ( id, name, vehicle_type, plate_number, seat_capacity ),
   tour_schedule:tour_schedules ( id, start_date, end_date, tour:tours ( id, title, location ) ),
-  organizer:organizer_profiles ( id, display_name, company_name ),
-  transporter:transporter_profiles ( id, display_name, company_name )
+  organizer:public_organizer_profiles ( id, display_name, company_name ),
+  transporter:public_transporter_profiles ( id, display_name, company_name )
 `;
 
 type One<T> = T | T[] | null;
@@ -252,8 +252,9 @@ async function transporterName(
   supabase: Awaited<ReturnType<typeof requireSession>>['supabase'],
   transporterId: string
 ): Promise<string> {
+  // SEC-13: other partners are read through the public view, not the owner-only base table.
   const { data } = await supabase
-    .from('transporter_profiles')
+    .from('public_transporter_profiles')
     .select('display_name, company_name')
     .eq('id', transporterId)
     .maybeSingle();
@@ -458,12 +459,12 @@ export async function sendTransportRequest(input: unknown): Promise<ActionResult
       throw new TransportError('This schedule already has an active transport request. Cancel it before sending a new one.');
     }
 
+    // SEC-13: another transporter's vehicle is read through public_vehicles (already excludes deleted rows).
     const { data: vehicle, error: vehicleError } = await supabase
-      .from('vehicles')
+      .from('public_vehicles')
       .select('id, transporter_id, seat_capacity')
       .eq('id', data.vehicleId)
       .eq('status', 'active')
-      .is('deleted_at', null)
       .maybeSingle();
     if (vehicleError) throw vehicleError;
     if (!vehicle) throw new TransportError('This vehicle is no longer available.');

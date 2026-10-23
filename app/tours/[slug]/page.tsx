@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Header from '@/components/landing/Header';
 import Footer from '@/components/landing/Footer';
-import { MapPin, Clock, Users, Car, Check, Calendar } from 'lucide-react';
+import { MapPin, Clock, Users, Car, Check, Calendar, BadgeCheck, Mail } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import TourBookingCard from '@/components/landing/TourBookingCard';
 import TourReviewsCarousel from '@/components/landing/TourReviewsCarousel';
@@ -10,6 +10,7 @@ import Image from 'next/image';
 import { TourJsonLd } from '@/components/seo/TourJsonLd';
 import { getCachedTourBySlug } from '@/lib/data/tours';
 import { getCachedTourReviews } from '@/lib/data/reviews';
+import { getCachedOrganizerMerchant } from '@/lib/data/merchant';
 import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
 
 // getCachedTourBySlug is wrapped in React cache(): generateMetadata and the page share one fetch.
@@ -53,7 +54,11 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
     notFound();
   }
 
-  const reviews = await getCachedTourReviews(tour.id);
+  const [reviews, merchant] = await Promise.all([
+    getCachedTourReviews(tour.id),
+    getCachedOrganizerMerchant(tour.organizer_id),
+  ]);
+  const organizerName = merchant?.displayName || tour.organizer?.display_name || tour.organizer?.company_name || 'Tour organizer';
 
   const defaultImage = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80";
 
@@ -243,8 +248,39 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
             </div>
 
             {/* Booking Card (Right) */}
-            <div className="lg:col-span-1">
+            <div className="lg:col-span-1 space-y-6">
               <TourBookingCard tour={tour} />
+
+              {/* Merchant of record (RA 11967 / LEG-06) */}
+              <section aria-labelledby="operator-heading" className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-sm">
+                <h2 id="operator-heading" className="text-base font-bold text-slate-900 mb-3">Operated by</h2>
+                <p className="font-semibold text-slate-900 flex items-center gap-1.5">
+                  {organizerName}
+                  {merchant?.dotAccreditationNo && (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+                      <BadgeCheck className="w-4 h-4" aria-hidden="true" /> DOT accredited
+                    </span>
+                  )}
+                </p>
+                {(merchant?.businessName || merchant?.legalName) && (
+                  <p className="text-slate-600 mt-1">
+                    Registered name: {merchant.businessName || merchant.legalName}
+                  </p>
+                )}
+                {merchant?.dotAccreditationNo && (
+                  <p className="text-slate-500 mt-1">DOT accreditation no. {merchant.dotAccreditationNo}</p>
+                )}
+                {merchant?.contactEmail ? (
+                  <a href={`mailto:${merchant.contactEmail}`} className="mt-3 inline-flex items-center gap-2 font-medium text-brand hover:text-brand-dark">
+                    <Mail className="w-4 h-4" aria-hidden="true" /> {merchant.contactEmail}
+                  </a>
+                ) : (
+                  <p className="text-slate-500 mt-3">After booking, you can reach the organizer from your Travi bookings page.</p>
+                )}
+                <p className="text-xs text-slate-400 mt-3">
+                  This tour is sold and operated by the organizer above. Travi verifies organizers before their tours are listed.
+                </p>
+              </section>
             </div>
 
           </div>

@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import type React from 'react';
-import { Search, Loader2, Check, X, Building, User, Phone, MapPin, AlignLeft, Calendar, Star, Bus } from 'lucide-react';
-import { approveTransporter, rejectTransporter } from '@/actions/admin';
+import { Search, Building, User, Phone, MapPin, AlignLeft, Calendar, Star, Bus } from 'lucide-react';
+import PartnerReviewPanel, { type ReviewablePartner, type AdminPartnerDocument } from '@/components/admin/PartnerReviewPanel';
 import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
 import PageHeader from '@/components/ui/PageHeader';
 import CardBox from '@/components/ui/CardBox';
@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Transporter {
   id: string;
@@ -28,6 +28,13 @@ interface Transporter {
   review_count: number;
   created_at: string;
   user_profiles: { email: string } | null;
+  legal_name: string | null;
+  tin: string | null;
+  business_registration_no: string | null;
+  accreditation_no: string | null;
+  review_note: string | null;
+  info_requested_at: string | null;
+  documents: AdminPartnerDocument[];
   activeVehicles?: number;
 }
 
@@ -42,7 +49,6 @@ export default function TransportersClient({ initialTransporters }: Transporters
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTrp, setSelectedTrp] = useState<Transporter | null>(null);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
   
   // Filter logic
   const filtered = transporters.filter((trp) => {
@@ -60,31 +66,9 @@ export default function TransportersClient({ initialTransporters }: Transporters
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1;
   const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-  const handleApprove = async (id: string) => {
-    setActionLoading(`${id}-approve`);
-    const res = await approveTransporter(id);
-    setActionLoading(null);
-    if (res.success) {
-      setTransporters(prev => prev.map(t => t.id === id ? { ...t, status: 'approved' } : t));
-      if (selectedTrp?.id === id) setSelectedTrp(prev => prev ? { ...prev, status: 'approved' } : null);
-    } else {
-      alert(res.error || 'Failed to approve');
-    }
-  };
-
-  const handleReject = async (id: string) => {
-    const reason = window.prompt("Reason for rejection/deactivation (optional):");
-    if (reason === null) return; // User cancelled prompt
-
-    setActionLoading(`${id}-reject`);
-    const res = await rejectTransporter(id, reason);
-    setActionLoading(null);
-    if (res.success) {
-      setTransporters(prev => prev.map(t => t.id === id ? { ...t, status: 'rejected' } : t));
-      if (selectedTrp?.id === id) setSelectedTrp(prev => prev ? { ...prev, status: 'rejected' } : null);
-    } else {
-      alert(res.error || 'Failed to reject');
-    }
+  const applyUpdate = (id: string, patch: Partial<ReviewablePartner>) => {
+    setTransporters(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p));
+    setSelectedTrp(prev => prev && prev.id === id ? { ...prev, ...patch } : prev);
   };
 
   const detailItem = (icon: React.ReactNode, label: string, value: React.ReactNode, className = '') => (
@@ -261,7 +245,7 @@ export default function TransportersClient({ initialTransporters }: Transporters
 
       {/* Details Modal */}
       <Dialog open={!!selectedTrp} onOpenChange={(open) => { if (!open) setSelectedTrp(null); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           {selectedTrp && (
             <>
               <DialogHeader>
@@ -276,7 +260,7 @@ export default function TransportersClient({ initialTransporters }: Transporters
                     <p className="text-lg font-semibold text-foreground">{selectedTrp.transporter_type === 'company' ? selectedTrp.company_name : selectedTrp.display_name}</p>
                     <p className="mt-1 text-sm font-medium text-muted-foreground">{selectedTrp.user_profiles?.email}</p>
                   </div>
-                  <StatusBadge status={selectedTrp.status} />
+                  <StatusBadge status={selectedTrp.status} label={selectedTrp.status === 'pending' && selectedTrp.info_requested_at ? 'Info requested' : undefined} />
                 </div>
 
                 {/* Grid Details */}
@@ -291,55 +275,12 @@ export default function TransportersClient({ initialTransporters }: Transporters
                 </div>
               </div>
 
-              {/* Actions */}
-              <DialogFooter>
-                {selectedTrp.status === 'pending' && (
-                  <>
-                    <Button
-                      type="button"
-                      variant="outlineerror"
-                      onClick={() => handleReject(selectedTrp.id)}
-                      disabled={!!actionLoading}
-                    >
-                      {actionLoading === `${selectedTrp.id}-reject` ? <Loader2 className="animate-spin" /> : <X />}
-                      Reject
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="success"
-                      onClick={() => handleApprove(selectedTrp.id)}
-                      disabled={!!actionLoading}
-                    >
-                      {actionLoading === `${selectedTrp.id}-approve` ? <Loader2 className="animate-spin" /> : <Check />}
-                      Approve
-                    </Button>
-                  </>
-                )}
-
-                {selectedTrp.status === 'approved' && (
-                  <Button
-                    type="button"
-                    variant="outlineerror"
-                    onClick={() => handleReject(selectedTrp.id)}
-                    disabled={!!actionLoading}
-                  >
-                    {actionLoading === `${selectedTrp.id}-reject` ? <Loader2 className="animate-spin" /> : <X />}
-                    Deactivate
-                  </Button>
-                )}
-
-                {selectedTrp.status === 'rejected' && (
-                  <Button
-                    type="button"
-                    variant="success"
-                    onClick={() => handleApprove(selectedTrp.id)}
-                    disabled={!!actionLoading}
-                  >
-                    {actionLoading === `${selectedTrp.id}-approve` ? <Loader2 className="animate-spin" /> : <Check />}
-                    Activate
-                  </Button>
-                )}
-              </DialogFooter>
+              {/* KYC review (BIZ-07) */}
+              <PartnerReviewPanel
+                partnerType="transporter"
+                partner={selectedTrp}
+                onUpdated={(patch) => applyUpdate(selectedTrp.id, patch)}
+              />
             </>
           )}
         </DialogContent>

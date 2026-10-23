@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import CancelScheduleButton from '@/components/dashboard/CancelScheduleButton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { attachTravelerContacts } from '@/lib/services/traveler-contacts';
 
 export default async function ScheduleBookingsPage(props: {
   params: Promise<{ id: string, scheduleId: string }>
@@ -82,12 +83,13 @@ export default async function ScheduleBookingsPage(props: {
       total_amount,
       status,
       created_at,
-      user_profiles!traveler_id ( full_name, email )
+      traveler_id
     `)
     .eq('tour_schedule_id', scheduleId)
     .order('created_at', { ascending: false });
 
-  const bookings = (recentBookings as any[]) || [];
+  // SEC-13: names (and emails for confirmed bookings) via organizer_traveler_contacts().
+  const bookings = await attachTravelerContacts(supabase, recentBookings ?? []);
 
   // Maintained by the database (a private booking holds the whole group).
   const totalBooked = Number(schedule.booked_count) || 0;

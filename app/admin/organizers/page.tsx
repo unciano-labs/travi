@@ -1,6 +1,8 @@
 import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { createAdminClient } from '@/lib/supabase/admin';
 import OrganizersClient from '@/components/admin/OrganizersClient';
+import type { AdminPartnerDocument } from '@/components/admin/PartnerReviewPanel';
+import { captureException } from '@/lib/logger';
 
 export default async function OrganizersPage() {
   const { user } = await requireSession();
@@ -15,7 +17,22 @@ export default async function OrganizersPage() {
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching organizers:', error);
+    captureException(error, { action: 'OrganizersPage fetch' });
+  }
+
+  // KYC documents (metadata only; the files are opened with short-lived signed URLs on demand)
+  const { data: documents } = await admin
+    .from('partner_documents')
+    .select('id, owner_profile_id, doc_type, vehicle_id, file_name, status, created_at')
+    .eq('partner_type', 'organizer')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+
+  const docsByOwner = new Map<string, AdminPartnerDocument[]>();
+  for (const d of documents ?? []) {
+    const list = docsByOwner.get(d.owner_profile_id) ?? [];
+    list.push({ id: d.id, doc_type: d.doc_type, vehicle_id: d.vehicle_id, file_name: d.file_name, status: d.status, created_at: d.created_at });
+    docsByOwner.set(d.owner_profile_id, list);
   }
 
   // 2. Fetch revenue (confirmed/completed bookings)
@@ -26,10 +43,11 @@ export default async function OrganizersPage() {
 
   const revenueMap = new Map<string, number>();
   if (bookings) {
-    bookings.forEach((b: any) => {
-      const orgId = b.tour_schedules?.tours?.organizer_id;
+    bookings.forEach((b) => {
+      const schedule = b.tour_schedules as unknown as { tours?: { organizer_id?: string } } | null;
+      const orgId = schedule?.tours?.organizer_id;
       if (orgId) {
-        revenueMap.set(orgId, (revenueMap.get(orgId) || 0) + (b.total_amount || 0));
+        revenueMap.set(orgId, (revenueMap.get(orgId) || 0) + (Number(b.total_amount) || 0));
       }
     });
   }
@@ -42,7 +60,7 @@ export default async function OrganizersPage() {
 
   const toursCountMap = new Map<string, number>();
   if (tours) {
-    tours.forEach((t: any) => {
+    tours.forEach((t) => {
       if (t.organizer_id) {
         toursCountMap.set(t.organizer_id, (toursCountMap.get(t.organizer_id) || 0) + 1);
       }
@@ -53,6 +71,8 @@ export default async function OrganizersPage() {
     ...org,
     revenue: revenueMap.get(org.id) || 0,
     activeTours: toursCountMap.get(org.id) || 0,
+    accreditation_no: org.dot_accreditation_no ?? null,
+    documents: docsByOwner.get(org.user_profile_id) ?? [],
   }));
 
   return (

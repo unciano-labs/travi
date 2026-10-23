@@ -20,6 +20,7 @@ import {
   formatPeso,
   newBookingOrganizerEmail,
   partnerAccountStatusEmail,
+  partnerInfoRequestedEmail,
   paymentNeedsReviewEmail,
   transportRequestCanceledEmail,
   tourModerationEmail,
@@ -579,6 +580,31 @@ export async function notifyOrganizerAccountStatus(organizerId: string, status: 
 
 export async function notifyTransporterAccountStatus(transporterId: string, status: 'activated' | 'deactivated', reason?: string) {
   await notifyPartnerAccountStatus('transporter', transporterId, status, reason);
+}
+
+/** Admin asked a pending partner for more KYC information (BIZ-07). */
+export async function notifyPartnerInfoRequested(
+  partner: 'organizer' | 'transporter',
+  profileId: string,
+  note: string
+): Promise<void> {
+  try {
+    const recipient = await loadPartner(partner === 'organizer' ? 'organizer_profiles' : 'transporter_profiles', profileId);
+    if (!recipient) return;
+    const path = `/dashboard/${partner}/profile`;
+    await deliver(
+      recipient,
+      {
+        title: 'More information needed',
+        message: `We need more information to review your ${partner} application: ${note}`,
+        type: 'account_info_requested',
+        link: path,
+      },
+      partnerInfoRequestedEmail({ name: recipient.name, partner, note, profileUrl: siteUrl(path) })
+    );
+  } catch (error: unknown) {
+    captureException(error, { action: 'notifyPartnerInfoRequested', partner, profileId });
+  }
 }
 
 /** New paid booking, to the organizer. */
