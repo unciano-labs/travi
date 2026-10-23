@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { env } from '../env'
 import { safeNextPath } from '../safe-next'
+import { adminMfaPath, getAdminMfaState } from '../admin-mfa'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -64,16 +65,34 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
+  // Redirect while keeping any session cookies refreshed by getUser() above.
+  const redirectTo = (path: string) => {
+    const response = NextResponse.redirect(new URL(path, request.url))
+    supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie))
+    return response
+  }
+
   // --- Admin Routes ---
-  if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
+  const isAdminLogin = pathname.startsWith('/admin/login')
+  if (pathname.startsWith('/admin') && !isAdminLogin) {
     if (!user || !roles.includes('admin')) {
-      return NextResponse.redirect(new URL('/admin/login', request.url))
+      return redirectTo('/admin/login')
+    }
+
+    // SEC-12: the admin console requires an MFA-verified (aal2) session. The enrol/verify pages
+    // are the only /admin pages reachable at aal1.
+    const mfaPath = adminMfaPath(await getAdminMfaState(supabase, user))
+    if (pathname.startsWith('/admin/mfa')) {
+      if (!mfaPath) return redirectTo('/admin')
+      if (!pathname.startsWith(mfaPath)) return redirectTo(mfaPath)
+    } else if (mfaPath) {
+      return redirectTo(mfaPath)
     }
   }
 
-  if (pathname.startsWith('/admin/login')) {
+  if (isAdminLogin) {
     if (user && roles.includes('admin')) {
-      return NextResponse.redirect(new URL('/admin', request.url))
+      return redirectTo(adminMfaPath(await getAdminMfaState(supabase, user)) ?? '/admin')
     }
   }
 

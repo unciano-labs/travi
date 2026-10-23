@@ -8,7 +8,7 @@ import { escapeHtml } from '@/lib/email';
 import { captureException } from '@/lib/logger';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
-import { requireVerifiedOtp, consumeVerifiedOtp } from '@/lib/otp';
+import { consumeVerifiedOtp } from '@/lib/otp';
 
 import { createClient } from '@/lib/supabase/server';
 
@@ -89,8 +89,8 @@ export async function savePayoutMethod(walletId: string, methodData: Omit<SavedP
   try {
     const { user, profile } = await requireSession();
     
-    // Verify OTP first
-    await requireVerifiedOtp('add_payout_method');
+    // Use up the verified OTP first (atomic, single use: one code adds one method).
+    await consumeVerifiedOtp('add_payout_method');
 
     const admin = createAdminClient({ admin: true });
 
@@ -125,7 +125,6 @@ export async function savePayoutMethod(walletId: string, methodData: Omit<SavedP
 
     if (error) throw error;
 
-    await consumeVerifiedOtp('add_payout_method');
     
     const { revalidatePath } = await import('next/cache');
     revalidatePath('/dashboard/organizer/wallet');

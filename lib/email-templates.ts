@@ -540,3 +540,32 @@ export function payoutRejectedEmail(input: { name?: string | null; amount: numbe
     ],
   });
 }
+
+// ─── Account security (for lib/otp.ts and actions/profile.ts) ───
+
+export function otpCodeEmail(input: { name?: string | null; code: string; purpose: string; minutes: number }): EmailContent {
+  return render({
+    subject: 'Your Travi verification code',
+    preheader: `Your verification code to ${input.purpose}.`,
+    heading: 'Your verification code',
+    greeting: `Hi ${greetingName(input.name)},`,
+    paragraphs: [
+      `Use this code to ${input.purpose}. It expires in ${input.minutes} minutes and can be used once.`,
+      'Travi will never ask you for this code by phone, chat or email. If you did not request it, ignore this email and consider changing your password.',
+    ],
+    callout: `Verification code: ${input.code}`,
+  });
+}
+
+export function emailChangedNoticeEmail(input: { name?: string | null; newEmailMasked: string }): EmailContent {
+  return render({
+    subject: 'Your Travi email address was changed',
+    preheader: 'The email address on your Travi account was changed.',
+    heading: 'Your email address was changed',
+    greeting: `Hi ${greetingName(input.name)},`,
+    paragraphs: [
+      `The email address on your Travi account was changed to ${input.newEmailMasked}. From now on, sign in and receive messages there.`,
+      'If you did not make this change, contact Travi support immediately so we can secure your account.',
+    ],
+  });
+}

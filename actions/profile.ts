@@ -7,7 +7,9 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { captureException } from '@/lib/logger';
 import { assertRateLimit } from '@/lib/ratelimit';
 import { PHONE_OTP_ENABLED } from '@/lib/features';
-import { sendOtp, verifyOtp, requireVerifiedOtp, consumeVerifiedOtp } from '@/lib/otp';
+import { OtpError, consumeVerifiedOtp, redeemOtp, sendOtp, verifyOtp } from '@/lib/otp';
+import { maskEmail, sendEmail } from '@/lib/email';
+import { emailChangedNoticeEmail } from '@/lib/email-templates';
 import {
   changeEmailSchema,
   confirmPasswordChangeSchema,
@@ -24,6 +26,14 @@ function failure(error: unknown, fallback: string): { success: false; error: str
   if (error instanceof Error && error.message) return { success: false, error: error.message };
   return { success: false, error: fallback };
 }
+
+// Wrong/expired codes are expected user outcomes, not incidents: keep them out of Sentry.
+function report(error: unknown, action: string) {
+  if (!(error instanceof OtpError) && !(error instanceof ZodError)) captureException(error, { action });
+}
+
+// Case-insensitive exact match: escape LIKE wildcards in user input.
+const likeLiteral = (value: string) => value.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 const PHONE_DISABLED = 'Phone verification is not available yet. Your email address is used for verification.';
 
@@ -89,12 +99,9 @@ export async function confirmPhoneChange(code: string): Promise<Result> {
     const { profile } = await requireSession();
     await otpLimit(profile.id);
 
-    const verifyResult = await verifyOtp('change_phone', otp);
-    if (!verifyResult.success) return { success: false, error: verifyResult.error ?? 'Invalid verification code' };
-
-    const payload = await requireVerifiedOtp('change_phone');
-    const newPhone = payload.newPhone;
-    if (typeof newPhone !== 'string' || !newPhone) throw new Error('New phone number not found in verification payload');
+    // Verifies and uses up the code in one step; the number comes from the challenge, not the client.
+    const { newPhone } = await redeemOtp('change_phone', otp);
+    if (!newPhone) throw new Error('New phone number not found for this code.');
 
     // Service role: phone and phone_verified_at are server-owned columns.
     const admin = createAdminClient({ admin: true });
@@ -105,11 +112,10 @@ export async function confirmPhoneChange(code: string): Promise<Result> {
       .eq('id', profile.id);
     if (profileError) throw new Error('Could not update your phone number.');
 
-    await consumeVerifiedOtp('change_phone');
     revalidatePath('/dashboard', 'layout');
     return { success: true };
   } catch (error: unknown) {
-    captureException(error, { action: 'confirmPhoneChange' });
+    report(error, 'confirmPhoneChange');
     return failure(error, 'Verification failed');
   }
 }
@@ -134,9 +140,7 @@ export async function confirmVerifyEmail(code: string): Promise<Result> {
     const { user, profile } = await requireSession();
     await otpLimit(profile.id);
 
-    const verifyResult = await verifyOtp('verify_email', otp);
-    if (!verifyResult.success) return { success: false, error: verifyResult.error ?? 'Invalid verification code' };
-    await requireVerifiedOtp('verify_email');
+    await redeemOtp('verify_email', otp);
 
     // Service role: email_verified_at is server-owned, and the code proves control of the inbox,
     // so Supabase Auth's own confirmation (used by assertEmailVerified) is stamped too.
@@ -151,28 +155,30 @@ export async function confirmVerifyEmail(code: string): Promise<Result> {
       .eq('id', profile.id);
     if (error) throw new Error('Could not verify your email address.');
 
-    await consumeVerifiedOtp('verify_email');
     revalidatePath('/dashboard', 'layout');
     return { success: true };
   } catch (error: unknown) {
-    captureException(error, { action: 'confirmVerifyEmail' });
+    report(error, 'confirmVerifyEmail');
     return failure(error, 'Verification failed');
   }
 }
 
-// ─── Change Email: Step 1 — Send OTP to current email ───
+// ─── Change Email: Step 1 — Send OTP to the NEW email (proves the user controls it; SEC-11) ───
 export async function requestEmailChange(newEmail: string): Promise<Result> {
   try {
     const data = changeEmailSchema.parse({ newEmail });
     const { user, profile } = await requireSession();
     await otpLimit(profile.id);
+    if (data.newEmail.trim().toLowerCase() === (user.email ?? '').toLowerCase()) {
+      throw new Error('Enter a different email address.');
+    }
 
     // Service role: the uniqueness check must see other users' rows.
     const admin = createAdminClient({ admin: true });
     const { data: existing } = await admin
       .from('user_profiles')
       .select('id')
-      .eq('email', data.newEmail)
+      .ilike('email', likeLiteral(data.newEmail.trim()))
       .neq('user_id', user.id)
       .limit(1);
 
@@ -188,23 +194,32 @@ export async function requestEmailChange(newEmail: string): Promise<Result> {
   }
 }
 
-// ─── Change Email: Step 2 — Confirm OTP & update ───
+// ─── Change Email: Step 2 — Confirm the code from the new inbox & update ───
 export async function confirmEmailChange(code: string): Promise<Result> {
   try {
     const otp = otpCodeSchema.parse(code);
     const { user, profile } = await requireSession();
     await otpLimit(profile.id);
 
-    const verifyResult = await verifyOtp('change_email', otp);
-    if (!verifyResult.success) return { success: false, error: verifyResult.error ?? 'Invalid verification code' };
-
-    const payload = await requireVerifiedOtp('change_email');
-    const newEmail = payload.newEmail;
-    if (typeof newEmail !== 'string' || !newEmail) throw new Error('New email not found in verification payload');
+    // Verifies and uses up the code; the new address is the one bound to the challenge.
+    const { newEmail } = await redeemOtp('change_email', otp);
+    if (!newEmail) throw new Error('New email not found for this code.');
+    const oldEmail = user.email;
 
     // Service role: auth.admin and the server-owned email columns.
     const admin = createAdminClient({ admin: true });
-    const { error: authError } = await admin.auth.admin.updateUserById(user.id, { email: newEmail });
+
+    // Re-check uniqueness: another account may have taken the address since the code was sent.
+    const { data: taken } = await admin
+      .from('user_profiles')
+      .select('id')
+      .ilike('email', likeLiteral(newEmail))
+      .neq('user_id', user.id)
+      .limit(1);
+    if (taken && taken.length > 0) throw new Error('This email address is already associated with another account.');
+
+    // The code was delivered to the new inbox, so the address is confirmed.
+    const { error: authError } = await admin.auth.admin.updateUserById(user.id, { email: newEmail, email_confirm: true });
     if (authError) throw new Error('Could not update your email address.');
 
     const now = new Date().toISOString();
@@ -214,11 +229,17 @@ export async function confirmEmailChange(code: string): Promise<Result> {
       .eq('id', profile.id);
     if (profileError) throw new Error('Could not update your email address.');
 
-    await consumeVerifiedOtp('change_email');
+    // Tell the previous address, so a hijacked session cannot silently take over the account.
+    if (oldEmail) {
+      const notice = emailChangedNoticeEmail({ name: profile.full_name, newEmailMasked: maskEmail(newEmail) });
+      const sent = await sendEmail({ to: oldEmail, ...notice });
+      if (!sent.success) captureException(new Error('Email-change notice failed'), { action: 'confirmEmailChange:notice' });
+    }
+
     revalidatePath('/dashboard', 'layout');
     return { success: true };
   } catch (error: unknown) {
-    captureException(error, { action: 'confirmEmailChange' });
+    report(error, 'confirmEmailChange');
     return failure(error, 'Verification failed');
   }
 }
@@ -271,22 +292,21 @@ export async function confirmPasswordChange(
     if (data.phoneOtpCode && !PHONE_OTP_ENABLED) return { success: false, error: PHONE_DISABLED };
     if (requiresPhoneOtp && !data.phoneOtpCode) return { success: false, error: 'Enter the code sent to your phone' };
 
-    const emailResult = await verifyOtp('change_password_email', data.emailOtpCode);
-    if (!emailResult.success) return { success: false, error: 'Invalid email verification code' };
-    await requireVerifiedOtp('change_password_email');
-
     if (requiresPhoneOtp && data.phoneOtpCode) {
+      // Two codes: check both first (counts attempts), then use both up atomically.
+      const emailResult = await verifyOtp('change_password_email', data.emailOtpCode);
+      if (!emailResult.success) return { success: false, error: `Email code: ${emailResult.error}` };
       const phoneResult = await verifyOtp('change_password_phone', data.phoneOtpCode);
-      if (!phoneResult.success) return { success: false, error: 'Invalid phone verification code' };
-      await requireVerifiedOtp('change_password_phone');
+      if (!phoneResult.success) return { success: false, error: `Phone code: ${phoneResult.error}` };
+      await consumeVerifiedOtp('change_password_email');
+      await consumeVerifiedOtp('change_password_phone');
+    } else {
+      await redeemOtp('change_password_email', data.emailOtpCode);
     }
 
     // The user's own session (just re-authenticated in step 1); no service role needed.
     const { error: authError } = await supabase.auth.updateUser({ password: data.newPassword });
     if (authError) throw new Error(authError.message);
-
-    await consumeVerifiedOtp('change_password_email');
-    if (requiresPhoneOtp) await consumeVerifiedOtp('change_password_phone');
 
     // Sign out every other device that may still hold the old password.
     const { error: signOutError } = await supabase.auth.signOut({ scope: 'others' });
@@ -294,7 +314,7 @@ export async function confirmPasswordChange(
 
     return { success: true };
   } catch (error: unknown) {
-    captureException(error, { action: 'confirmPasswordChange' });
+    report(error, 'confirmPasswordChange');
     return failure(error, 'Password change failed');
   }
 }

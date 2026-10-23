@@ -215,10 +215,10 @@ function ChangeEmailSection({ currentEmail, isOpen, onToggle }: {
           ) : step === 'otp' ? (
             <form onSubmit={handleConfirm} className="space-y-3">
               <p className="text-sm text-bodytext">
-                A verification code has been sent to your <strong>current email ({currentEmail})</strong>.
-                Enter it below to confirm the email change.
+                We sent a verification code to your <strong>new email address ({newEmail})</strong>.
+                Enter it below to confirm you own it. We will also let {currentEmail} know about the change.
               </p>
-              <Input type="text" maxLength={6} placeholder="123456" aria-label="Verification code" value={code} onChange={e => setCode(e.target.value)}
+              <Input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="123456" aria-label="Verification code" value={code} onChange={e => setCode(e.target.value)}
                
                   className="tracking-widest" />
               {error && <p className="text-xs text-error font-medium">{error}</p>}
