@@ -513,6 +513,42 @@ Migration `supabase/migrations/20261023120000_money_integrity.sql`, **written an
 
 **Exit criteria:** authenticated e2e journeys pass for each role (see Phase 5), with no stub forms and no `#` links in navigation.
 
+#### Phase 3 status (2026-10-24, branch `fix/phase-3-product`, stacked on `fix/phase-2-money`)
+
+Built in two waves of parallel workstreams and merged with integration fixes. QA gate on the merged branch:
+- lint: 0 errors; warnings down to 112 from 278 at the start of Phase 0.
+- build: passes, with no "Dynamic server usage" errors left.
+- `test:rls`: 223/223.
+- `test:qa`: 27/27.
+- `test:e2e`: 27/27, including new auth-flow specs.
+
+Eight migrations (`20261024090000` … `20261025120000`) are **written and tested locally, not applied**.
+
+| Task | Status | Notes |
+|---|---|---|
+| 3.1 Booking guards & UX | ✅ | Server/DB guards; booking detail page (receipt, pay now with intent reuse, cancel, dispute); private tours book the whole group (D3: seats = capacity, price × capacity); `seats_consumed` makes capacity edits safe |
+| 3.2 Schedule cancellation cascade | ✅ | `cancelScheduleWithBookings`: refunds, cancellations, traveler + transporter notifications, retryable, audited |
+| 3.3 Partner approval & KYC | ✅ | New partners `pending`; KYC fields + private document bucket; admin review (approve / reject / request info) with signed URLs; publish, discovery and payouts gated on approval |
+| 3.4 Accounts | ✅ | Password reset (with recovery marker cookie), signup trigger + email verification gate on booking, role picker, safe `?next=`, traveler/organizer profile saves, phone OTP hidden (D5) |
+| 3.5 Discovery | ✅ | `/tours` catalog (SQL search RPC, filters, pagination, SEO), hero search, real links, cached detail, noindex booking pages. Temporary fallback until the migration is applied |
+| 3.6 Communications | ✅ | One sender, escaped templates, traveler confirmation / review / cancel / dispute / reminder emails, reminder cron |
+| 3.7 Disputes | 🟡 | Reason required, notifications, admin resolve with refund history. **Not done:** evidence uploads, admin case notes |
+| 3.8 Reviews | ✅ | Traveler reviews of completed trips, admin queue, rating trigger, `tour_rating_summary` |
+| 3.9 Publish rules | ✅ | Checklist in TourForm + DB guard; archive blocked with active future bookings |
+| 3.10 Transport (D2 coordination only) | ✅ | DB double-booking prevention, atomic accept, organizer cancel, date-gated completion, Manila times, organizer + admin transport pages |
+| 3.11 Admin tooling | ✅ | Finance KPIs + CSV exports, payments-needing-review resolution, maker-checker payouts (threshold, off by default), users/suspend, audit log, tour unpublish/hold, admin cancel/refund, net earnings for organizers |
+| 3.12 Legacy action migration | 🟡 | All actions touched in Phase 3 follow §3.2. Remaining legacy: parts of `actions/vehicles.ts` getters, `actions/notifications.ts` reads, `/api/*` Bearer routes (D6) |
+| SEC-13 signed-in PII | ✅ | Owner-only base tables; `public_*` views, `organizer_traveler_contacts()`, `available_vehicles()` |
+
+**To apply (human):**
+1. Run `live-policy-audit.sql` on staging.
+2. `supabase db push` all `2026102*` migrations in order (staging first). Check the NOTICEs: corrected `booked_count` rows, ledger duplicates, schedules over capacity.
+3. Verify the `public_*` view embeds through PostgREST.
+4. Delete `lib/data/tours-fallback.ts`.
+5. Set Supabase Auth URLs and turn on "Confirm email".
+6. Verify the Resend domain.
+7. Ask existing partners to complete KYC.
+
 ---
 
 ### Phase 4: Legal, content and trust (≈1 week of engineering; external legal in parallel from Phase 0)
