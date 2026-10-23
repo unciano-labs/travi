@@ -174,7 +174,7 @@ export async function getCatalogPage(search: CatalogSearch, pageSize: number) {
   return { tours, total, page, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
-/** Unfiltered catalog slice (landing page, GET /api/tours). Newest tours first. */
+/** Unfiltered catalog slice (landing page). Newest tours first. */
 export async function getCachedPublicTours(offset = 0, limit = 6) {
   const safeLimit = Math.min(Math.max(Math.trunc(limit) || 6, 1), 48);
   const safeOffset = Math.max(Math.trunc(offset) || 0, 0);

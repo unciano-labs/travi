@@ -186,6 +186,8 @@ export async function POST(request: NextRequest) {
 
 ## 3. API Endpoints
 
+> **Not implemented at launch (decision D6).** The web app uses Server Actions, not these routes. The early Bearer-token routes (`/api/bookings`, `/api/tours`, `/api/organizers`, `/api/profile`) were removed before launch and will come back as a versioned mobile API post-launch. The only live route handlers are `/api/webhooks/paymongo`, `/api/cron/*` and `/api/admin/export/[kind]`. This table is the original spec.
+
 ### Auth
 | Method | Route | Description | Auth |
 |---|---|---|---|

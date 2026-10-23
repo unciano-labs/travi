@@ -32,7 +32,7 @@ export async function createBookingService(
   supabase: SupabaseClient,
   travelerProfileId: string,
   validatedData: z.infer<typeof createBookingSchema>,
-  // The authenticated traveler (from requireSession / verifyApiAuth), for the BIZ-12 gate.
+  // The authenticated traveler (from requireSession), for the BIZ-12 gate.
   traveler: { email_confirmed_at?: string | null }
 ) {
   // BIZ-12: only travelers with a verified email can book (every entry point goes through here).
