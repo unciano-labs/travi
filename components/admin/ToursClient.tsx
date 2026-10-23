@@ -13,6 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import TourModerationActions, { type ModeratedTour } from '@/components/admin/TourModerationActions';
 
 interface Tour {
   id: string;
@@ -23,6 +25,8 @@ interface Tour {
   price_per_person: number;
   duration_days: number;
   status: 'draft' | 'published' | 'archived';
+  admin_hold_at?: string | null;
+  admin_hold_reason?: string | null;
   cover_image_url: string | null;
   created_at: string;
   organizer_profiles: {
@@ -57,6 +61,18 @@ export default function ToursClient({ initialTours }: ToursClientProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const [selectedSchedulesTour, setSelectedSchedulesTour] = useState<Tour | null>(null);
+  const [moderationError, setModerationError] = useState<string | null>(null);
+
+  const patchTour = (id: string, changes: Partial<ModeratedTour>) => {
+    setModerationError(null);
+    setTours((prev) => prev.map((t) => (t.id === id ? { ...t, ...changes } : t)));
+    setSelectedTour((t) => (t && t.id === id ? { ...t, ...changes } : t));
+  };
+  const moderation = (tour: Tour, size: 'xs' | 'sm' = 'xs') => (
+    <TourModerationActions tour={tour} size={size} onChange={patchTour} onError={setModerationError} />
+  );
+  const holdBadge = (tour: Tour) =>
+    tour.admin_hold_at ? <Badge variant="lightError" className="ml-1" title={tour.admin_hold_reason ?? undefined}>admin hold</Badge> : null;
 
   // Filter logic
   const filtered = tours.filter((tour) => {
@@ -80,6 +96,15 @@ export default function ToursClient({ initialTours }: ToursClientProps) {
         title="Manage Tours"
         breadcrumbs={[{ title: 'Admin', href: '/admin' }, { title: 'Tours' }]}
       />
+
+      {moderationError && (
+        <Alert variant="lighterror" className="mb-4">
+          <AlertDescription className="flex items-center justify-between gap-4">
+            <span>{moderationError}</span>
+            <Button type="button" variant="ghost" size="xs" onClick={() => setModerationError(null)}>Dismiss</Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <CardBox className="p-0 gap-0 overflow-hidden">
         <div className="px-6 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -117,7 +142,7 @@ export default function ToursClient({ initialTours }: ToursClientProps) {
                   onClick={() => setSelectedTour(tour)}
                   headerTitle={<div className="flex items-center gap-2"><div className="w-6 h-6 rounded bg-muted flex items-center justify-center overflow-hidden shrink-0 border border-border">{tour.cover_image_url ? <img src={tour.cover_image_url} alt="" className="w-full h-full object-cover" /> : <ImageIcon className="w-3 h-3 text-muted-foreground" />}</div><span className="line-clamp-1">{tour.title}</span></div>}
                   headerSubtitle={tour.organizer_profiles?.company_name || tour.organizer_profiles?.display_name || 'Unknown Organizer'}
-                  headerBadge={<StatusBadge status={tour.status} />}
+                  headerBadge={<><StatusBadge status={tour.status} />{holdBadge(tour)}</>}
                   rows={[
                     {
                       label: 'Location',
@@ -148,14 +173,17 @@ export default function ToursClient({ initialTours }: ToursClientProps) {
                     }
                   ]}
                   actions={
-                    <Button
-                      type="button"
-                      variant="lightprimary"
-                      size="xs"
-                      onClick={(e) => { e.stopPropagation(); setSelectedTour(tour); }}
-                    >
-                      View Details
-                    </Button>
+                    <>
+                      {moderation(tour)}
+                      <Button
+                        type="button"
+                        variant="lightprimary"
+                        size="xs"
+                        onClick={(e) => { e.stopPropagation(); setSelectedTour(tour); }}
+                      >
+                        View Details
+                      </Button>
+                    </>
                   }
                 />
               ))}
@@ -219,11 +247,15 @@ export default function ToursClient({ initialTours }: ToursClientProps) {
                       </TableCell>
                       <TableCell className="px-6">
                         <StatusBadge status={tour.status} />
+                        {holdBadge(tour)}
                       </TableCell>
                       <TableCell className="px-6 text-right">
-                        <Button type="button" variant="lightprimary" size="xs" onClick={() => setSelectedTour(tour)}>
-                          View Details
-                        </Button>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {moderation(tour)}
+                          <Button type="button" variant="lightprimary" size="xs" onClick={() => setSelectedTour(tour)}>
+                            View Details
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -321,6 +353,15 @@ export default function ToursClient({ initialTours }: ToursClientProps) {
                 </div>
               </div>
 
+              {selectedTour.admin_hold_at && (
+                <Alert variant="lighterror">
+                  <AlertDescription>
+                    Unpublished by an admin on {new Date(selectedTour.admin_hold_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.
+                    {selectedTour.admin_hold_reason ? ` Reason: ${selectedTour.admin_hold_reason}` : ''}
+                  </AlertDescription>
+                </Alert>
+              )}
+
               {/* Description */}
               <div>
                 <h3 className="text-sm font-semibold text-foreground mb-2">Tour Description</h3>
@@ -332,6 +373,7 @@ export default function ToursClient({ initialTours }: ToursClientProps) {
 
             {/* Footer */}
             <DialogFooter className="mt-0 px-6 py-4 border-t border-border bg-muted/50">
+              {moderation(selectedTour, 'sm')}
               <Button type="button" variant="neutral" onClick={() => setSelectedTour(null)}>
                 Close
               </Button>

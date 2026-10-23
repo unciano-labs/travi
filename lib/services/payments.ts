@@ -66,9 +66,9 @@ export async function applyPaidPayment(
       captureException(new Error(`Payment needs review: ${outcome}`), { action: 'applyPaidPayment', bookingId, outcome, source });
       await notifySuperAdmin(
         'Payment needs review',
-        `PayMongo payment ${payment.id} for booking ${bookingId}: ${outcome}. Refund or resolve it in PayMongo.`,
+        `PayMongo payment ${payment.id} for booking ${bookingId}: ${outcome}. Refund or resolve it in Admin > Finance.`,
         'payment_review',
-        '/admin/bookings'
+        '/admin/finance'
       );
     }
   }

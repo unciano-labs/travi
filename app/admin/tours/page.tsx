@@ -20,6 +20,8 @@ export default async function ToursPage() {
       price_per_person,
       duration_days,
       status,
+      admin_hold_at,
+      admin_hold_reason,
       cover_image_url,
       created_at,
       organizer_profiles (

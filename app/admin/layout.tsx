@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Users, Bus, Map, CreditCard, Star, Settings, Banknote, Bell
+  LayoutDashboard, Users, Bus, Map, CreditCard, Star, Settings, Banknote, Bell, UserCog, Landmark, Truck, ScrollText
 } from 'lucide-react';
 import AppShell from '@/components/shell/AppShell';
 import type { NavSection } from '@/components/shell/AppSidebar';
@@ -23,16 +23,22 @@ const sections: NavSection[] = [
     items: [
       { name: 'Tours', href: '/admin/tours', icon: Map },
       { name: 'Bookings', href: '/admin/bookings', icon: CreditCard },
+      { name: 'Transport', href: '/admin/transport', icon: Truck },
       { name: 'Reviews', href: '/admin/reviews', icon: Star },
     ],
   },
   {
     heading: 'Finance',
-    items: [{ name: 'Payouts', href: '/admin/payouts', icon: Banknote }],
+    items: [
+      { name: 'Finance', href: '/admin/finance', icon: Landmark },
+      { name: 'Payouts', href: '/admin/payouts', icon: Banknote },
+    ],
   },
   {
     heading: 'System',
     items: [
+      { name: 'Users', href: '/admin/users', icon: UserCog },
+      { name: 'Audit Log', href: '/admin/audit', icon: ScrollText },
       { name: 'Notifications', href: '/admin/notifications', icon: Bell },
       { name: 'Settings', href: '/admin/settings', icon: Settings },
     ],

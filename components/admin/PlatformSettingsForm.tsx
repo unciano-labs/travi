@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-export function PlatformSettingsForm({ initialSettings }: { initialSettings: any }) {
+export function PlatformSettingsForm({ initialSettings }: { initialSettings: Record<string, number | string | null | undefined> }) {
   const [isSaving, setIsSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -21,6 +21,10 @@ export function PlatformSettingsForm({ initialSettings }: { initialSettings: any
     escrow_holding_days: Number(initialSettings?.escrow_holding_days ?? 3),
     min_payout_amount: Number(initialSettings?.min_payout_amount ?? 100),
   });
+  // Maker-checker threshold (₱). Empty = off (NULL in the database).
+  const [threshold, setThreshold] = useState<string>(
+    initialSettings?.payout_dual_approval_threshold == null ? '' : String(initialSettings.payout_dual_approval_threshold)
+  );
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({ ...prev, [e.target.name]: Number(e.target.value) }));
@@ -34,7 +38,11 @@ export function PlatformSettingsForm({ initialSettings }: { initialSettings: any
     setErrorMsg('');
     setSuccess(false);
 
-    const res = await updatePlatformSettings(formData);
+    const trimmed = threshold.trim();
+    const res = await updatePlatformSettings({
+      ...formData,
+      payout_dual_approval_threshold: trimmed === '' ? null : Number(trimmed),
+    });
     if (res.success) {
       setSuccess(true);
     } else {
@@ -105,6 +113,27 @@ export function PlatformSettingsForm({ initialSettings }: { initialSettings: any
               onChange={handleChange}
             />
             <p className="text-xs text-muted-foreground">Smallest withdrawal a partner can request.</p>
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="payout_dual_approval_threshold">Two-admin payout approval from (₱)</Label>
+            <Input
+              id="payout_dual_approval_threshold"
+              type="number"
+              name="payout_dual_approval_threshold"
+              step="0.01"
+              min="1"
+              placeholder="Off"
+              value={threshold}
+              onChange={(e) => {
+                setThreshold(e.target.value);
+                setSuccess(false);
+                setErrorMsg('');
+              }}
+              aria-describedby="payout_dual_approval_threshold_hint"
+            />
+            <p id="payout_dual_approval_threshold_hint" className="text-xs text-muted-foreground">
+              Payouts of this amount or more must be approved by one admin and marked paid by a different admin. Leave empty to turn this off.
+            </p>
           </div>
         </div>
 
