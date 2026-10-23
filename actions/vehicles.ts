@@ -303,6 +303,8 @@ export async function getAvailableVehicles(startDate: string, endDate: string, r
     const { data: blocks, error: bError } = await supabase
       .from('vehicle_availability')
       .select('vehicle_id')
+      .in('status', ['booked', 'blocked'])
+      .is('deleted_at', null) // released (canceled/declined) bookings and removed blocks are soft-deleted
       .lte('start_date', endDate)
       .gte('end_date', startDate);
 

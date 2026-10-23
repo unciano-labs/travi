@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Truck, Search, CheckCircle, Clock, MapPin, Heart, AlertCircle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -10,8 +10,10 @@ import { Label } from '@/components/ui/label';
 import EmptyState from '@/components/ui/EmptyState';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getAvailableVehicles, toggleFavoriteVehicle } from '@/actions/vehicles';
-import { sendTransportRequest } from '@/actions/transport-requests';
+import { cancelTransportRequest, sendTransportRequest } from '@/actions/transport-requests';
 import { useRouter } from 'next/navigation';
+import { formatBusinessDate, formatManilaDateTime } from '@/lib/datetime';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 interface Vehicle {
   id: string;
@@ -35,8 +37,15 @@ interface TransportRequestModalProps {
   startDate: string;
   endDate: string;
   capacity: number;
-  existingRequest?: any;
+  existingRequest?: {
+    id: string;
+    status: string;
+    pickup_datetime?: string | null;
+    vehicle?: { name?: string | null } | null;
+  } | null;
 }
+
+export type ExistingTransportRequest = NonNullable<TransportRequestModalProps['existingRequest']>;
 
 export default function TransportRequestModal({
   isOpen,
@@ -55,27 +64,25 @@ export default function TransportRequestModal({
   const [pickupLocation, setPickupLocation] = useState('');
   const [dropoffLocation, setDropoffLocation] = useState('');
   const [pickupTime, setPickupTime] = useState('08:00');
+  const [returnTime, setReturnTime] = useState('17:00');
   
   const [submitting, setSubmitting] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const router = useRouter();
 
-  useEffect(() => {
-    if (isOpen && !existingRequest) {
-      loadVehicles();
-    }
-  }, [isOpen, existingRequest, startDate, endDate, capacity]);
-
-  async function loadVehicles() {
+  const loadVehicles = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await getAvailableVehicles(startDate, endDate, capacity);
       
       // Normalize transporter field from array to object if necessary
-      const normalizedData = data.map((v: any) => ({
+      const normalizedData = data.map((v) => ({
         ...v,
         transporter: Array.isArray(v.transporter) ? v.transporter[0] : v.transporter
-      }));
+      })) as unknown as Vehicle[];
       
       // Sort favorites first
       normalizedData.sort((a, b) => {
@@ -84,12 +91,19 @@ export default function TransportRequestModal({
         return 0;
       });
       
-      setVehicles(normalizedData as Vehicle[]);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch vehicles');
+      setVehicles(normalizedData);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch vehicles');
     }
     setLoading(false);
-  };
+  }, [startDate, endDate, capacity]);
+
+  useEffect(() => {
+    if (!isOpen || existingRequest) return;
+    // Deferred so the loading state is not set synchronously inside the effect.
+    const timer = setTimeout(() => void loadVehicles(), 0);
+    return () => clearTimeout(timer);
+  }, [isOpen, existingRequest, loadVehicles]);
 
   const handleToggleFavorite = async (e: React.MouseEvent, vehicleId: string) => {
     e.stopPropagation();
@@ -122,8 +136,8 @@ export default function TransportRequestModal({
           return 0;
         });
       });
-    } catch (err: any) {
-      setError(err.message || 'Failed to toggle favorite');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to toggle favorite');
       // Revert if error
       loadVehicles();
     }
@@ -138,26 +152,44 @@ export default function TransportRequestModal({
 
     setSubmitting(true);
     setError(null);
-    
-    const formData = new FormData();
-    formData.append('tourScheduleId', tourScheduleId);
-    formData.append('vehicleId', selectedVehicle);
-    formData.append('transporterId', vehicles.find(v => v.id === selectedVehicle)?.transporter_id || '');
-    formData.append('pickupLocation', pickupLocation);
-    formData.append('dropoffLocation', dropoffLocation);
-    formData.append('pickupDatetime', `${startDate}T${pickupTime}:00`);
-    formData.append('returnDatetime', `${endDate}T17:00:00`); // Default return time
-    formData.append('seatsRequired', capacity.toString());
 
-    const res = await sendTransportRequest(formData);
+    // Times are Manila wall-clock times; the server builds the timestamps from the schedule dates.
+    const res = await sendTransportRequest({
+      tourScheduleId,
+      vehicleId: selectedVehicle,
+      pickupLocation,
+      dropoffLocation,
+      pickupTime,
+      returnTime,
+    });
     
-    if (res?.error) {
+    if (!res.success) {
       setError(res.error);
       setSubmitting(false);
+      if (res.code === 'CONFLICT') {
+        // The vehicle was taken in the meantime: refresh the list of free vehicles.
+        setSelectedVehicle(null);
+        loadVehicles();
+      }
     } else {
       router.refresh();
       onClose();
       setSubmitting(false);
+    }
+  };
+
+  const handleCancelRequest = async () => {
+    if (!existingRequest) return;
+    setConfirmCancel(false);
+    setCanceling(true);
+    setCancelError(null);
+    const res = await cancelTransportRequest(existingRequest.id);
+    setCanceling(false);
+    if (res.success) {
+      router.refresh();
+      onClose();
+    } else {
+      setCancelError(res.error);
     }
   };
 
@@ -169,7 +201,7 @@ export default function TransportRequestModal({
         <DialogHeader className="px-6 py-5 border-b border-border bg-muted/50">
           <DialogTitle className="text-xl">Transport Request</DialogTitle>
           <DialogDescription>
-            For schedule: {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
+            For schedule: {formatBusinessDate(startDate)} to {formatBusinessDate(endDate)}
           </DialogDescription>
         </DialogHeader>
 
@@ -186,6 +218,30 @@ export default function TransportRequestModal({
                 {existingRequest.status === 'pending' && ' Waiting for the transporter to accept.'}
                 {existingRequest.status === 'accepted' && ' The transporter has accepted! Your vehicle is secured.'}
               </p>
+              {existingRequest.pickup_datetime && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {existingRequest.vehicle?.name ? `${existingRequest.vehicle.name} · ` : ''}
+                  Pickup {formatManilaDateTime(existingRequest.pickup_datetime)} (Manila time)
+                </p>
+              )}
+              {cancelError && (
+                <Alert variant="lighterror" className="mx-auto mt-4 max-w-md text-left">
+                  <AlertCircle />
+                  <AlertDescription className="font-medium">{cancelError}</AlertDescription>
+                </Alert>
+              )}
+              {(existingRequest.status === 'pending' || existingRequest.status === 'accepted') && (
+                <Button
+                  type="button"
+                  variant="lighterror"
+                  className="mt-6"
+                  onClick={() => setConfirmCancel(true)}
+                  disabled={canceling}
+                >
+                  {canceling && <Loader2 className="animate-spin" />}
+                  Cancel transport request
+                </Button>
+              )}
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-8">
@@ -211,8 +267,12 @@ export default function TransportRequestModal({
                     <Input id="transport-dropoff-location" type="text" required value={dropoffLocation} onChange={e => setDropoffLocation(e.target.value)} placeholder="e.g., Hotel Name" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="transport-pickup-time">Pickup Time (on {new Date(startDate).toLocaleDateString()})</Label>
+                    <Label htmlFor="transport-pickup-time">Pickup time on {formatBusinessDate(startDate)} (Manila)</Label>
                     <Input id="transport-pickup-time" type="time" required value={pickupTime} onChange={e => setPickupTime(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="transport-return-time">Return time on {formatBusinessDate(endDate)} (Manila)</Label>
+                    <Input id="transport-return-time" type="time" required value={returnTime} onChange={e => setReturnTime(e.target.value)} />
                   </div>
                 </div>
               </div>
@@ -295,6 +355,20 @@ export default function TransportRequestModal({
           )}
         </div>
       </DialogContent>
+      <ConfirmModal
+        isOpen={confirmCancel}
+        title="Cancel this transport request?"
+        message={
+          existingRequest?.status === 'accepted'
+            ? 'The transporter will be notified and the vehicle dates will be released. You can request another vehicle afterwards.'
+            : 'The transporter will be notified. You can request another vehicle afterwards.'
+        }
+        confirmText="Cancel request"
+        cancelText="Keep request"
+        isDestructive
+        onCancel={() => setConfirmCancel(false)}
+        onConfirm={handleCancelRequest}
+      />
     </Dialog>
   );
 }

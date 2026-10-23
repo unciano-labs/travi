@@ -21,6 +21,7 @@ import {
   newBookingOrganizerEmail,
   partnerAccountStatusEmail,
   paymentNeedsReviewEmail,
+  transportRequestCanceledEmail,
   transportRequestEmail,
   transportRequestStatusEmail,
   tripReminderEmail,
@@ -486,6 +487,32 @@ export async function notifyOrganizerOfStatusChange(
     );
   } catch (error: unknown) {
     captureException(error, { action: 'notifyOrganizerOfStatusChange', organizerId });
+  }
+}
+
+/** Organizer canceled a pending or accepted transport request (BIZ-24), to the transporter. */
+export async function notifyTransporterOfCancellation(
+  transporterId: string,
+  input: { organizerName: string; tourTitle?: string | null; startDate: string; endDate?: string | null; wasAccepted: boolean }
+): Promise<void> {
+  try {
+    const transporter = await loadPartner('transporter_profiles', transporterId);
+    if (!transporter) return;
+    const path = '/dashboard/transporter/requests';
+    await deliver(
+      transporter,
+      {
+        title: 'Transport Request Canceled',
+        message: input.wasAccepted
+          ? `${input.organizerName} canceled an accepted transport booking for ${formatDate(input.startDate)}. The dates were released.`
+          : `${input.organizerName} canceled their transport request for ${formatDate(input.startDate)}.`,
+        type: 'transport_canceled',
+        link: path,
+      },
+      transportRequestCanceledEmail({ transporterName: transporter.name, ...input, requestsUrl: siteUrl(path) })
+    );
+  } catch (error: unknown) {
+    captureException(error, { action: 'notifyTransporterOfCancellation', transporterId });
   }
 }
 

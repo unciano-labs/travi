@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import TransportRequestModal from './TransportRequestModal';
+import TransportRequestModal, { type ExistingTransportRequest } from './TransportRequestModal';
 import { Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -17,7 +17,7 @@ export default function TransportManager({
   startDate: string;
   endDate: string;
   capacity: number;
-  existingRequest?: any;
+  existingRequest?: ExistingTransportRequest | null;
   transportType: string;
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);

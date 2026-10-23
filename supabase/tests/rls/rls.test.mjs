@@ -95,13 +95,13 @@ describe('transport bookings', () => {
     assert.equal(r.verified.estimated_price, null);
   });
 
-  test('a transporter can accept and then complete a request', async () => {
+  // Completion is date-gated since 20261025110000 (see transport.test.mjs for accept → complete).
+  test('a transporter can accept a request', async () => {
     const r = await attempt(db, as('X'), async (d) => {
       await d.query(`UPDATE transport_bookings SET status = 'accepted' WHERE id = $1`, [TB1]);
-      await d.query(`UPDATE transport_bookings SET status = 'completed' WHERE id = $1`, [TB1]);
     }, tb);
     assert.equal(r.error, null);
-    assert.equal(r.verified.status, 'completed');
+    assert.equal(r.verified.status, 'accepted');
   });
 
   test('a transporter cannot skip from pending to completed', { skip: BASELINE }, async () => {
