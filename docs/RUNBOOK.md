@@ -26,7 +26,7 @@
 
 ## 2. Deploy flow (staging → production)
 
-1. **PR green:** `npm run lint`, `npx tsc --noEmit`, `npm run build`, `npm run test:rls`, `npm run test:e2e`. `npm run test:qa` against staging.
+1. **PR green:** `npm run lint`, `npx tsc --noEmit`, `npm run test:unit`, `npm run build`, `npm run test:rls`, `npm run test:e2e` (CI runs all but e2e and `test:qa` automatically). `npm run test:qa` against staging.
 2. **Merge to the staging branch.** Vercel deploys the preview/staging build.
 3. **Apply new migrations to staging** (section 3) before or together with the code that needs them.
 4. **Smoke-test staging:** `/api/health` returns `{"status":"ok"}`; sign up, book, pay in PayMongo **test** mode (GCash/Maya), webhook received (Vercel logs), admin sign-in with MFA, approve a partner, request + reject a payout. Check the browser console for CSP violations on `/`, `/tours`, a tour page, `/dashboard/organizer/tours/new` (map) and `/admin`.
@@ -51,6 +51,7 @@ Migrations live in `supabase/migrations/` and are applied **in filename order**.
      Then `select * from wallet_ledger_drift();` must return no rows that are not explained by legacy history (record any that are).
    - Catalog (Phase 3): verify the `public_*` view embeds through PostgREST, then delete `lib/data/tours-fallback.ts`.
    - Auth (Phase 3): Supabase Auth → URL configuration (site URL + `/auth/callback` redirect), "Confirm email" ON, Resend domain verified.
+   - Legal (Phase 4, `20261026090000_legal_consent_privacy_support.sql`): **apply before deploying the Phase 4 code.** Checkout and partner onboarding refuse to continue when `legal_acceptances` is missing. No data steps. Before go-live, fill `lib/legal/company.ts` (business identity, DPO, support contacts, retention, effective dates) and set `LEGAL_REVIEW_COMPLETE = true` only after counsel signs off. Make the support and DPO mailboxes real.
    - OTP (Phase 5.7, `20261026100000_otp_challenges.sql`): no data steps. Old `otp_pending_*`/`otp_verified_*` cookies are ignored; users with a code in flight just request a new one.
    - Admin MFA (Phase 5.6): Supabase Auth → Multi-Factor → TOTP **enabled** (default). Every admin enrols on next sign-in.
 5. **Regenerate types:** `npx supabase gen types typescript --project-id <ref> > types/supabase.ts`, commit.

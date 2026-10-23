@@ -75,13 +75,13 @@ export interface LegalDocumentMeta {
  * which version each user accepted.)
  */
 export const LEGAL_DOCUMENTS: Record<LegalDocumentKey, LegalDocumentMeta> = {
-  terms: { title: 'Terms of Service', path: '/terms', version: '0.1-draft', lastUpdated: '2026-10-26', effectiveDate: null },
-  privacy: { title: 'Privacy Notice', path: '/privacy', version: '0.1-draft', lastUpdated: '2026-10-26', effectiveDate: null },
-  refundPolicy: { title: 'Refund & Cancellation Policy', path: '/refund-policy', version: '0.1-draft', lastUpdated: '2026-10-26', effectiveDate: null },
-  cookies: { title: 'Cookie Policy', path: '/cookies', version: '0.1-draft', lastUpdated: '2026-10-26', effectiveDate: null },
-  partnerTerms: { title: 'Partner Terms', path: '/partner-terms', version: '0.1-draft', lastUpdated: '2026-10-26', effectiveDate: null },
+  terms: { title: 'Terms of Service', path: '/terms', version: '0.1-draft', lastUpdated: '2026-10-24', effectiveDate: null },
+  privacy: { title: 'Privacy Notice', path: '/privacy', version: '0.1-draft', lastUpdated: '2026-10-24', effectiveDate: null },
+  refundPolicy: { title: 'Refund & Cancellation Policy', path: '/refund-policy', version: '0.1-draft', lastUpdated: '2026-10-24', effectiveDate: null },
+  cookies: { title: 'Cookie Policy', path: '/cookies', version: '0.1-draft', lastUpdated: '2026-10-24', effectiveDate: null },
+  partnerTerms: { title: 'Partner Terms', path: '/partner-terms', version: '0.1-draft', lastUpdated: '2026-10-24', effectiveDate: null },
   // The checkbox shown at payment: "I agree to the Terms of Service and the Refund & Cancellation Policy".
-  checkoutTerms: { title: 'Booking terms (checkout)', path: '/refund-policy', version: '0.1-draft', lastUpdated: '2026-10-26', effectiveDate: null },
+  checkoutTerms: { title: 'Booking terms (checkout)', path: '/refund-policy', version: '0.1-draft', lastUpdated: '2026-10-24', effectiveDate: null },
 };
 
 /** `legal_acceptances.document` values (DB CHECK) and the config entry each one records. */

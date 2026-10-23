@@ -12,7 +12,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 > **Single source of truth and operating manual for every AI agent working in this repo.**
 > If anything in `docs/`, `README.md`, or `.agents/skills/*` contradicts this file, **this file wins**. If this file contradicts the code or `supabase/migrations/`, **the code wins**: fix this file.
-> **Last updated:** 2026-10-24 (Phase 3 complete)
+> **Last updated:** 2026-10-24 (Phases 4–5 complete; Phase 6 is human launch work, see docs/RUNBOOK.md)
 
 ---
 
@@ -51,6 +51,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 | [docs/DATABASE.md](docs/DATABASE.md) | Original schema and business-rule spec | ⚠️ Stale; see §4.7 for where it is wrong |
 | [docs/API.md](docs/API.md) | Functional requirements and acceptance criteria | Spec / intent, not current behavior |
 | [docs/MVP_LAUNCH_READINESS.md](docs/MVP_LAUNCH_READINESS.md) | 2026-10-22 audit: full gap register (FIN/SEC/BIZ/ENG/OPS/LEG IDs), launch roadmap, go/no-go checklist, post-launch backlog | **Current launch plan.** Supersedes §6 where they differ |
+| [docs/RUNBOOK.md](docs/RUNBOOK.md) | Deploys, migration order, env checklist, admin bootstrap, MFA reset, PITR, incidents, RA 10173 breach procedure, manual payouts, reconciliation, monitoring | **Operational source of truth** |
 | [docs/TODO.md](docs/TODO.md), [docs/ARCHITECTURE_ROADMAP.md](docs/ARCHITECTURE_ROADMAP.md) | Backlog and roadmap | Planning |
 | [docs/ORGANIZER.md](docs/ORGANIZER.md), [docs/TRANSPORTER.md](docs/TRANSPORTER.md), [docs/TRAVELER.md](docs/TRAVELER.md) | Per-role feature specs | Spec |
 | [docs/PAYMENT_INTEGRATION.md](docs/PAYMENT_INTEGRATION.md), [docs/WALLET_IMPLEMENTATION.md](docs/WALLET_IMPLEMENTATION.md) | Payment and wallet design notes | Spec; see §4 for actual behavior |
@@ -78,7 +79,7 @@ A single account can hold several roles (traveler + organizer + transporter) and
 
 | Concern | Technology | Version | Notes |
 |---|---|---|---|
-| Framework | Next.js (App Router, Turbopack) | **16.3.8** | Not Next 14. Read `node_modules/next/dist/docs/` before using framework APIs |
+| Framework | Next.js (App Router, Turbopack) | **16.4.3** | Not Next 14. Read `node_modules/next/dist/docs/` before using framework APIs |
 | UI runtime | React / React DOM | **19.2.8** | |
 | Language | TypeScript | 5.9.3 | `strict: true`; path alias `@/*` → `./*` |
 | Styling | Tailwind CSS v4 (`@tailwindcss/postcss`) + `@tailwindcss/typography` + `tw-animate-css` | 4.3.3 / 1.4.0 | CSS-first config in `app/globals.css`; **no `tailwind.config.*`**. `tw-animate-css` powers the `data-[state]` animations of the UI primitives |
@@ -86,23 +87,24 @@ A single account can hold several roles (traveler + organizer + transporter) and
 | Charts | apexcharts 8.4.1 + react-apexcharts 2.1.1 | | Only through `components/ui/charts/*` (browser-only, `next/dynamic` `ssr: false`) |
 | Icons | lucide-react | 1.33.0 | The only icon set |
 | Database / Auth / Storage | Supabase (Postgres 14.5 PostgREST) via `@supabase/ssr` 0.12.4 and `@supabase/supabase-js` 2.112.3 | | Cookie sessions; RLS on every table |
-| Validation | zod | **4.4.3** | v4: use `error.issues`, not `error.errors` |
-| Payments | PayMongo REST (hand-written client in `lib/paymongo.ts`) | | `stripe` / `@stripe/stripe-js` are installed but **unused** |
+| Validation | zod | **4.6.7** | v4: use `error.issues`, not `error.errors` |
+| Payments | PayMongo REST (hand-written client in `lib/paymongo.ts`) | | No Stripe |
 | Email | Resend | 6.25.0 | Logs to the console when `RESEND_API_KEY` is unset |
 | SMS | `lib/sms.ts` | | **Console mock only** |
-| OTP tokens | jose (HS256 JWT in httpOnly cookies) | 6.2.10 | |
+| OTP | Server-side hashed codes in `otp_challenges` (`lib/otp.ts`) | | jose 6.2.10 is still used by `lib/password-recovery.ts` and `lib/admin-mfa.ts` |
+| Admin MFA | Supabase Auth TOTP (`aal2`) | | `lib/admin-mfa.ts`, `/admin/mfa/{enroll,verify}` |
 | Rate limiting | `@upstash/ratelimit` + `@upstash/redis` | 2.0.8 | Turns itself off when Upstash env vars are missing |
-| Logging / monitoring | pino 10.3.1 (+ pino-pretty in dev), `@sentry/nextjs` 10.71.0, `@vercel/analytics` | | |
+| Logging / monitoring | pino 10.3.1 (+ pino-pretty in dev), `@sentry/nextjs` 10.76.2, `@vercel/analytics` | | Sentry loads via `instrumentation.ts` / `instrumentation-client.ts`; every event is scrubbed by `lib/sentry-scrub.ts`. Health check: `GET /api/health` | |
 | Dates / calendars | date-fns 4.4.0, react-big-calendar, react-day-picker 10 | | |
 | Maps | leaflet 1.9.4 + react-leaflet 5.0.0 | | Always loaded through `next/dynamic` with `ssr: false` |
 | Markdown | react-markdown | | |
-| State management | **None.** RSC props plus local `useState` | | `@tanstack/react-query`, `react-hook-form`, `@hookform/resolvers` are installed but **never imported** |
+| State management | **None.** RSC props plus local `useState` | | |
 | Unit tests | vitest (dev) | 4.1.11 | `tests/unit/*.test.ts`, `vitest.config.mts` (`@/` alias, runs with `TZ=America/New_York` to catch time-zone leaks) |
 | E2E tests | Playwright (`@playwright/test`) | 1.62.1 | Chromium only. Projects: `chromium` (signed out), `auth-setup` + `authenticated` (staging only, see `e2e/README.md`) |
 | CI | GitHub Actions (`.github/workflows/ci.yml`) | | Lint, tsc, unit, RLS, build on every PR and on pushes to `main`; e2e job only when the `E2E_SUPABASE_*` repo secrets exist |
 | RLS tests | `node:test` + PGlite (`@electric-sql/pglite`, dev) | 0.3.16 | In-process Postgres; replays every migration with Supabase stubs (`supabase/tests/rls/`) |
 | Smoke / QA tests | `scripts/qa-smoke-test.ts` run with `tsx` | | Runs against the live DB |
-| Lint | ESLint 9 (flat config) + `eslint-config-next` 16.3.8 | 9.39.5 | No Prettier, no EditorConfig |
+| Lint | ESLint 9 (flat config) + `eslint-config-next` 16.4.3 | 9.39.5 | No Prettier, no EditorConfig |
 | Hosting | Vercel | | `vercel.json` defines the cron schedules (`/api/cron/escrow-release` 18:00 UTC, `/api/cron/trip-reminders` 01:00 UTC) |
 | Local toolchain | Node v24.15.0, npm 11.12.1 (the lockfile is npm) | | `package.json` has no `engines` field |
 
@@ -166,12 +168,12 @@ travi/
 │   │   ├── organizer/       # layout.tsx (server: onboarding gate + status banner), tours (new, [id]/edit, [id]/schedules/[scheduleId]), bookings, transport, wallet, profile
 │   │   └── transporter/     # layout.tsx (server: onboarding gate), vehicles, availability, requests, reviews, wallet, profile
 │   ├── admin/               # Admin console: organizers, transporters (KYC review), tours, bookings, reviews, payouts, finance, users, transport, audit, requests (data requests + support inbox), notifications, settings, login
-│   ├── api/                 # Route handlers: cron/{escrow-release,trip-reminders}, webhooks/paymongo, admin/export/[kind] (CSV). No Bearer/mobile API (D6)
+│   ├── api/                 # Route handlers: cron/{escrow-release,trip-reminders}, webhooks/paymongo, admin/export/[kind] (CSV), health (public, uncached). No Bearer/mobile API (D6)
 │   ├── terms/, privacy/, refund-policy/, cookies/, partner-terms/   # Policy pages (LegalPage; draft banner until LEGAL_REVIEW_COMPLETE)
 │   ├── about/, faq/, contact/   # Trust pages; /contact posts to actions/support.ts
 │   ├── robots.ts, sitemap.ts, not-found.tsx, global-error.tsx
 ├── actions/                 # ALL Server Actions. One kebab-case file per domain noun; each starts with 'use server'
-│                            # admin, auth, availability, bookings, notifications, organizer, otp, partner-documents, partner-review,
+│                            # admin, admin-mfa, auth, availability, bookings, notifications, organizer, otp, partner-documents, partner-review,
 │                            # privacy, profile, reviews, schedules, support, tours, transport-requests, transporter, vehicles, wallet
 ├── components/
 │   ├── admin/               # Admin *Client.tsx tables (incl. Users/Finance/PaymentsReview/Transport/Audit/Requests), PartnerReviewPanel, InputDialog, AdminPager, TourModerationActions, AdminCancelBookingDialog, AdminNotificationBell, AdminProfileMenu, PlatformSettingsForm
@@ -189,7 +191,9 @@ travi/
 │   └── wallet/              # PayoutMethodsManager
 ├── lib/
 │   ├── supabase/            # server.ts (cookie client), browser.ts, middleware.ts (updateSession + RBAC), admin.ts (service role)
-│   ├── auth-helpers.ts      # requireSession(), assertRole()   ← Server Actions / RSC
+│   ├── auth-helpers.ts      # requireSession(), assertRole() (admin ⇒ aal2), assertAdminRoleForMfa() (MFA steps only), assertEmailVerified()
+│   ├── admin-mfa.ts, admin-mfa-page.ts   # Admin TOTP state, paths, aal claim check
+│   ├── sentry-scrub.ts      # PII scrubbing for every Sentry event (dependency-free; used by all Sentry configs)
 │   ├── schemas/             # zod: admin, admin-tools, auth, booking, catalog (lenient query parsing), legal, partner, review, schedule, tour, transport
 │   ├── legal/               # company.ts (business facts, LEGAL_REVIEW_COMPLETE, document versions, retention: placeholders until filled),
 │   │                        # settings.ts (getPolicySettings, tag platform-settings), consent.ts (recordAcceptance; server-only), privacy.ts (data export)
@@ -210,7 +214,7 @@ travi/
 │   ├── password-recovery.ts # Signed httpOnly recovery-marker cookie (travi_pw_recovery) for /auth/reset-password
 │   ├── safe-next.ts         # safeNextPath(): only same-site relative return-to paths
 │   ├── features.ts          # Feature flags (PHONE_OTP_ENABLED = false, decision D5)
-│   ├── otp.ts               # OTP issue/verify/require/consume helpers. Not Server Actions
+│   ├── otp.ts               # OTP send/verify/redeem/require/consume (hashed codes in otp_challenges). Not Server Actions
 │   ├── json-ld.ts           # serializeJsonLd(): escapes </script> etc. for JSON-LD
 │   ├── datetime.ts          # manilaToday(): business dates are Asia/Manila
 │   ├── utils.ts             # cn(): clsx + tailwind-merge
@@ -223,11 +227,13 @@ travi/
 ├── .github/workflows/ci.yml # CI pipeline
 ├── scripts/                 # Seed, fix, and QA scripts (ESLint-ignored). qa-smoke-test.ts is the QA gate (read-only).
 │                            # Scripts that write call scripts/lib/write-guard.cjs: run with CONFIRM_DB_WRITE=<project-ref>
-├── docs/                    # Reference specs (see Quick Links)
+├── docs/                    # Reference specs (see Quick Links); docs/RUNBOOK.md is the operations runbook
 ├── reference/               # HTML mockups + mvp-architecture.md
 ├── public/                  # Static assets. public/dashboard/ holds the template's banner and sidebar illustrations
 ├── .agents/                 # Agent skills (§7) and rules
-├── sentry.{client,server,edge}.config.ts, next.config.ts (withSentryConfig), playwright.config.ts, eslint.config.mjs, postcss.config.mjs
+├── instrumentation.ts, instrumentation-client.ts, sentry.{server,edge}.config.ts   # Sentry wiring (onRequestError; browser init + zod jitless for the CSP)
+├── next.config.ts           # withSentryConfig + security headers / CSP (headers()), poweredByHeader off
+├── playwright.config.ts, vitest.config.mts, eslint.config.mjs, postcss.config.mjs
 └── Do NOT add root-level scratch files (the old ones are untracked and git-ignored). Put one-off scripts in scripts/ or your scratchpad.
 ```
 
@@ -278,7 +284,7 @@ export async function doThing(input: unknown) {
   try {
     const data = thingSchema.parse(input);                     // 1. Validate with zod (lib/schemas/*)
     const { user, profile, supabase } = await requireSession(); // 2. Authenticate
-    await assertRole(user.id, 'organizer');                     // 3. Authorize (role); admin passes every check
+    await assertRole(user.id, 'organizer');                     // 3. Authorize (role); admin passes every check (and must be aal2)
     await assertRateLimit(profile.id, 'mutation');              // 4. Rate-limit ('auth' + getClientIp() for login/signup)
     // 5. Ownership check: scope every write with .eq('<owner>_id', ownProfileId) or a !inner join
     // 6. Mutate with the RLS client; use createAdminClient({ admin: true }) only per §5.3
@@ -304,6 +310,7 @@ export async function doThing(input: unknown) {
 
 - Report errors with `captureException(error, { action: 'name', ...ids })` from `@/lib/logger`. It logs through pino and forwards to Sentry.
 - Use `logger.info / warn / debug` for structured logs.
+- Every Sentry event, breadcrumb and transaction passes through `lib/sentry-scrub.ts` (drops cookies, headers, bodies, query strings; filters emails, phones, long digit runs, JWTs, sensitive keys). Keep PII out of error messages anyway. Expected user errors (wrong OTP, `OtpError`) are not reported.
 - **Do not add new `console.log`.** The SMS dev mock in `lib/sms.ts` is the only one (it refuses to run in production); the email dev mock logs only the masked recipient and subject via pino.
 - **Emails:** build them with `lib/email-templates.ts` and send with `sendEmail` from `lib/email.ts`. No inline HTML in actions, no other Resend client, links from `siteUrl()`.
 - **Never log secrets, OTP codes, passwords, tokens, or full payment payloads.**
@@ -346,6 +353,7 @@ export async function doThing(input: unknown) {
   - The template's radius and shadow scale is **not** imported globally (it would change the landing page). Tailwind's defaults apply everywhere.
   - **No dark mode.** The template ships one; we did not port it. Do not add `dark:` variants piecemeal.
   - Do not add new arbitrary hex values; add a token instead.
+- **CSP:** `next.config.ts` sends a static allow-list CSP. A new third-party host (images, scripts, API, map tiles, video, form target) must be added there, or the browser blocks it. Check the console for CSP violations.
   - `animate-in` / `fade-in` / `zoom-in-95` etc. now work (`tw-animate-css`).
 - **Dashboard building blocks** (use these instead of hand-rolled markup):
   - Layout: `components/shell/AppShell` + `AppSidebar` (nav sections with headings, promo card, profile dropdown in the header). Add nav items in the `ROLE_NAV` / `sections` arrays of the two layouts.
@@ -607,6 +615,7 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
 - **Data subject rights (RA 10173):** the "Your data" card on every profile page downloads a JSON export of the caller's own data (`actions/privacy.ts`, service role with session-derived ids, audited) and files correction/deletion requests (`data_requests`). Admins work them at `/admin/requests` (status-guarded, audited, user notified). Deletion is manual: financial and booking records must be kept.
 - **Support / complaints:** `/contact` → `submitSupportMessage` (IP rate limit, honeypot) → `support_messages` + email to the support inbox (falls back to `ADMIN_EMAIL`) + super-admin notification. No acknowledgement goes to the typed address (anti-relay).
 - **Admin user management** (`/admin/users`): search, role add/remove (`modifyUserRole`; cannot remove your own or the last admin), suspend/unsuspend (`setUserSuspended`, Supabase ban; cannot suspend yourself or another admin; existing sessions last until token expiry).
+- **Admin MFA (SEC-12):** `loginAsAdmin` checks the password, then sends the admin to `/admin/mfa/enroll` (no TOTP factor yet) or `/admin/mfa/verify`. Middleware requires an `aal2` session on every `/admin/*` page except login and the MFA pages; `assertRole` requires `aal2` whenever the check passes because of the admin role (verified via `getClaims()`). `ADMIN_MFA_REQUIRED` defaults to on in production and off elsewhere; `false` in production is break-glass only (RUNBOOK §6).
 - **Notifications:**
   - Rows are inserted with the service-role client and keyed by **auth user id**.
   - Only `notifications` is in the `supabase_realtime` publication; the bells subscribe through the browser client.
@@ -614,15 +623,14 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
   - Email goes through `sendEmail` (`lib/email.ts`, Resend) with templates from `lib/email-templates.ts`.
   - **Travelers** get in-app + email messages for: booking confirmed (receipt), payment needs review, booking canceled/refunded, dispute opened, dispute resolved, and a trip reminder 1–2 days before departure (`/api/cron/trip-reminders`, daily 09:00 Manila). Send-once bookkeeping: `booking_notifications_sent` (unique booking/kind/dedupe key; service role only); due list: `bookings_due_for_trip_reminder()`.
 - **OTP** (`lib/otp.ts`; only the payout-method wrappers `sendPayoutOtp`/`verifyPayoutOtp` are Server Actions in `actions/otp.ts`):
-  - Stateless HS256 JWT cookies signed with `OTP_SECRET` (never the Supabase JWT secret):
-    - `otp_pending_<action>`: 10 minutes, holds the 6-digit code.
-    - `otp_verified_<action>`: 15 minutes.
-  - Tokens are bound to the signed-in user (`userId` claim checked on verify and on use) and carry only fixed claims (`newPhone`, `newEmail`).
-  - ⚠ The code is readable from its own cookie and there is no attempt limit (§6 #9; fix in Phase 5 of docs/MVP_LAUNCH_READINESS.md).
+  - Codes come from `crypto.randomInt` and are only emailed. The DB (`otp_challenges`, `20261026100000`, service role only) stores `HMAC-SHA256(OTP_SECRET, challengeId|userId|action|code)` bound to the user, action and target address. 10-minute expiry, 5 attempts, single use, max 5 codes per user and action per hour; a new code replaces the open one (`otp_issue`, `otp_attempt`, `otp_verified`).
+  - The browser holds only the opaque challenge id (httpOnly `otp_challenge_<action>`). Send and verify are rate-limited per user (`auth` limiter).
+  - Use `redeemOtp()` to verify and use up a code in one step, or `verifyOtp()` then `requireVerifiedOtp()` / `consumeVerifiedOtp()` (atomic; throws if already used). Consume **before** the protected write (e.g. `savePayoutMethod`), so one code authorizes exactly one change.
+  - Email change: the code goes to the **new** address, uniqueness is re-checked on confirm, and a notice goes to the old address.
   - Phone OTP is **hidden at launch** (`PHONE_OTP_ENABLED = false` in `lib/features.ts`, decision D5): the UI hides it and the phone actions refuse. Password change uses the email code only.
   - Actions: `add_payout_method`, `change_email`, `change_phone`, `change_password_email`, `change_password_phone`, `verify_email`.
   - Phone numbers must match PH format `^(\+63|0)9\d{9}$` and be unique.
-  - The `payout_otps` table is unused.
+  - The legacy `payout_otps` table is unused and locked down (no end-user policies or grants).
 
 ### 4.7 Schema drift and doc drift (read before touching the DB)
 
@@ -677,13 +685,14 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
 - **Server Actions and RSC:** `requireSession()` returns `{ user, profile, supabase }` and throws `'Unauthorized'`.
 - **`app/api/*`** has no user-facing Bearer API (removed, decision D6). The remaining handlers authenticate with the PayMongo HMAC, `CRON_SECRET`, or the admin's session (`/api/admin/export`). A future mobile API must forward the token to Supabase (`global: { headers: { Authorization } }`).
 - **Auth email links** (confirm signup, password reset) all land on `/auth/callback`.
+- **Admin sign-in is password + TOTP** (`aal2`; see §4.6 Admin MFA).
 - **Re-authentication for sensitive operations** (payout request, password change) uses `signInWithPassword`. **OTP** is required for adding payout methods and for changing email, phone, or password.
 
 ### 5.2 Authorization (RBAC): four layers, all required
 
 | Layer | Mechanism | Notes |
 |---|---|---|
-| 1. Middleware | `/admin/*` requires `admin` (else → `/admin/login`). `/dashboard/*` requires a user with a role; admins → `/admin`; a role mismatch → the primary role's dashboard. `/login` bounces signed-in users | Roles come from `user_roles ⋈ website_roles` filtered by `WEBSITE_ID`. **`/api/*` is NOT gated by middleware** |
+| 1. Middleware | `/admin/*` requires `admin` (else → `/admin/login`) and an `aal2` session (else → `/admin/mfa/*`). `/dashboard/*` requires a user with a role; admins → `/admin`; a role mismatch → the primary role's dashboard. `/login` bounces signed-in users | Roles come from `user_roles ⋈ website_roles` filtered by `WEBSITE_ID`. **`/api/*` is NOT gated by middleware** |
 | 2. Page / layout | Admin pages: `requireSession()` + `assertRole(user.id, 'admin')` | ⚠ `admin/bookings`, `admin/tours`, `admin/transporters` skip this. Add it when you touch them |
 | 3. Server Action / route | `assertRole(user.id, role)` (**admin passes every role check**), **plus an ownership check on the row** | Ownership is enforced with `.eq('organizer_id', …)`, `.eq('transporter_id', …)`, or `!inner` joins |
 | 4. Postgres RLS | Partner/vehicle/availability base tables are **owner + admin only** for signed-in users; others go through `public_organizer_profiles` / `public_transporter_profiles` / `public_vehicles` (contact fields only for accepted transport counterparties), `organizer_traveler_contacts()` (name; email only for confirmed bookings) and `available_vehicles()`. Admins have SELECT-only on `payout_requests`. Owner policies (definer helpers `current_*_profile_id()` or the `user_profiles.user_id = auth.uid()` subquery); inline admin `EXISTS` checks; `is_organizer_for_traveler()`. Server-owned columns guarded by triggers; `assign_self_role`/`booking_quote` RPCs. Anonymous users get column-limited SELECT on partner/vehicle tables. Tested by `npm run test:rls` | RLS is the last line of defense, **not** the only one |
@@ -732,7 +741,7 @@ Record the reason in a one-line comment at the call site.
 
 - **All runtime env vars are declared and validated in `lib/env.ts` (zod).** New code imports `env` from `@/lib/env`, not `process.env`.
   - When you add a variable, add it to the `envSchema` **and** to `.env.example` (name, comment, and a placeholder value only) in the same change.
-  - Some legacy modules still read `process.env` directly: `lib/email.ts`, `lib/notifications.ts`, `lib/data/*`, `lib/logger.ts`, `actions/bookings.ts`, `app/robots.ts`, `app/sitemap.ts`. (`NODE_ENV` reads are fine.)
+  - Sentry configs/instrumentation and `app/api/health` read `VERCEL_*` from `process.env` on purpose. Some legacy modules still read `process.env` directly: `lib/email.ts`, `lib/notifications.ts`, `lib/data/*`, `lib/logger.ts`, `actions/bookings.ts`, `app/robots.ts`, `app/sitemap.ts`. (`NODE_ENV` reads are fine.)
   - `.env.example` is committed and must stay in sync with `lib/env.ts`.
 - **`.env.local` is the real secrets file.** It is gitignored by `.env*`, and `!.env.example` is the only exception. **Never commit real values, and never print secrets in logs, test output, or chat.**
 - **Only `NEXT_PUBLIC_*` values may reach the browser.** Never prefix a secret with `NEXT_PUBLIC_`.
@@ -746,14 +755,16 @@ Record the reason in a one-line comment at the call site.
 | `WEBSITE_ID` | server | yes | Tenant scope for roles. Unset ⇒ unscoped role checks, and signup gets **no role** |
 | `ADMIN_EMAIL` | server | yes | Super-admin notification target. Unset ⇒ admin notifications are dropped |
 | `APP_ENV` | server | prod | `production` turns on the strict checks in `lib/env.ts` (falls back to Vercel's `VERCEL_ENV`). In production every secret in this table marked "yes (prod)" is **required at startup**, and `PAYMONGO_SECRET_KEY` must be `sk_live_` |
-| `OTP_SECRET` | **server secret** | **yes (prod)** | ≥32 chars. Signs OTP cookies. Must NOT be the Supabase JWT secret. Unset in dev ⇒ random key per server run |
+| `OTP_SECRET` | **server secret** | **yes (prod)** | ≥32 chars. HMAC key for OTP hashes; also the base of the (domain-separated) consent IP-hash key. Must NOT be the Supabase JWT secret. Unset in dev ⇒ random key per server run. Rotating it voids codes in flight and makes old IP hashes non-comparable |
+| `ADMIN_MFA_REQUIRED` | server | optional | `true`/`false`. Unset ⇒ on in production, off elsewhere. `false` in production is break-glass only |
 | `CRON_SECRET` | **server secret** | **yes (prod)** | ≥32 chars. Bearer for `/api/cron/escrow-release`. Unset ⇒ the endpoint **refuses every request** |
 | `PAYMONGO_SECRET_KEY` | **server secret** | **yes (prod)** | PayMongo API. Unset ⇒ **all payment verifications and refunds are mocked as successful** |
 | `PAYMONGO_WEBHOOK_SECRET` | **server secret** | **yes (prod)** | Verifies the `paymongo-signature` HMAC. Unset ⇒ the webhook returns 503 (fails closed) |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | **server secret** | yes (prod) | Rate limiting. Unset ⇒ rate limiting is **disabled** |
 | `RESEND_API_KEY` / `RESEND_FROM_EMAIL` | **server secret** / server | prod | Email. Unset ⇒ console mock |
 | `NEXT_PUBLIC_SITE_URL` | public | prod | Absolute URLs (checkout return, sitemap, robots). Fallbacks: `http://localhost:3000`, `https://travi.ph` |
-| `NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_DSN` | public / server | optional | Sentry is off when unset |
+| `NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_DSN` | public / server | recommended | Sentry is off when unset |
+| `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | build-time (token secret) | optional | Source-map upload (maps deleted from the output afterwards). Read only by `next.config.ts`, so not in `lib/env.ts` |
 | `LOG_LEVEL` | server | optional | pino level (`info` in prod, `debug` in dev) |
 | `PLAYWRIGHT_TEST_BASE_URL`, `PORT`, `CI` | test | optional | Playwright target (starts no server when set), local port, CI mode |
 | `E2E_{TRAVELER,ORGANIZER,TRANSPORTER,ADMIN}_{EMAIL,PASSWORD}`, `E2E_ALLOW_WRITES`, `E2E_TOUR_SLUG` | test (shell / CI secrets) | optional | Authenticated e2e against **staging only**; never in `.env.local`. CI also uses `E2E_SUPABASE_URL`, `E2E_SUPABASE_ANON_KEY`, `E2E_SUPABASE_SERVICE_ROLE_KEY`, `E2E_WEBSITE_ID` repo secrets |
@@ -766,6 +777,8 @@ Record the reason in a one-line comment at the call site.
   - `auth`: 5 requests / 10 s per IP (`getClientIp()`).
   - `mutation`: 10 requests / 10 s per `profile.id`.
   - **Required on:** every login, signup, and OTP send/verify action; every mutating action; every public form (the contact form uses `support:<ip>` on the auth limiter). Many legacy actions lack it; add it when you touch them.
+- **Security headers** (`next.config.ts`): CSP (static allow-list; `'unsafe-inline'` scripts because nonces would make every page dynamic; `'unsafe-eval'` only in dev), HSTS 2 years + includeSubDomains, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` + `frame-ancestors 'none'`, `Referrer-Policy: strict-origin-when-cross-origin`, restrictive `Permissions-Policy`, no `X-Powered-By`.
+- **Public endpoints without auth:** `/api/health` (status, DB ok/latency, short SHA, environment; never cached), `/api/webhooks/paymongo` (HMAC).
 - **CORS:** none is configured, so route handlers are same-origin by default. Do not add `Access-Control-Allow-Origin: *`. If mobile clients need CORS, allow-list explicit origins in the route handler.
 - **Webhooks:** must verify the PayMongo `paymongo-signature` HMAC with `PAYMONGO_WEBHOOK_SECRET` over the **raw body** before parsing (`verifyWebhookSignature`), must re-fetch money data from PayMongo's API instead of trusting the payload, must be idempotent (`webhook_events` + the money functions), and must return 2xx only after the work is durable. `app/api/webhooks/paymongo` follows all four.
 - **Cron:** must require `Authorization: Bearer ${CRON_SECRET}` (constant-time compare), fail closed when the secret is unset, and stay idempotent. Both `/api/cron/escrow-release` and `/api/cron/trip-reminders` do.
@@ -791,10 +804,9 @@ These are verified against the code on 2026-10-16. **Do not copy these patterns.
 
 ### Critical (security / money)
 
-2. **Phase 1–4 migrations are not applied to the live DB.** `20261023090000` … `20261026090000` (RLS hardening, money integrity, accounts, catalog, communications, reviews, partners/KYC/SEC-13, bookings, transport, admin, legal consent/data requests/support) are tested locally only. **Checkout and partner onboarding fail closed without `20261026090000`: do not deploy this code before it is applied** (`npm run test:rls`). Until they are pushed in order (after `live-policy-audit.sql`), the live project keeps every hole they close, and the new app code depends on them (fallbacks exist only for the catalog). The `public_*` view embeds still need a check against real PostgREST.
+2. **Phase 1–5 migrations are not applied to the live DB.** `20261023090000` … `20261026100000` (RLS hardening, money integrity, accounts, catalog, communications, reviews, partners/KYC/SEC-13, bookings, transport, admin, legal consent/data requests/support, OTP challenges) are tested locally only. Order and post-steps: docs/RUNBOOK.md §3. **Checkout and partner onboarding fail closed without `20261026090000`: do not deploy this code before it is applied** (`npm run test:rls`). Until they are pushed in order (after `live-policy-audit.sql`), the live project keeps every hole they close, and the new app code depends on them (fallbacks exist only for the catalog). The `public_*` view embeds still need a check against real PostgREST.
 3. **Phase 2 money migration not yet applied, and the FIN-01 backlog is not backfilled.** `20261023120000_money_integrity.sql` (atomic confirm/release/refund/payout functions, append-only ledger, webhook dedupe) is tested locally only. Until it is pushed and `scripts/backfill-escrow-deposits.ts --apply` has run, organizers paid through the old success page have no escrow deposit, and historical ledger rows (old `payment_hold`/`withdrawal_pending` signs) will show in `wallet_ledger_drift()`.
 7. **Payout destinations are stored in plaintext** (`user_wallets.saved_payout_methods`, `payout_requests.payout_method`; FIN-20). Maker-checker exists but is off until `payout_dual_approval_threshold` is set.
-9. **OTP weaknesses** (`lib/otp.ts`): the code sits in a signed but unencrypted cookie (readable by anyone holding the session), `Math.random` codes, and no attempt limit. Tokens are now bound to the user and carry only fixed claims.
 
 ### High
 
@@ -806,9 +818,10 @@ These are verified against the code on 2026-10-16. **Do not copy these patterns.
 17. **Duplicate migration timestamp `20260831000000`** (`add_saved_payout_methods` + `wallet_v2_architecture`). Renaming either file needs human approval, because it affects remote migration history.
 18. **`types/supabase.ts` is stale**, and there are columns with no migration (see §4.7).
 19. **No platform ledger:** platform revenue is derived from `wallet_transactions.fee_amount` (`admin_finance_summary`); refunds do not reverse fee revenue in the KPIs.
-20. **`confirmEmailChange` never verifies the NEW address** (`actions/profile.ts`): the code goes to the current email, then the new email is marked verified. Fix with the OTP rework (Phase 5.7).
-21. **Unused dependencies:** `stripe`, `@stripe/stripe-js`, `@tanstack/react-query`, `react-hook-form`, `@hookform/resolvers`. Also unused: the `payout_otps` table and the legacy `payments` table (replaced by `booking_payments`).
+21. **Unused tables:** `payout_otps` (locked down) and the legacy `payments` table (replaced by `booking_payments`).
+21a. **`npm audit`:** one moderate build-time advisory left (`postcss-selector-parser` via `@tailwindcss/typography`; the offered fix is a breaking downgrade). No critical/high in runtime dependencies as of 2026-10-24.
 22. **Legal text is a draft:** `lib/legal/company.ts` holds placeholders (registered name, DTI/SEC, TIN, address, DPO, support contacts, retention periods, effective dates), rendered as "(to be provided)". Counsel must review before `LEGAL_REVIEW_COMPLETE = true`. Partner Terms contains clauses not built yet (chargeback deduction, liability cap).
+23d. **Admin MFA flow untested end to end:** enrol/verify needs a real admin on staging (no test account was available). CSP is verified signed out only; check organizer (map, uploads) and admin (charts) pages on staging.
 23a. **Stub form:** the admin settings "Admin Profile" password form (`app/admin/settings/page.tsx`) persists nothing.
 23b. **Files over ~400 lines:** `TourForm.tsx` (465), `actions/transport-requests.ts`, `actions/admin.ts`, `lib/notifications.ts`, `lib/email-templates.ts` (~600) grew during Phases 3–4; split when next touched.
 23c. **Unauthenticated `support_messages` inserts through PostgREST** skip the action's IP rate limit (CHECKs bound sizes). If spam appears, insert with the service role and revoke anon INSERT.

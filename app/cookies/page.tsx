@@ -11,8 +11,7 @@ export const metadata = legalMetadata(
 // Vercel Analytics is cookieless. Reassess (and add a consent banner) before adding any marketing pixel.
 const COOKIES: [string, string, string][] = [
   ['sb-…-auth-token', 'Keeps you signed in (your secure session with our sign-in provider, Supabase). May be split into several numbered parts.', 'Until you sign out or the session expires'],
-  ['otp_pending_<action>', 'Holds a one-time verification step while you confirm a sensitive change (for example adding a payout account or changing your email).', '10 minutes'],
-  ['otp_verified_<action>', 'Remembers that you just completed that verification step.', '15 minutes'],
+  ['otp_challenge_<action>', 'Links your browser to a one-time verification code while you confirm a sensitive change (for example adding a payout account or changing your email). It holds a random reference only, never the code itself.', 'Up to 25 minutes'],
   ['travi_pw_recovery', 'Lets you set a new password after you open a password-reset link.', '15 minutes'],
 ];
 
