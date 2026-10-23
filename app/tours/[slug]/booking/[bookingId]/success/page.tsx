@@ -39,10 +39,10 @@ export default async function BookingSuccessPage({
               <p className="text-slate-500 mb-8">Your booking has been confirmed. You will receive an email confirmation shortly.</p>
               
               <Link 
-                href="/dashboard/traveler/bookings"
+                href={`/dashboard/traveler/bookings/${bookingId}`}
                 className="block w-full py-3 px-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors"
               >
-                View My Bookings
+                View Booking &amp; Receipt
               </Link>
             </>
           ) : result.success && result.status === 'pending' ? (

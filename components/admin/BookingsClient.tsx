@@ -3,8 +3,10 @@
 import { useState, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { Search, MapPin, Calendar, User, DollarSign, Users, Hash, AlertCircle, Ticket, type LucideIcon } from 'lucide-react';
+import { Search, MapPin, Calendar, User, DollarSign, Users, Hash, AlertCircle, Ticket, XCircle, type LucideIcon } from 'lucide-react';
 import { resolveDispute } from '@/actions/bookings';
+import AdminCancelBookingDialog from '@/components/admin/AdminCancelBookingDialog';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 import CardBox from '@/components/ui/CardBox';
 import PageHeader from '@/components/ui/PageHeader';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -28,6 +30,9 @@ interface Booking {
   total_amount: number;
   status: 'pending' | 'confirmed' | 'canceled' | 'refunded' | 'completed';
   dispute_status: string;
+  dispute_reason: string | null;
+  dispute_opened_at: string | null;
+  refunds: { amount: number; status: string; reason: string; created_at: string }[];
   created_at: string;
   traveler: {
     full_name: string | null;
@@ -53,7 +58,7 @@ const ITEMS_PER_PAGE = 10;
 function DisputeBadge({ disputeStatus }: { disputeStatus: string }) {
   return (
     <Badge variant={disputeStatus === 'open' ? 'lightWarning' : 'gray'}>
-      Dispute: {disputeStatus.replace('_', ' ')}
+      Dispute: {disputeStatus.replaceAll('_', ' ')}
     </Badge>
   );
 }
@@ -76,6 +81,9 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [resolving, setResolving] = useState<{ id: string; decision: 'refund' | 'deny' } | null>(null);
+  const [cancelling, setCancelling] = useState<Booking | null>(null);
+  const [notice, setNotice] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
 
   // Filter logic
   const filtered = bookings.filter((booking) => {
@@ -102,36 +110,45 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1;
   const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-  const getStatusColor = (status: Booking['status']) => {
-    switch (status) {
-      case 'confirmed':
-      case 'completed':
-        return 'bg-lightsuccess text-successemphasis';
-      case 'canceled':
-      case 'refunded':
-        return 'bg-lighterror text-error';
-      default:
-        return 'bg-lightwarning text-warningemphasis';
+  // Functional updates keep the table row and the open detail dialog in sync (§6 #23b).
+  const handleResolveDispute = async () => {
+    const target = resolving;
+    if (!target) return;
+    setResolving(null);
+    setLoadingAction(target.id);
+    const res = await resolveDispute(target.id, target.decision);
+    setLoadingAction(null);
+    if (res.success) {
+      const refund = res.refundAmount
+        ? [{ amount: res.refundAmount, status: 'succeeded', reason: 'dispute_refund', created_at: new Date().toISOString() }]
+        : [];
+      setBookings((prev) => prev.map((b) => (b.id === target.id
+        ? { ...b, status: res.status as Booking['status'], dispute_status: res.disputeStatus, refunds: [...b.refunds, ...refund] }
+        : b)));
+      setSelectedBooking((prev) => (prev && prev.id === target.id
+        ? { ...prev, status: res.status as Booking['status'], dispute_status: res.disputeStatus, refunds: [...prev.refunds, ...refund] }
+        : prev));
+      setNotice({
+        kind: 'success',
+        text: target.decision === 'refund'
+          ? `Dispute resolved: ₱${(res.refundAmount ?? 0).toLocaleString()} refunded to the traveler.`
+          : 'Dispute denied. The organizer\'s payout will be released on schedule.',
+      });
+    } else {
+      setNotice({ kind: 'error', text: res.error });
     }
   };
 
-  const handleResolveDispute = async (bookingId: string, decision: 'refund' | 'deny') => {
-    if (!window.confirm(`Are you sure you want to ${decision} this dispute? This action is final.`)) return;
-    setLoadingAction(bookingId);
-    try {
-      const res = await resolveDispute(bookingId, decision);
-      if (!res.success) {
-        alert(res.error || 'Failed to resolve dispute');
-      } else {
-        alert('Dispute resolved successfully.');
-        // Optionally update local state here instead of waiting for reload
-        setSelectedBooking(null);
-      }
-    } catch (e: any) {
-      alert(e.message || 'Error occurred');
-    } finally {
-      setLoadingAction(null);
-    }
+  const handleCancelled = (bookingId: string, refundAmount: number | null) => {
+    setCancelling(null);
+    setBookings((prev) => prev.map((b) => (b.id === bookingId
+      ? { ...b, status: 'canceled', refunds: refundAmount ? [...b.refunds, { amount: refundAmount, status: 'succeeded', reason: 'admin_refund', created_at: new Date().toISOString() }] : b.refunds }
+      : b)));
+    setSelectedBooking(null);
+    setNotice({
+      kind: 'success',
+      text: refundAmount ? `Booking canceled and ₱${refundAmount.toLocaleString()} refunded.` : 'Booking canceled.',
+    });
   };
 
   return (
@@ -172,6 +189,14 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
           </div>
         </div>
 
+        {notice && (
+          <div className="px-6 pt-4" role="status">
+            <Alert variant={notice.kind === 'success' ? 'lightsuccess' : 'lighterror'}>
+              <AlertDescription>{notice.text}</AlertDescription>
+            </Alert>
+          </div>
+        )}
+
         {filtered.length === 0 ? (
           <EmptyState icon={Ticket} title="No bookings found matching your search." />
         ) : (
@@ -183,7 +208,6 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
                   key={booking.id}
                   booking={booking}
                   onClick={() => setSelectedBooking(booking)}
-                  getStatusColor={getStatusColor}
                 />
               ))}
             </div>
@@ -306,16 +330,18 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
               {selectedBooking.dispute_status === 'open' && (
                 <Alert variant="lightwarning" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <AlertCircle />
-                  <div>
+                  <div className="min-w-0">
                     <AlertTitle>Dispute Open</AlertTitle>
-                    <AlertDescription className="text-xs">This booking has an open dispute from the traveler. Funds are held in escrow.</AlertDescription>
+                    <AlertDescription className="text-xs">
+                      Opened {selectedBooking.dispute_opened_at ? new Date(selectedBooking.dispute_opened_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) : 'by the traveler'}. Funds are held in escrow.
+                    </AlertDescription>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Button
                       type="button"
                       variant="neutral"
                       size="xs"
-                      onClick={() => handleResolveDispute(selectedBooking.id, 'deny')}
+                      onClick={() => setResolving({ id: selectedBooking.id, decision: 'deny' })}
                       disabled={loadingAction === selectedBooking.id}
                     >
                       Deny & Release
@@ -324,13 +350,34 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
                       type="button"
                       variant="error"
                       size="xs"
-                      onClick={() => handleResolveDispute(selectedBooking.id, 'refund')}
+                      onClick={() => setResolving({ id: selectedBooking.id, decision: 'refund' })}
                       disabled={loadingAction === selectedBooking.id}
                     >
                       Approve Refund
                     </Button>
                   </div>
                 </Alert>
+              )}
+
+              {selectedBooking.dispute_reason && (
+                <div className="rounded-lg border border-border p-4">
+                  <DetailLabel icon={AlertCircle}>Traveler&apos;s dispute reason</DetailLabel>
+                  <p className="whitespace-pre-line text-sm text-bodytext">{selectedBooking.dispute_reason}</p>
+                </div>
+              )}
+
+              {selectedBooking.refunds.length > 0 && (
+                <div className="rounded-lg border border-border p-4">
+                  <DetailLabel icon={DollarSign}>Refunds</DetailLabel>
+                  <ul className="space-y-1 text-sm">
+                    {selectedBooking.refunds.map((r, i) => (
+                      <li key={`${r.created_at}-${i}`} className="flex justify-between gap-2">
+                        <span className="text-bodytext">{r.reason.replaceAll('_', ' ')} · {r.status}</span>
+                        <span className="font-medium text-foreground">₱{Number(r.amount).toLocaleString()}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
 
               {/* Grid Details */}
@@ -374,6 +421,17 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
 
             {/* Footer */}
             <DialogFooter className="mt-0 px-6 py-4 border-t border-border bg-muted/50">
+              {(selectedBooking.status === 'confirmed' || selectedBooking.status === 'pending') && selectedBooking.dispute_status !== 'open' && (
+                <Button
+                  type="button"
+                  variant="lighterror"
+                  onClick={() => setCancelling(selectedBooking)}
+                  disabled={loadingAction === selectedBooking.id}
+                >
+                  <XCircle />
+                  {selectedBooking.status === 'confirmed' ? 'Cancel & refund' : 'Cancel booking'}
+                </Button>
+              )}
               <Button type="button" variant="neutral" onClick={() => setSelectedBooking(null)}>
                 Close
               </Button>
@@ -381,6 +439,24 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
           </DialogContent>
         </Dialog>
       )}
+      <ConfirmModal
+        isOpen={Boolean(resolving)}
+        title={resolving?.decision === 'refund' ? 'Approve refund?' : 'Deny dispute?'}
+        message={resolving?.decision === 'refund'
+          ? 'The traveler gets a full refund through PayMongo, the organizer\'s escrow for this booking is reversed, and the booking is marked refunded. This is final.'
+          : 'The refund is declined, the traveler is notified, and the organizer\'s payout is released on schedule. This is final.'}
+        confirmText={resolving?.decision === 'refund' ? 'Approve refund' : 'Deny dispute'}
+        cancelText="Back"
+        onConfirm={handleResolveDispute}
+        onCancel={() => setResolving(null)}
+        isDestructive={resolving?.decision === 'refund'}
+      />
+
+      <AdminCancelBookingDialog
+        booking={cancelling ? { id: cancelling.id, bookingRef: cancelling.booking_ref, status: cancelling.status, totalAmount: Number(cancelling.total_amount) } : null}
+        onClose={() => setCancelling(null)}
+        onDone={handleCancelled}
+      />
     </>
   );
 }

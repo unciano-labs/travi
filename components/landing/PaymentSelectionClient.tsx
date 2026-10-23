@@ -1,12 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { CreditCard, Wallet, Loader2 } from 'lucide-react';
+import { CreditCard, Loader2 } from 'lucide-react';
 import { processPayment } from '@/actions/bookings';
 
 export default function PaymentSelectionClient({ bookingId }: { bookingId: string }) {
-  const router = useRouter();
   const [method, setMethod] = useState<'gcash' | 'paymaya' | 'card'>('gcash');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +23,7 @@ export default function PaymentSelectionClient({ bookingId }: { bookingId: strin
     // The server builds the return URL to /tours/[slug]/booking/[bookingId]/success.
     const res = await processPayment(bookingId, method);
 
-    if (res.success && res.redirectUrl) {
+    if (res.success) {
       window.location.href = res.redirectUrl;
     } else {
       setError(res.error || 'Payment initialization failed. Please try again.');
@@ -36,7 +34,7 @@ export default function PaymentSelectionClient({ bookingId }: { bookingId: strin
   return (
     <div className="space-y-6">
       {error && (
-        <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg">
+        <div role="alert" className="p-3 bg-red-50 text-red-700 text-sm rounded-lg">
           {error}
         </div>
       )}
@@ -45,6 +43,8 @@ export default function PaymentSelectionClient({ bookingId }: { bookingId: strin
         <label className="text-sm font-bold text-slate-900 block">Select Payment Method</label>
         
         <button
+          type="button"
+          aria-pressed={method === 'gcash'}
           onClick={() => setMethod('gcash')}
           className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-colors ${method === 'gcash' ? 'border-brand-navy bg-slate-50' : 'border-slate-100 hover:border-slate-200 bg-white'}`}
         >
@@ -58,6 +58,8 @@ export default function PaymentSelectionClient({ bookingId }: { bookingId: strin
         </button>
 
         <button
+          type="button"
+          aria-pressed={method === 'paymaya'}
           onClick={() => setMethod('paymaya')}
           className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-colors ${method === 'paymaya' ? 'border-brand-navy bg-slate-50' : 'border-slate-100 hover:border-slate-200 bg-white'}`}
         >
@@ -71,6 +73,8 @@ export default function PaymentSelectionClient({ bookingId }: { bookingId: strin
         </button>
 
         <button
+          type="button"
+          aria-pressed={method === 'card'}
           onClick={() => setMethod('card')}
           className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-colors ${method === 'card' ? 'border-brand-navy bg-slate-50' : 'border-slate-100 hover:border-slate-200 bg-white'}`}
         >
@@ -87,6 +91,7 @@ export default function PaymentSelectionClient({ bookingId }: { bookingId: strin
       </div>
 
       <button
+        type="button"
         onClick={handlePay}
         disabled={isProcessing}
         className="w-full py-4 px-6 bg-brand-navy text-white rounded-xl font-bold hover:bg-brand-navy/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"

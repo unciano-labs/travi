@@ -65,8 +65,9 @@ export default async function EditTourPage(props: {
   // Fetch schedules with their associated transport bookings
   const { data: schedules } = await supabase
     .from('tour_schedules')
-    .select('*, transport_bookings(*, vehicle:vehicles(name, photos, vehicle_type, seat_capacity), transporter:transporter_profiles(company_name, display_name)), bookings(seats, status)')
+    .select('*, transport_bookings(*, vehicle:vehicles(name, photos, vehicle_type, seat_capacity), transporter:transporter_profiles(company_name, display_name))')
     .eq('tour_id', id)
+    .is('deleted_at', null)
     .order('start_date', { ascending: true });
 
   // Filter transport_bookings to only include the latest active one
@@ -80,14 +81,10 @@ export default async function EditTourPage(props: {
       activeBooking = sorted[0]; // Get the latest one
     }
     
-    // Calculate total booked seats (excluding canceled and refunded)
-    const booked_count = schedule.bookings?.reduce((acc: number, b: any) => {
-      if (['pending', 'confirmed', 'completed'].includes(b.status)) {
-        return acc + b.seats;
-      }
-      return acc;
-    }, 0) || 0;
-    
+    // booked_count is maintained by the database from each booking's seats_consumed (pending,
+    // confirmed and completed bookings; a private booking holds the whole group).
+    const booked_count = Number(schedule.booked_count) || 0;
+
     return { ...schedule, transport_booking: activeBooking, booked_count };
   });
 
