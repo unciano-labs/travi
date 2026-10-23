@@ -1,201 +1,237 @@
 'use server';
 
+// Vehicle availability (transporter calendar). Overlaps are rejected by the database
+// (vehicle_availability_no_overlap, 20261025110000); 'booked' rows are owned by the transport
+// request lifecycle and cannot be created, edited or removed here.
 import { revalidatePath } from 'next/cache';
-import { requireSession } from '@/lib/auth-helpers';
+import { unstable_rethrow } from 'next/navigation';
+import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { captureException } from '@/lib/logger';
-import { logAdminAudit } from '@/lib/audit';
+import { assertRateLimit } from '@/lib/ratelimit';
+import { logMutation } from '@/lib/audit';
+import { manilaToday } from '@/lib/datetime';
+import {
+  availabilityIdSchema,
+  blockVehicleDatesSchema,
+  vehicleFilterSchema,
+  type AvailabilityView,
+} from '@/lib/schemas/transport';
+import {
+  TransportError,
+  isExpectedTransportError,
+  requireOwnTransporterId,
+  throwTransportDbError,
+  toTransportFailure,
+  type TransportFailure,
+} from '@/lib/transport';
 
-async function getTransporterSession() {
-  const { user, profile, supabase } = await requireSession();
-  const { data: transporter, error } = await supabase
-    .from('transporter_profiles')
-    .select('*')
-    .eq('user_profile_id', profile.id)
-    .is('deleted_at', null)
-    .single();
+type ActionResult<T extends object = object> = ({ success: true } & T) | TransportFailure;
 
-  if (error || !transporter) {
-    throw new Error('Transporter profile not found');
-  }
+type One<T> = T | T[] | null;
+const single = <T,>(value: One<T>): T | null => (Array.isArray(value) ? value[0] ?? null : value);
 
-  return { user, profile, transporter, supabase };
+interface AvailabilityRow {
+  id: string;
+  vehicle_id: string;
+  start_date: string;
+  end_date: string;
+  status: AvailabilityView['status'];
+  notes: string | null;
+  transport_booking_id: string | null;
+  vehicles: One<{ id: string; name: string; vehicle_type: string | null; plate_number: string | null; transporter_id: string }>;
 }
 
-/**
- * Fetch all availability blocks and booked dates across transporter's fleet or for a specific vehicle.
- */
-export async function getTransporterAvailability(vehicleId?: string) {
+interface LinkedBookingRow {
+  id: string;
+  pickup_location: string;
+  dropoff_location: string;
+  organizer: One<{ display_name: string | null; company_name: string | null }>;
+}
+
+function revalidateAvailabilityPages() {
+  revalidatePath('/dashboard/transporter/availability');
+  revalidatePath('/dashboard/transporter/vehicles');
+}
+
+/** Live booked and blocked dates across the transporter's fleet, or for one of their vehicles. */
+export async function getTransporterAvailability(vehicleId?: string): Promise<AvailabilityView[]> {
   try {
-    const { transporter, supabase } = await getTransporterSession();
+    const vehicleFilter = vehicleFilterSchema.parse(vehicleId);
+    const { user, profile, supabase } = await requireSession();
+    await assertRole(user.id, 'transporter');
+    const transporterId = await requireOwnTransporterId(supabase, profile.id);
 
     let query = supabase
       .from('vehicle_availability')
       .select(`
-        *,
-        vehicle:vehicles (
-          id,
-          name,
-          vehicle_type,
-          plate_number,
-          transporter_id
-        )
+        id, vehicle_id, start_date, end_date, status, notes, transport_booking_id,
+        vehicles!inner ( id, name, vehicle_type, plate_number, transporter_id )
       `)
+      .eq('vehicles.transporter_id', transporterId)
+      .in('status', ['booked', 'blocked'])
+      .is('deleted_at', null)
       .order('start_date', { ascending: true });
-
-    if (vehicleId) {
-      query = query.eq('vehicle_id', vehicleId);
-    }
+    if (vehicleFilter) query = query.eq('vehicle_id', vehicleFilter);
 
     const { data, error } = await query;
+    if (error) throw error;
+    const rows = (data ?? []) as unknown as AvailabilityRow[];
 
-    if (error) {
-      console.error("DB QUERY ERROR in getTransporterAvailability:", JSON.stringify(error, null, 2));
-      captureException(error, { action: 'getTransporterAvailability', vehicleId });
-      return [];
+    // No FK from vehicle_availability to transport_bookings, so load the linked requests separately.
+    const bookingIds = rows.map((r) => r.transport_booking_id).filter((id): id is string => Boolean(id));
+    const bookings = new Map<string, LinkedBookingRow>();
+    if (bookingIds.length > 0) {
+      const { data: linked, error: linkedError } = await supabase
+        .from('transport_bookings')
+        .select('id, pickup_location, dropoff_location, organizer:organizer_profiles ( display_name, company_name )')
+        .eq('transporter_id', transporterId)
+        .in('id', bookingIds);
+      if (linkedError) throw linkedError;
+      for (const b of (linked ?? []) as unknown as LinkedBookingRow[]) bookings.set(b.id, b);
     }
 
-    // Filter to only records where vehicle belongs to this transporter
-    const filtered = (data || []).filter(
-      (item: any) => item.vehicle?.transporter_id === transporter.id
-    );
-
-    return filtered;
-  } catch (err: any) {
-    captureException(err, { action: 'getTransporterAvailability exception' });
+    return rows.map((r) => {
+      const vehicle = single(r.vehicles);
+      const booking = r.transport_booking_id ? bookings.get(r.transport_booking_id) : undefined;
+      const organizer = booking ? single(booking.organizer) : null;
+      return {
+        id: r.id,
+        vehicleId: r.vehicle_id,
+        startDate: r.start_date,
+        endDate: r.end_date,
+        status: r.status,
+        notes: r.notes,
+        vehicle: vehicle
+          ? { id: vehicle.id, name: vehicle.name, vehicleType: vehicle.vehicle_type, plateNumber: vehicle.plate_number }
+          : null,
+        booking: booking
+          ? {
+              organizerName: organizer?.company_name || organizer?.display_name || null,
+              pickupLocation: booking.pickup_location,
+              dropoffLocation: booking.dropoff_location,
+            }
+          : null,
+      };
+    });
+  } catch (error: unknown) {
+    unstable_rethrow(error);
+    captureException(error, { action: 'getTransporterAvailability' });
     return [];
   }
 }
 
 /**
- * Block out dates for a vehicle (maintenance, offline booking, private use).
+ * Block a date range (maintenance, private use) on one of the transporter's vehicles. Dates are
+ * Manila calendar dates. Returns `code: 'CONFLICT'` when the range overlaps a booking or block.
  */
-export async function blockVehicleDates(
-  vehicleId: string,
-  startDate: string,
-  endDate: string,
-  notes?: string
-) {
+export async function blockVehicleDates(input: unknown): Promise<ActionResult<{ blockId: string }>> {
   try {
-    const { profile, transporter, supabase } = await getTransporterSession();
+    const data = blockVehicleDatesSchema.parse(input);
+    const { user, profile, supabase } = await requireSession();
+    await assertRole(user.id, 'transporter');
+    await assertRateLimit(profile.id, 'mutation');
+    const transporterId = await requireOwnTransporterId(supabase, profile.id);
 
-    // Verify vehicle belongs to transporter
-    const { data: vehicle, error: vErr } = await supabase
+    if (data.startDate < manilaToday()) throw new TransportError('You cannot block dates in the past.');
+
+    const { data: vehicle, error: vehicleError } = await supabase
       .from('vehicles')
-      .select('id, name')
-      .eq('id', vehicleId)
-      .eq('transporter_id', transporter.id)
+      .select('id')
+      .eq('id', data.vehicleId)
+      .eq('transporter_id', transporterId)
       .is('deleted_at', null)
-      .single();
+      .maybeSingle();
+    if (vehicleError) throw vehicleError;
+    if (!vehicle) throw new TransportError('Vehicle not found.');
 
-    if (vErr || !vehicle) {
-      return { success: false, error: 'Vehicle not found or unauthorized.' };
-    }
-
-    if (new Date(startDate) > new Date(endDate)) {
-      return { success: false, error: 'Start date cannot be after end date.' };
-    }
-
-    // Check for existing overlapping blocks or bookings
-    const { data: conflicts } = await supabase
+    // Friendly pre-check; vehicle_availability_no_overlap is the real (race-free) guard.
+    const { data: conflicts, error: conflictError } = await supabase
       .from('vehicle_availability')
-      .select('id, start_date, end_date, status')
-      .eq('vehicle_id', vehicleId)
-      .lte('start_date', endDate)
-      .gte('end_date', startDate);
-
-    if (conflicts && conflicts.length > 0) {
-      return {
-        success: false,
-        error: `Date conflict: This vehicle already has ${conflicts.length} scheduled booking/block within these dates.`,
-      };
+      .select('id')
+      .eq('vehicle_id', vehicle.id)
+      .in('status', ['booked', 'blocked'])
+      .is('deleted_at', null)
+      .lte('start_date', data.endDate)
+      .gte('end_date', data.startDate)
+      .limit(1);
+    if (conflictError) throw conflictError;
+    if (conflicts?.length) {
+      throw new TransportError('This vehicle is already booked or blocked for some of those dates.', 'CONFLICT');
     }
 
     const { data: block, error } = await supabase
       .from('vehicle_availability')
       .insert({
-        vehicle_id: vehicleId,
-        start_date: startDate,
-        end_date: endDate,
+        vehicle_id: vehicle.id,
+        start_date: data.startDate,
+        end_date: data.endDate,
         status: 'blocked',
-        notes: notes || 'Blocked for maintenance / offline',
+        notes: data.notes ?? 'Blocked for maintenance / offline',
       })
-      .select()
+      .select('id')
       .single();
+    if (error) throwTransportDbError(error);
+    if (!block) throw new TransportError('Failed to block dates.');
 
-    if (error) {
-      captureException(error, { action: 'blockVehicleDates', vehicleId });
-      return { success: false, error: error.message };
-    }
+    await logMutation({
+      adminProfileId: profile.id,
+      entityType: 'vehicle_availability',
+      entityId: block.id,
+      action: 'BLOCK_VEHICLE_DATES',
+      diff: { vehicle_id: vehicle.id, start_date: data.startDate, end_date: data.endDate },
+    });
 
-    await logAdminAudit(
-      profile.id,
-      'BLOCK_VEHICLE_DATES',
-      'vehicle_availability',
-      block.id,
-      { vehicleId, startDate, endDate, notes }
-    );
-
-    revalidatePath('/dashboard/transporter/availability');
-    revalidatePath('/dashboard/transporter/vehicles');
-
-    return { success: true, block };
-  } catch (err: any) {
-    captureException(err, { action: 'blockVehicleDates exception' });
-    return { success: false, error: err.message || 'Failed to block dates.' };
+    revalidateAvailabilityPages();
+    return { success: true, blockId: block.id as string };
+  } catch (error: unknown) {
+    if (!isExpectedTransportError(error)) captureException(error, { action: 'blockVehicleDates' });
+    return toTransportFailure(error, 'Failed to block dates.');
   }
 }
 
-/**
- * Remove an availability block / unblock dates.
- */
-export async function removeAvailabilityBlock(availabilityId: string) {
+/** Remove (soft-delete) a manual block. Booked dates are released only through the request. */
+export async function removeAvailabilityBlock(availabilityId: unknown): Promise<ActionResult> {
   try {
-    const { profile, transporter, supabase } = await getTransporterSession();
+    const input = availabilityIdSchema.parse({ availabilityId });
+    const { user, profile, supabase } = await requireSession();
+    await assertRole(user.id, 'transporter');
+    await assertRateLimit(profile.id, 'mutation');
+    const transporterId = await requireOwnTransporterId(supabase, profile.id);
 
-    // Verify block belongs to a vehicle of this transporter
-    const { data: block, error: bErr } = await supabase
+    const { data: block, error: blockError } = await supabase
       .from('vehicle_availability')
-      .select(`
-        id,
-        vehicle_id,
-        status,
-        vehicle:vehicles (transporter_id)
-      `)
-      .eq('id', availabilityId)
-      .single();
-
-    if (bErr || !block || (block.vehicle as any)?.transporter_id !== transporter.id) {
-      return { success: false, error: 'Availability record not found or unauthorized.' };
-    }
-
+      .select('id, status, vehicles!inner ( transporter_id )')
+      .eq('id', input.availabilityId)
+      .eq('vehicles.transporter_id', transporterId)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (blockError) throw blockError;
+    if (!block) throw new TransportError('Availability record not found.');
     if (block.status === 'booked') {
-      return { success: false, error: 'Cannot directly delete a confirmed booking block. Manage via Requests instead.' };
+      throw new TransportError('Booked dates belong to an accepted transport request. They are released if the organizer cancels it.');
     }
 
-    const { error } = await supabase
+    const { data: removed, error } = await supabase
       .from('vehicle_availability')
-      .delete()
-      .eq('id', availabilityId);
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', block.id)
+      .is('deleted_at', null)
+      .select('id');
+    if (error) throwTransportDbError(error);
+    if (!removed?.length) throw new TransportError('This block was already removed.');
 
-    if (error) {
-      captureException(error, { action: 'removeAvailabilityBlock', availabilityId });
-      return { success: false, error: error.message };
-    }
+    await logMutation({
+      adminProfileId: profile.id,
+      entityType: 'vehicle_availability',
+      entityId: block.id,
+      action: 'REMOVE_AVAILABILITY_BLOCK',
+      diff: { deleted: true },
+    });
 
-    await logAdminAudit(
-      profile.id,
-      'REMOVE_AVAILABILITY_BLOCK',
-      'vehicle_availability',
-      availabilityId,
-      { deleted_at: new Date().toISOString() }
-    );
-
-    revalidatePath('/dashboard/transporter/availability');
-    revalidatePath('/dashboard/transporter/vehicles');
-
+    revalidateAvailabilityPages();
     return { success: true };
-  } catch (err: any) {
-    captureException(err, { action: 'removeAvailabilityBlock exception' });
-    return { success: false, error: err.message || 'Failed to remove block.' };
+  } catch (error: unknown) {
+    if (!isExpectedTransportError(error)) captureException(error, { action: 'removeAvailabilityBlock' });
+    return toTransportFailure(error, 'Failed to remove the block.');
   }
 }

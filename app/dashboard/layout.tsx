@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, CreditCard, User, MapPin, Users, Bus, Calendar, Inbox, Star, Wallet
+  LayoutDashboard, CreditCard, User, MapPin, Users, Bus, Calendar, Inbox, Star, Wallet, Truck
 } from 'lucide-react';
 import AppShell from '@/components/shell/AppShell';
 import type { NavSection } from '@/components/shell/AppSidebar';
@@ -22,6 +22,7 @@ const ROLE_NAV: Record<'traveler' | 'organizer' | 'transporter', NavSection[]> =
       items: [
         { name: 'My Tours', href: '/dashboard/organizer/tours', icon: MapPin },
         { name: 'Bookings', href: '/dashboard/organizer/bookings', icon: Users },
+        { name: 'Transport', href: '/dashboard/organizer/transport', icon: Truck },
       ],
     },
     {

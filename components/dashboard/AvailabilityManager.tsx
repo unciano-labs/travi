@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { Calendar, Plus, Trash2, Ban, Clock, Bus, Loader2, AlertCircle } from 'lucide-react';
 import { blockVehicleDates, removeAvailabilityBlock } from '@/actions/availability';
 import { useRouter } from 'next/navigation';
+import { formatBusinessDate } from '@/lib/datetime';
+import type { AvailabilityView } from '@/lib/schemas/transport';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
 import PageHeader from '@/components/ui/PageHeader';
 import CardBox from '@/components/ui/CardBox';
@@ -15,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input, NativeSelect } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar';
+import { Calendar as BigCalendar, dateFnsLocalizer, type View } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -32,14 +35,31 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
+interface VehicleOption {
+  id: string;
+  name: string;
+  vehicle_type: string | null;
+  plate_number?: string | null;
+}
+
 interface AvailabilityManagerProps {
-  vehicles: any[];
-  initialAvailability: any[];
+  vehicles: VehicleOption[];
+  initialAvailability: AvailabilityView[];
+  /** Manila date (YYYY-MM-DD) from the server: the earliest date that can be blocked. */
+  today: string;
+}
+
+// A DATE (YYYY-MM-DD) as a local calendar day. `new Date('2026-10-23')` is UTC midnight, which
+// lands on the previous day in browsers west of UTC.
+function localDay(date: string, endOfDay = false) {
+  const [y, m, d] = date.slice(0, 10).split('-').map(Number);
+  return endOfDay ? new Date(y, m - 1, d, 23, 59, 59, 999) : new Date(y, m - 1, d);
 }
 
 export default function AvailabilityManager({
   vehicles,
   initialAvailability,
+  today,
 }: AvailabilityManagerProps) {
   const router = useRouter();
   const [availabilityList, setAvailabilityList] = useState(initialAvailability);
@@ -48,25 +68,24 @@ export default function AvailabilityManager({
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [listError, setListError] = useState('');
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
 
   const filteredAvailability = availabilityList.filter((item) => {
     if (selectedVehicleId === 'all') return true;
-    return item.vehicle_id === selectedVehicleId;
+    return item.vehicleId === selectedVehicleId;
   });
 
   const events = filteredAvailability.map((item) => {
-    // Parse dates and ensure they cover the full day for 'allDay' events
-    const start = new Date(item.start_date);
-    start.setHours(0, 0, 0, 0);
-    
-    const end = new Date(item.end_date);
-    end.setHours(23, 59, 59, 999);
+    // All-day events covering whole local calendar days
+    const start = localDay(item.startDate);
+    const end = localDay(item.endDate, true);
 
     const isBooked = item.status === 'booked';
     let title = isBooked ? 'Booked' : 'Blocked';
     if (item.vehicle?.name) {
       title += `: ${item.vehicle.name}`;
-      if (item.vehicle?.plate_number) title += ` (${item.vehicle.plate_number})`;
+      if (item.vehicle?.plateNumber) title += ` (${item.vehicle.plateNumber})`;
     }
 
     return {
@@ -79,7 +98,7 @@ export default function AvailabilityManager({
     };
   });
 
-  const eventStyleGetter = (event: any) => {
+  const eventStyleGetter = (event: { resource: AvailabilityView }) => {
     const isBooked = event.resource.status === 'booked';
     const backgroundColor = isBooked ? 'var(--color-primary)' : 'var(--color-warning)';
     return {
@@ -108,7 +127,7 @@ export default function AvailabilityManager({
     const endDate = formData.get('endDate') as string;
     const notes = formData.get('notes') as string;
 
-    const res = await blockVehicleDates(vehicleId, startDate, endDate, notes);
+    const res = await blockVehicleDates({ vehicleId, startDate, endDate, notes });
     setLoading(false);
 
     if (res.success) {
@@ -121,6 +140,7 @@ export default function AvailabilityManager({
 
   const handleRemoveBlock = async (id: string) => {
     setActionLoading(id);
+    setListError('');
     const res = await removeAvailabilityBlock(id);
     setActionLoading(null);
 
@@ -128,15 +148,15 @@ export default function AvailabilityManager({
       setAvailabilityList((prev) => prev.filter((item) => item.id !== id));
       router.refresh();
     } else {
-      alert(res.error || 'Failed to remove block.');
+      setListError(res.error || 'Failed to remove block.');
     }
   };
 
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [currentView, setCurrentView] = useState<any>('month');
+  const [currentView, setCurrentView] = useState<View>('month');
 
-  const formatShort = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const formatLong = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const formatShort = (d: string) => formatBusinessDate(d, { month: 'short', day: 'numeric' });
+  const formatLong = (d: string) => formatBusinessDate(d);
 
   return (
     <>
@@ -201,10 +221,17 @@ export default function AvailabilityManager({
               onView={(newView) => setCurrentView(newView)}
               views={['month', 'week', 'agenda']}
               eventPropGetter={eventStyleGetter}
-              tooltipAccessor={(event: any) => `${event.title}${event.resource.notes ? `\nNotes: ${event.resource.notes}` : ''}`}
+              tooltipAccessor={(event) => `${event.title}${event.resource.notes ? `\nNotes: ${event.resource.notes}` : ''}`}
             />
           </div>
         </CardBox>
+
+        {listError && (
+          <Alert variant="lighterror" className="col-span-12">
+            <AlertCircle />
+            <AlertDescription>{listError}</AlertDescription>
+          </Alert>
+        )}
 
         {/* Availability List Table */}
         <CardBox className="col-span-12 gap-0 overflow-hidden p-0">
@@ -236,7 +263,7 @@ export default function AvailabilityManager({
                     <LazyMobileCard
                       key={item.id}
                       headerTitle={item.vehicle?.name || 'Unknown Vehicle'}
-                      headerSubtitle={item.vehicle?.plate_number}
+                      headerSubtitle={item.vehicle?.plateNumber ?? undefined}
                       headerBadge={
                         <Badge variant={isBooked ? 'lightPrimary' : 'lightWarning'}>
                           {isBooked ? <Clock className="size-3" /> : <Ban className="size-3" />}
@@ -246,14 +273,14 @@ export default function AvailabilityManager({
                       rows={[
                         {
                           label: 'Dates',
-                          value: <span>{formatShort(item.start_date)} - {formatShort(item.end_date)}</span>,
+                          value: <span>{formatShort(item.startDate)} - {formatShort(item.endDate)}</span>,
                         },
                         {
                           label: 'Notes',
                           value: (
                             <div className="line-clamp-2">
                               {isBooked && item.booking ? (
-                                <span>{item.booking.organizer?.company_name || item.booking.organizer?.display_name || 'Organizer Booking'} ({item.booking.pickup_location})</span>
+                                <span>{item.booking.organizerName || 'Organizer booking'} ({item.booking.pickupLocation})</span>
                               ) : (
                                 <span>{item.notes || 'No description provided'}</span>
                               )}
@@ -268,7 +295,7 @@ export default function AvailabilityManager({
                             type="button"
                             variant="ghosterror"
                             size="iconsm"
-                            onClick={(e) => { e.stopPropagation(); handleRemoveBlock(item.id); }}
+                            onClick={(e) => { e.stopPropagation(); setConfirmRemoveId(item.id); }}
                             disabled={isRemoving}
                             title="Remove Block"
                             aria-label="Remove Block"
@@ -307,14 +334,14 @@ export default function AvailabilityManager({
                               <Bus className="size-4 text-muted-foreground" />
                               <span>{item.vehicle?.name || 'Unknown Vehicle'}</span>
                             </div>
-                            {item.vehicle?.plate_number && (
+                            {item.vehicle?.plateNumber && (
                               <span className="font-mono text-xs font-normal text-muted-foreground">
-                                {item.vehicle.plate_number}
+                                {item.vehicle.plateNumber}
                               </span>
                             )}
                           </TableCell>
-                          <TableCell className="font-medium">{formatLong(item.start_date)}</TableCell>
-                          <TableCell className="font-medium">{formatLong(item.end_date)}</TableCell>
+                          <TableCell className="font-medium">{formatLong(item.startDate)}</TableCell>
+                          <TableCell className="font-medium">{formatLong(item.endDate)}</TableCell>
                           <TableCell>
                             <Badge variant={isBooked ? 'lightPrimary' : 'lightWarning'}>
                               {isBooked ? <Clock className="size-3.5" /> : <Ban className="size-3.5" />}
@@ -325,10 +352,10 @@ export default function AvailabilityManager({
                             {isBooked && item.booking ? (
                               <div>
                                 <div className="font-semibold text-foreground">
-                                  {item.booking.organizer?.company_name || item.booking.organizer?.display_name || 'Organizer Booking'}
+                                  {item.booking.organizerName || 'Organizer booking'}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  {item.booking.pickup_location} → {item.booking.dropoff_location}
+                                  {item.booking.pickupLocation} → {item.booking.dropoffLocation}
                                 </div>
                               </div>
                             ) : (
@@ -341,7 +368,7 @@ export default function AvailabilityManager({
                                 type="button"
                                 variant="ghosterror"
                                 size="iconsm"
-                                onClick={() => handleRemoveBlock(item.id)}
+                                onClick={() => setConfirmRemoveId(item.id)}
                                 disabled={isRemoving}
                                 title="Remove Block"
                                 aria-label="Remove Block"
@@ -393,17 +420,17 @@ export default function AvailabilityManager({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="block-startDate">Start Date *</Label>
-                <Input id="block-startDate" type="date" name="startDate" required min={new Date().toISOString().split('T')[0]} />
+                <Input id="block-startDate" type="date" name="startDate" required min={today} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="block-endDate">End Date *</Label>
-                <Input id="block-endDate" type="date" name="endDate" required min={new Date().toISOString().split('T')[0]} />
+                <Input id="block-endDate" type="date" name="endDate" required min={today} />
               </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="block-notes">Reason / Notes</Label>
-              <Input id="block-notes" type="text" name="notes" placeholder="e.g. Scheduled PMS / Maintenance" />
+              <Input id="block-notes" type="text" name="notes" maxLength={300} placeholder="e.g. Scheduled PMS / Maintenance" />
             </div>
 
             <div className="flex items-center justify-end gap-3 border-t border-border pt-4">
@@ -418,6 +445,20 @@ export default function AvailabilityManager({
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmModal
+        isOpen={confirmRemoveId !== null}
+        title="Remove this block?"
+        message="The vehicle becomes available for new transport requests on these dates."
+        confirmText="Remove block"
+        isDestructive
+        onCancel={() => setConfirmRemoveId(null)}
+        onConfirm={() => {
+          const id = confirmRemoveId;
+          setConfirmRemoveId(null);
+          if (id) void handleRemoveBlock(id);
+        }}
+      />
     </>
   );
 }

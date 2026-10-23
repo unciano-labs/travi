@@ -404,6 +404,33 @@ export function transportRequestStatusEmail(input: {
   });
 }
 
+export function transportRequestCanceledEmail(input: {
+  transporterName?: string | null;
+  organizerName: string;
+  tourTitle?: string | null;
+  startDate: string;
+  endDate?: string | null;
+  wasAccepted: boolean;
+  requestsUrl: string;
+}): EmailContent {
+  const details: [string, string][] = [['Dates', formatDateRange(input.startDate, input.endDate)]];
+  if (input.tourTitle) details.unshift(['Tour', input.tourTitle]);
+  return render({
+    subject: 'Transport request canceled',
+    preheader: `${input.organizerName} canceled a transport request for ${formatDateRange(input.startDate, input.endDate)}.`,
+    heading: 'Transport request canceled',
+    greeting: `Hi ${greetingName(input.transporterName)},`,
+    paragraphs: [
+      `${input.organizerName} canceled their transport request.`,
+      input.wasAccepted
+        ? 'The booked dates were released, so your vehicle is available for other requests again.'
+        : 'No action is needed on your side.',
+    ],
+    details,
+    cta: { label: 'View requests', url: input.requestsUrl },
+  });
+}
+
 export function partnerAccountStatusEmail(input: {
   name?: string | null;
   partner: 'organizer' | 'transporter';
