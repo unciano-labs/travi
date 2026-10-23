@@ -1,6 +1,7 @@
 import { z } from 'zod';
+import { isCalendarDate } from '@/lib/datetime';
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date');
+const isoDate = z.string().refine(isCalendarDate, 'Invalid date');
 
 // Empty form fields arrive as '' and mean "not set".
 const optional = <T extends z.ZodTypeAny>(schema: T) =>

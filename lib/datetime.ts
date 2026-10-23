@@ -15,6 +15,18 @@ export function manilaToday(now: Date = new Date()): string {
 
 const MANILA_UTC_OFFSET = '+08:00'; // Asia/Manila has no daylight saving time.
 
+/**
+ * True only for a real calendar date in YYYY-MM-DD form. `Date.parse` rolls impossible days over
+ * (2026-02-30 → March 2), so check that the parsed date round-trips to the same components.
+ */
+export function isCalendarDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
 const toDate = (value: string | Date) => (typeof value === 'string' ? new Date(value) : value);
 
 /** Manila calendar date (YYYY-MM-DD) of an instant, e.g. a timestamptz pickup time. */
@@ -37,6 +49,7 @@ export function manilaTimeOf(value: string | Date): string {
  * of `${date}T${time}`, which Postgres and `new Date()` would read as UTC or browser time.
  */
 export function manilaDateTimeToIso(date: string, time: string): string {
+  if (!isCalendarDate(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new Error('Invalid date or time');
   const parsed = new Date(`${date}T${time}:00${MANILA_UTC_OFFSET}`);
   if (Number.isNaN(parsed.getTime())) throw new Error('Invalid date or time');
   return parsed.toISOString();

@@ -143,11 +143,8 @@ describe('parseCatalogSearch', () => {
     expect(parseCatalogSearch({ q: 'x'.repeat(81) }).q).toBeUndefined();
   });
 
-  // BUG: the isoDate check (lib/schemas/catalog.ts:45-48) uses Date.parse, which rolls impossible days
-  // over (Feb 31 -> Mar 3) instead of failing. "?from=2026-02-31" therefore reaches the
-  // search_public_tours RPC, Postgres rejects the DATE, and the catalog returns nothing (plus a Sentry
-  // event) instead of ignoring the bad filter. Flip to `it` once the refine checks the round-trip.
-  it.fails('drops impossible calendar dates', () => {
+  // Regression: "?from=2026-02-31" must be ignored, not sent to the search RPC (Postgres rejects it).
+  it('drops impossible calendar dates', () => {
     expect(parseCatalogSearch({ from: '2026-02-31' }).from).toBeUndefined();
   });
 });

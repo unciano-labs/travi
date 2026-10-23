@@ -70,10 +70,8 @@ describe('manilaDateTimeToIso', () => {
     expect(() => manilaDateTimeToIso(date, time)).toThrow('Invalid date or time');
   });
 
-  // BUG: V8's Date parser rolls impossible calendar days over (Feb 30 -> Mar 2) instead of returning
-  // NaN, so manilaDateTimeToIso() (lib/datetime.ts:39-43) silently returns a different day instead of
-  // throwing. Flip to `it` once the helper validates the round-trip.
-  it.fails('throws on an impossible calendar day', () => {
+  // Regression: Date.parse rolls impossible days over (Feb 30 -> Mar 2); the helper must reject them.
+  it('throws on an impossible calendar day', () => {
     expect(() => manilaDateTimeToIso('2026-02-30', '08:00')).toThrow('Invalid date or time');
   });
 });

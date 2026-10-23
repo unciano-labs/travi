@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isCalendarDate } from '@/lib/datetime';
 
 // Public catalog search (/tours). Query params are untrusted and shareable, so parsing is lenient:
 // an invalid value is dropped (treated as "no filter") instead of failing the whole page.
@@ -42,10 +43,7 @@ const blankToUndefined = (v: unknown) => (typeof v === 'string' && v.trim() === 
 const lenient = <T extends z.ZodTypeAny>(schema: T) =>
   z.preprocess(blankToUndefined, schema.optional()).catch(undefined);
 
-const isoDate = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .refine((s) => !Number.isNaN(Date.parse(`${s}T00:00:00Z`)), 'Invalid date');
+const isoDate = z.string().refine(isCalendarDate, 'Invalid date');
 
 export const catalogSearchSchema = z
   .object({
