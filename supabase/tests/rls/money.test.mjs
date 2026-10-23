@@ -18,6 +18,7 @@ const confirm = (d, payment = 'pay_1', amount = 200000, booking = B1) =>
 const wallet = (d, profile = P.O) => one(d, `SELECT id, available_balance::numeric AS available, escrow_balance::numeric AS escrow FROM user_wallets WHERE user_profile_id = $1`, [profile]);
 const drift = (d) => one(d, `SELECT count(*)::int AS n FROM wallet_ledger_drift()`);
 const bookingRow = (d, bookingId = B1) => one(d, `SELECT status::text, dispute_status::text FROM bookings WHERE id = $1`, [bookingId]);
+const REASON = 'The guide never showed up at the meeting point.';
 const makeDue = (d) => d.query(`UPDATE tour_schedules SET start_date = current_date - 12, end_date = current_date - 10 WHERE id = $1`, [S.s1]);
 
 describe('payment confirmation', () => {
@@ -138,11 +139,11 @@ describe('disputes', () => {
   test('only the traveler can open one, once, on a confirmed booking', async () => {
     const r = await attempt(db, service, async (d) => {
       await confirm(d);
-      const ok = (await d.query(`SELECT open_booking_dispute($1, $2) AS r`, [B1, P.T])).rows[0].r;
+      const ok = (await d.query(`SELECT open_booking_dispute($1, $2, $3) AS r`, [B1, P.T, REASON])).rows[0].r;
       let again = null;
-      try { await d.query('SAVEPOINT s'); await d.query(`SELECT open_booking_dispute($1, $2)`, [B1, P.T]); } catch (e) { again = e.message; await d.query('ROLLBACK TO SAVEPOINT s'); }
+      try { await d.query('SAVEPOINT s'); await d.query(`SELECT open_booking_dispute($1, $2, $3)`, [B1, P.T, REASON]); } catch (e) { again = e.message; await d.query('ROLLBACK TO SAVEPOINT s'); }
       let stranger = null;
-      try { await d.query('SAVEPOINT s2'); await d.query(`SELECT open_booking_dispute($1, $2)`, [B1, P.O]); } catch (e) { stranger = e.message; await d.query('ROLLBACK TO SAVEPOINT s2'); }
+      try { await d.query('SAVEPOINT s2'); await d.query(`SELECT open_booking_dispute($1, $2, $3)`, [B1, P.O, REASON]); } catch (e) { stranger = e.message; await d.query('ROLLBACK TO SAVEPOINT s2'); }
       return { ok, again, stranger };
     });
     assert.equal(r.result.ok, 'open');
@@ -201,7 +202,7 @@ describe('refunds', () => {
   test('a dispute refund marks the booking refunded and the dispute resolved', async () => {
     const r = await attempt(db, service, async (d) => {
       await confirm(d);
-      await d.query(`SELECT open_booking_dispute($1, $2)`, [B1, P.T]);
+      await d.query(`SELECT open_booking_dispute($1, $2, $3)`, [B1, P.T, REASON]);
       const refundId = await begin(d);
       await d.query(`SELECT complete_booking_refund($1, 'ref_3', 'refunded')`, [refundId]);
     }, (d) => bookingRow(d));

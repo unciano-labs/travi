@@ -20,7 +20,10 @@ export default async function BookingsPage() {
       total_amount,
       status,
       dispute_status,
+      dispute_reason,
+      dispute_opened_at,
       created_at,
+      refunds:booking_refunds ( amount, status, reason, created_at ),
       traveler:user_profiles!traveler_id (
         full_name,
         email
@@ -49,6 +52,7 @@ export default async function BookingsPage() {
 
     return {
       ...b,
+      refunds: (b.refunds ?? []).map((r) => ({ ...r, amount: Number(r.amount) })),
       traveler: travelerProfile,
       tour_schedule: schedule ? {
         ...schedule,

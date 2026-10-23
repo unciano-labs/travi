@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Calendar as CalendarIcon, Users, Check, Minus, Plus, Loader2 } from 'lucide-react';
+import { ChevronDown, Users, Check, Minus, Plus, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { createBooking } from '@/actions/bookings';
 
@@ -12,9 +12,14 @@ export default function TourBookingCard({ tour }: { tour: any }) {
   const [isBooking, setIsBooking] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   
+  // Decision D3: a private tour books the whole group (seats = capacity, price per person x capacity),
+  // so a private date is only available while nobody holds it. The server enforces the same rules.
+  const isPrivate = tour.format === 'private';
+  const isAvailable = (s: { capacity: number; booked_count: number | null }) => isPrivate ? (s.booked_count || 0) === 0 : (s.capacity - (s.booked_count || 0)) > 0;
+
   // Filter active schedules that have available capacity
   const activeSchedules = tour.schedules
-    ?.filter((s: any) => s.status === 'open' && new Date(s.start_date) > new Date() && (s.capacity - (s.booked_count || 0)) > 0)
+    ?.filter((s: any) => s.status === 'open' && new Date(s.start_date) > new Date() && isAvailable(s))
     .sort((a: any, b: any) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()) || [];
 
   const [selectedSchedule, setSelectedSchedule] = useState<any>(activeSchedules[0] || null);
@@ -36,7 +41,9 @@ export default function TourBookingCard({ tour }: { tour: any }) {
   const originalPrice = selectedSchedule?.original_price;
   
   const remainingSlots = selectedSchedule ? (selectedSchedule.capacity - (selectedSchedule.booked_count || 0)) : 0;
-  const totalPrice = displayPrice * seats;
+  const groupSize = selectedSchedule?.capacity || 0;
+  const bookedSeats = isPrivate ? groupSize : seats;
+  const totalPrice = displayPrice * bookedSeats;
 
   const handleBook = async () => {
     if (!selectedSchedule) return;
@@ -44,7 +51,7 @@ export default function TourBookingCard({ tour }: { tour: any }) {
     setIsBooking(true);
     setErrorMsg('');
     
-    const result = await createBooking(selectedSchedule.id, seats);
+    const result = await createBooking(selectedSchedule.id, bookedSeats);
     
     if (result.success && result.checkoutUrl) {
       window.location.href = result.checkoutUrl;
@@ -63,7 +70,9 @@ export default function TourBookingCard({ tour }: { tour: any }) {
     <div className="sticky top-24 bg-white p-6 lg:p-8 rounded-3xl border border-slate-100 shadow-2xl shadow-slate-200/50">
       {/* Price Header */}
       <div className="mb-6">
-        <span className="text-slate-500 text-sm font-bold uppercase tracking-wider">Price per person</span>
+        <span className="text-slate-500 text-sm font-bold uppercase tracking-wider">
+          {isPrivate ? 'Private group · price per person' : 'Price per person'}
+        </span>
         <div className="flex items-end gap-2 mt-2">
           <span className="text-4xl font-extrabold text-slate-900 font-display">₱{displayPrice.toLocaleString()}</span>
           {originalPrice && originalPrice > displayPrice && (
@@ -95,8 +104,8 @@ export default function TourBookingCard({ tour }: { tour: any }) {
                   {new Date(selectedSchedule.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(selectedSchedule.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>
                 <span className="text-sm text-emerald-600 font-medium flex items-center gap-1 mt-1">
-                  <Users className="w-3.5 h-3.5" />
-                  {remainingSlots} slots remaining
+                  <Users className="w-3.5 h-3.5" aria-hidden="true" />
+                  {isPrivate ? `Private group of up to ${groupSize}` : `${remainingSlots} slots remaining`}
                 </span>
               </div>
             ) : (
@@ -113,7 +122,7 @@ export default function TourBookingCard({ tour }: { tour: any }) {
                   activeSchedules.map((schedule: any) => {
                     const remaining = schedule.capacity - (schedule.booked_count || 0);
                     const isSelected = selectedSchedule?.id === schedule.id;
-                    const isLowCapacity = remaining <= 3;
+                    const isLowCapacity = !isPrivate && remaining <= 3;
                     
                     return (
                       <button
@@ -134,8 +143,7 @@ export default function TourBookingCard({ tour }: { tour: any }) {
                             {new Date(schedule.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(schedule.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                           </span>
                           <span className={`text-xs font-medium mt-1 flex items-center gap-1 ${isLowCapacity ? 'text-coral' : 'text-slate-500'}`}>
-                            {isLowCapacity && '🔥 Only '}
-                            {remaining} slots left
+                            {isPrivate ? `Private group of up to ${schedule.capacity}` : <>{isLowCapacity && '🔥 Only '}{remaining} slots left</>}
                           </span>
                         </div>
                         {isSelected && <Check className="w-5 h-5 text-coral" />}
@@ -152,13 +160,25 @@ export default function TourBookingCard({ tour }: { tour: any }) {
           )}
         </div>
 
+        {/* Private tours: the whole group, no seat picker */}
+        {isPrivate && selectedSchedule && (
+          <div className="flex items-start gap-3 bg-slate-50 p-4 rounded-xl border-2 border-slate-200">
+            <Users className="w-5 h-5 text-coral mt-0.5 shrink-0" aria-hidden="true" />
+            <p className="text-sm text-slate-700">
+              <span className="font-bold text-slate-900">Private group — up to {groupSize} guests, ₱{totalPrice.toLocaleString()} total.</span>{' '}
+              The whole date is reserved for your group.
+            </p>
+          </div>
+        )}
+
         {/* Seats Selector */}
-        {selectedSchedule && remainingSlots > 0 && (
+        {!isPrivate && selectedSchedule && remainingSlots > 0 && (
           <div>
             <label className="block text-sm font-bold text-slate-900 mb-2">Number of Seats</label>
             <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border-2 border-slate-200">
               <button 
                 type="button"
+                aria-label="Remove a seat"
                 onClick={() => setSeats(Math.max(1, seats - 1))}
                 disabled={seats <= 1}
                 className="p-3 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-50 transition-colors"
@@ -173,6 +193,7 @@ export default function TourBookingCard({ tour }: { tour: any }) {
               
               <button 
                 type="button"
+                aria-label="Add a seat"
                 onClick={() => setSeats(Math.min(remainingSlots, seats + 1))}
                 disabled={seats >= remainingSlots}
                 className="p-3 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-50 transition-colors"
@@ -187,13 +208,13 @@ export default function TourBookingCard({ tour }: { tour: any }) {
       {/* Total & Action */}
       {selectedSchedule && remainingSlots > 0 && (
         <div className="flex items-center justify-between mb-6 pb-6 border-b border-slate-100">
-          <span className="text-slate-900 font-bold text-lg">Total</span>
+          <span className="text-slate-900 font-bold text-lg">{isPrivate ? `Total for up to ${groupSize} guests` : 'Total'}</span>
           <span className="text-2xl font-extrabold text-slate-900">₱{totalPrice.toLocaleString()}</span>
         </div>
       )}
 
       {errorMsg && (
-        <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm font-medium border border-red-100">
+        <div role="alert" className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm font-medium border border-red-100">
           {errorMsg}
         </div>
       )}
@@ -216,6 +237,8 @@ export default function TourBookingCard({ tour }: { tour: any }) {
           'Select a date' 
         ) : remainingSlots <= 0 ? (
           'Sold Out' 
+        ) : isPrivate ? (
+          'Book Private Tour'
         ) : (
           'Book This Tour'
         )}

@@ -10,6 +10,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import CancelScheduleButton from '@/components/dashboard/CancelScheduleButton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export default async function ScheduleBookingsPage(props: {
@@ -53,6 +54,9 @@ export default async function ScheduleBookingsPage(props: {
       start_date,
       end_date,
       capacity,
+      booked_count,
+      status,
+      deleted_at,
       price_per_person,
       tours!inner (
         id,
@@ -65,7 +69,7 @@ export default async function ScheduleBookingsPage(props: {
     .eq('tours.organizer_id', organizerId)
     .single();
 
-  if (!schedule) {
+  if (!schedule || schedule.deleted_at) {
     redirect(`/dashboard/organizer/tours/${id}/edit?tab=schedules`);
   }
 
@@ -85,12 +89,9 @@ export default async function ScheduleBookingsPage(props: {
 
   const bookings = (recentBookings as any[]) || [];
 
-  const totalBooked = bookings.reduce((acc, b) => {
-    if (['pending', 'confirmed', 'completed'].includes(b.status)) {
-      return acc + b.seats;
-    }
-    return acc;
-  }, 0);
+  // Maintained by the database (a private booking holds the whole group).
+  const totalBooked = Number(schedule.booked_count) || 0;
+  const isCancelled = schedule.status === 'cancelled';
 
   const start = new Date(schedule.start_date);
   const end = new Date(schedule.end_date);
@@ -109,12 +110,19 @@ export default async function ScheduleBookingsPage(props: {
           { title: 'Bookings' },
         ]}
         actions={
-          <Button asChild variant="neutral">
-            <Link href={`/dashboard/organizer/tours/${id}/edit?tab=schedules`}>
-              <ArrowLeft />
-              Back to Schedules
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {isCancelled ? (
+              <StatusBadge status="cancelled" />
+            ) : (
+              <CancelScheduleButton scheduleId={scheduleId} tourId={id} />
+            )}
+            <Button asChild variant="neutral">
+              <Link href={`/dashboard/organizer/tours/${id}/edit?tab=schedules`}>
+                <ArrowLeft />
+                Back to Schedules
+              </Link>
+            </Button>
+          </div>
         }
       />
 

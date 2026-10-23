@@ -7,6 +7,7 @@ interface Booking {
   seats: number;
   total_amount: number;
   status: 'pending' | 'confirmed' | 'canceled' | 'refunded' | 'completed';
+  dispute_status?: string | null;
   created_at: string;
   traveler: {
     full_name: string | null;
@@ -26,21 +27,29 @@ interface Booking {
 interface BookingMobileCardProps {
   booking: Booking;
   onClick: () => void;
-  getStatusColor: (status: Booking['status']) => string;
 }
 
-// `getStatusColor` stays in the props contract; the badge colour now comes from the shared StatusBadge.
 export default function BookingMobileCard({ booking, onClick }: BookingMobileCardProps) {
   return (
-    <div
-      className="bg-white rounded-lg border border-border p-4 hover:border-primary/40 transition-colors cursor-pointer"
+    <button
+      type="button"
+      className="block w-full text-left bg-white rounded-lg border border-border p-4 hover:border-primary/40 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       onClick={onClick}
+      aria-label={`View booking ${booking.booking_ref}`}
     >
       <div className="flex justify-between items-start mb-3">
         <div className="font-mono text-xs font-semibold text-foreground bg-muted px-2 py-1 rounded inline-block">
           {booking.booking_ref}
         </div>
-        <StatusBadge status={booking.status} />
+        <div className="flex flex-col items-end gap-1">
+          <StatusBadge status={booking.status} />
+          {booking.dispute_status && booking.dispute_status !== 'none' && (
+            <StatusBadge
+              status={booking.dispute_status === 'open' ? 'pending' : booking.dispute_status}
+              label={`Dispute: ${booking.dispute_status.replaceAll('_', ' ')}`}
+            />
+          )}
+        </div>
       </div>
 
       <div className="space-y-2 mb-3">
@@ -74,6 +83,6 @@ export default function BookingMobileCard({ booking, onClick }: BookingMobileCar
           <span className="font-semibold text-success">₱{booking.total_amount.toLocaleString()}</span>
         </div>
       </div>
-    </div>
+    </button>
   );
 }

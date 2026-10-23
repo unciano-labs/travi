@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import TravelerBookingsClient from '@/components/traveler/TravelerBookingsClient';
+import TravelerBookingsClient, { type TravelerBooking } from '@/components/traveler/TravelerBookingsClient';
 import PageHeader from '@/components/ui/PageHeader';
+import { manilaToday } from '@/lib/datetime';
 
 export default async function TravelerBookings() {
   const supabase = await createClient();
@@ -20,11 +21,12 @@ export default async function TravelerBookings() {
 
   if (!profile) return null;
 
-  // Fetch all bookings for traveler
+  // Own bookings only (RLS also limits travelers to their own rows).
   const { data: allBookings } = await supabase
     .from('bookings')
     .select(`
       id,
+      booking_ref,
       seats,
       total_amount,
       status,
@@ -32,15 +34,17 @@ export default async function TravelerBookings() {
       created_at,
       tour_schedules (
         start_date,
+        end_date,
         tours (
-          title
+          title,
+          slug
         )
       )
     `)
     .eq('traveler_id', profile.id)
     .order('created_at', { ascending: false });
 
-  const bookings = (allBookings as any[]) || [];
+  const bookings = (allBookings as unknown as TravelerBooking[] | null) ?? [];
 
   // Bookings already reviewed (own reviews are readable under RLS). On error the review button
   // still shows and createReview reports "already reviewed", so the page never breaks over it.
@@ -53,13 +57,26 @@ export default async function TravelerBookings() {
     .map((r) => r.booking_id)
     .filter((bookingId): bookingId is string => Boolean(bookingId));
 
+  // Dispute window = escrow holding period (settings are publicly readable).
+  const { data: settings } = await supabase
+    .from('platform_settings')
+    .select('escrow_holding_days')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   return (
     <>
       <PageHeader
         title="My Bookings"
         breadcrumbs={[{ title: 'Dashboard', href: '/dashboard/traveler' }, { title: 'My Bookings' }]}
       />
-      <TravelerBookingsClient initialBookings={bookings} reviewedBookingIds={reviewedBookingIds} />
+      <TravelerBookingsClient
+        initialBookings={bookings}
+        reviewedBookingIds={reviewedBookingIds}
+        today={manilaToday()}
+        disputeWindowDays={Number(settings?.escrow_holding_days ?? 3)}
+      />
     </>
   );
 }

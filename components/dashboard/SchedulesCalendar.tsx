@@ -54,7 +54,7 @@ export default function SchedulesCalendar({
 
     return {
       id: s.id,
-      title: `${s.booked_count}/${s.capacity} Booked`, // Fallback for views that don't support custom components well
+      title: s.status === 'cancelled' ? 'Cancelled' : `${s.booked_count}/${s.capacity} Booked`, // Fallback for views that don't support custom components well
       start,
       end,
       resource: s
@@ -74,7 +74,7 @@ export default function SchedulesCalendar({
           </div>
         )}
         <div className="flex items-center gap-1 text-[11px]">
-          <Users className="w-3 h-3" /> {s.booked_count}/{s.capacity}
+          {s.status === 'cancelled' ? 'Cancelled' : <><Users className="w-3 h-3" aria-hidden="true" /> {s.booked_count}/{s.capacity}</>}
         </div>
       </div>
     );
@@ -189,6 +189,7 @@ export default function SchedulesCalendar({
           if (s.price_per_person) {
             priceStr = ` (Price: ₱${s.price_per_person}${s.original_price ? `, was ₱${s.original_price}` : ''})`;
           }
+          if (s.status === 'cancelled') return 'CANCELLED - travelers were refunded or canceled';
           return `${s.status.toUpperCase()} - ${s.booked_count} out of ${s.capacity} seats booked${priceStr}`;
         }}
       />
