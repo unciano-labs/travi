@@ -7,6 +7,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { formatPHP } from '@/lib/format';
 
 export default async function OrganizerToursPage() {
   const supabase = await createClient();
@@ -154,7 +155,7 @@ export default async function OrganizerToursPage() {
                         </span>
                         <div className="font-semibold text-foreground flex items-center gap-1.5">
                           <span className="flex items-baseline gap-1">
-                            ₱{lowestPrice.toLocaleString()} <span className="text-[11px] text-muted-foreground font-medium">/pax</span>
+                            {formatPHP(lowestPrice, { cents: 'auto' })} <span className="text-[11px] text-muted-foreground font-medium">/pax</span>
                           </span>
                         </div>
                       </>

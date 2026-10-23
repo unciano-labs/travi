@@ -9,7 +9,7 @@ import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AdminPager from '@/components/admin/AdminPager';
-import { manilaDateTime, peso, shortDate } from '@/lib/finance-format';
+import { formatDateRange, formatDateTime, formatNumber, formatPHP } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { TRANSPORT_STATUSES, type TransportStatus } from '@/lib/schemas/admin-tools';
 
@@ -53,7 +53,7 @@ export default function TransportClient({ requests, status, total, page, pageSiz
       <div className="flex flex-col gap-4 border-b border-border px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h5 className="card-title">All requests</h5>
-          <p className="text-sm text-muted-foreground">{total.toLocaleString()} request{total === 1 ? '' : 's'}{status ? ` · ${status}` : ''}</p>
+          <p className="text-sm text-muted-foreground">{formatNumber(total)} request{total === 1 ? '' : 's'}{status ? ` · ${status}` : ''}</p>
         </div>
         <nav aria-label="Filter by status" className="flex flex-wrap gap-2">
           {filters.map((f) => {
@@ -81,7 +81,7 @@ export default function TransportClient({ requests, status, total, page, pageSiz
                 headerSubtitle={`${r.organizer} → ${r.transporter}`}
                 headerBadge={<StatusBadge status={r.status} />}
                 rows={[
-                  { label: 'Pickup', value: manilaDateTime(r.pickupAt) },
+                  { label: 'Pickup', value: formatDateTime(r.pickupAt) },
                   { label: 'Seats', value: r.seats },
                   { label: 'Route', value: `${r.pickup} → ${r.dropoff}`, fullWidth: true },
                   { label: 'Vehicle', value: r.vehicle, fullWidth: true },
@@ -107,7 +107,7 @@ export default function TransportClient({ requests, status, total, page, pageSiz
                   <TableRow key={r.id}>
                     <TableCell className="px-6">
                       <p className="font-semibold text-foreground">{r.tourTitle}</p>
-                      <p className="text-xs text-muted-foreground">{shortDate(r.scheduleStart)} – {shortDate(r.scheduleEnd)}</p>
+                      <p className="text-xs text-muted-foreground">{formatDateRange(r.scheduleStart, r.scheduleEnd)}</p>
                     </TableCell>
                     <TableCell className="px-6">
                       <p className="font-medium text-foreground">{r.organizer}</p>
@@ -119,16 +119,16 @@ export default function TransportClient({ requests, status, total, page, pageSiz
                       <p className="truncate text-muted-foreground" title={r.dropoff}>→ {r.dropoff}</p>
                     </TableCell>
                     <TableCell className="whitespace-nowrap px-6 text-muted-foreground">
-                      {manilaDateTime(r.pickupAt)}
-                      {r.returnAt && <span className="block text-xs">Return {manilaDateTime(r.returnAt)}</span>}
+                      {formatDateTime(r.pickupAt)}
+                      {r.returnAt && <span className="block text-xs">Return {formatDateTime(r.returnAt)}</span>}
                     </TableCell>
                     <TableCell className="px-6 text-center">{r.seats}</TableCell>
                     <TableCell className={cn('px-6 text-right', r.estimatedPrice === null && 'text-muted-foreground')}>
-                      {r.estimatedPrice === null ? '—' : peso(r.estimatedPrice)}
+                      {formatPHP(r.estimatedPrice)}
                     </TableCell>
                     <TableCell className="px-6">
                       <StatusBadge status={r.status} />
-                      <span className="mt-1 block text-[10px] text-muted-foreground">Updated {manilaDateTime(r.updatedAt)}</span>
+                      <span className="mt-1 block text-[10px] text-muted-foreground">Updated {formatDateTime(r.updatedAt)}</span>
                     </TableCell>
                   </TableRow>
                 ))}

@@ -13,6 +13,7 @@ import { getAvailableVehicles, toggleFavoriteVehicle } from '@/actions/vehicles'
 import { cancelTransportRequest, sendTransportRequest } from '@/actions/transport-requests';
 import { useRouter } from 'next/navigation';
 import { formatBusinessDate, formatManilaDateTime } from '@/lib/datetime';
+import { formatPHP } from '@/lib/format';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 
 interface Vehicle {
@@ -324,7 +325,7 @@ export default function TransportRequestModal({
                         <div className="text-sm text-bodytext space-y-1 mb-3">
                           <p>💺 {v.seat_capacity} Seats</p>
                           <p>🏢 {v.transporter.company_name || v.transporter.display_name}</p>
-                          {v.rate_per_day && <p>💰 ₱{v.rate_per_day}/day (Est.)</p>}
+                          {v.rate_per_day && <p>💰 {formatPHP(v.rate_per_day, { cents: 'auto' })}/day (Est.)</p>}
                         </div>
                         
                         <div className="flex items-center gap-2">

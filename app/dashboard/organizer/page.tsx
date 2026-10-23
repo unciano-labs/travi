@@ -13,6 +13,7 @@ import BarChart from '@/components/ui/charts/BarChart';
 import DonutChart from '@/components/ui/charts/DonutChart';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { formatDate, formatDateOfInstant, formatPHP, formatTimeOfInstant } from '@/lib/format';
 
 // Booking status order and colour for the breakdown donut (matches StatusBadge tones).
 const STATUS_SEGMENTS: { status: string; label: string; color: string; dot: string }[] = [
@@ -154,14 +155,14 @@ export default async function OrganizerDashboard() {
         <StatCard title="Total Bookings" value={bookings.length} icon={Users} tone="secondary" href="/dashboard/organizer/bookings" />
         <StatCard
           title="Net Earnings"
-          value={`₱${netEarnings.toLocaleString('en-PH', { maximumFractionDigits: 2 })}`}
+          value={formatPHP(netEarnings)}
           icon={Banknote}
           tone="success"
           href="/dashboard/organizer/wallet"
           hint={
             <>
-              After platform fees and refunds · Gross ₱{totalRevenue.toLocaleString()}
-              {pendingRevenue > 0 ? ` (+₱${pendingRevenue.toLocaleString()} pending)` : ''}
+              After platform fees and refunds · Gross {formatPHP(totalRevenue)}
+              {pendingRevenue > 0 ? ` (+${formatPHP(pendingRevenue)} pending)` : ''}
             </>
           }
         />
@@ -177,7 +178,7 @@ export default async function OrganizerDashboard() {
             <BarChart categories={revenueCategories} series={revenueSeries} valuePrefix="₱" height={300} />
           </div>
           <p className="text-sm text-muted-foreground">
-            Net for the period: <span className="font-semibold text-foreground">₱{sixMonthRevenue.toLocaleString('en-PH', { maximumFractionDigits: 2 })}</span>
+            Net for the period: <span className="font-semibold text-foreground">{formatPHP(sixMonthRevenue)}</span>
           </p>
         </CardBox>
       </div>
@@ -253,14 +254,14 @@ export default async function OrganizerDashboard() {
                       },
                       {
                         label: 'Schedule',
-                        value: b.tour_schedules?.start_date ? new Date(b.tour_schedules.start_date).toLocaleDateString() : 'N/A'
+                        value: b.tour_schedules?.start_date ? formatDate(b.tour_schedules.start_date) : 'N/A'
                       },
                       {
                         label: 'Booked On',
                         value: (
                           <div className="text-right">
-                            <div>{new Date(b.created_at).toLocaleDateString()}</div>
-                            <div className="text-xs text-muted-foreground">{new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                            <div>{formatDateOfInstant(b.created_at)}</div>
+                            <div className="text-xs text-muted-foreground">{formatTimeOfInstant(b.created_at)}</div>
                           </div>
                         )
                       }
@@ -295,10 +296,10 @@ export default async function OrganizerDashboard() {
                             <span className="truncate max-w-[120px] inline-block align-bottom">{b.tour_schedules?.tours?.location}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="px-6">{b.tour_schedules?.start_date ? new Date(b.tour_schedules.start_date).toLocaleDateString() : 'N/A'}</TableCell>
+                        <TableCell className="px-6">{b.tour_schedules?.start_date ? formatDate(b.tour_schedules.start_date) : 'N/A'}</TableCell>
                         <TableCell className="px-6">
-                          <div className="text-sm font-medium text-foreground">{new Date(b.created_at).toLocaleDateString()}</div>
-                          <div className="text-xs text-muted-foreground">{new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                          <div className="text-sm font-medium text-foreground">{formatDateOfInstant(b.created_at)}</div>
+                          <div className="text-xs text-muted-foreground">{formatTimeOfInstant(b.created_at)}</div>
                         </TableCell>
                         <TableCell className="px-6">
                           <StatusBadge status={b.status} />

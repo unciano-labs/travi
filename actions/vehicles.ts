@@ -359,6 +359,7 @@ export async function getAvailableVehicles(startDate: string, endDate: string, r
       is_favorite: favoriteVehicleIds.has(v.id),
     }));
   } catch (err: unknown) {
+    unstable_rethrow(err);
     captureException(err, { action: 'getAvailableVehicles' });
     return [];
   }

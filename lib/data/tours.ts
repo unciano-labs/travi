@@ -1,3 +1,4 @@
+import { unstable_rethrow } from 'next/navigation';
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
@@ -148,6 +149,7 @@ async function searchPublicTours(query: CatalogQuery, limit: number, offset: num
     const rows = (data ?? []) as SearchRow[];
     return { tours: rows.map(toCatalogTour), total: rows.length ? Number(rows[0].total_count) : 0 };
   } catch (err: unknown) {
+    unstable_rethrow(err);
     captureException(err, { action: 'searchPublicTours' });
     return { tours: [], total: 0 };
   }
@@ -201,6 +203,7 @@ export const getCachedSitemapTours = unstable_cache(
       }
       return (data ?? []).map((t) => ({ slug: t.slug as string, updated_at: (t.updated_at as string | null) ?? null }));
     } catch (err: unknown) {
+      unstable_rethrow(err);
       captureException(err, { action: 'getCachedSitemapTours' });
       return [];
     }
@@ -237,6 +240,7 @@ const fetchTourBySlug = unstable_cache(
       }
       return tour;
     } catch (err: unknown) {
+      unstable_rethrow(err);
       captureException(err, { action: 'getCachedTourBySlug', slug });
       return null;
     }

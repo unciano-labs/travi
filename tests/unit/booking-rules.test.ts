@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, bookingFlags, formatDate, formatPeso } from '@/components/traveler/bookingRules';
+import { addDays, bookingFlags } from '@/components/traveler/bookingRules';
 
 const TODAY = '2026-10-23';
 const WINDOW = 3; // escrow_holding_days
@@ -70,17 +70,5 @@ describe('bookingFlags', () => {
 
   it('without dates nothing is cancellable or disputable', () => {
     expect(bookingFlags(booking({ start_date: null, end_date: null }), TODAY, WINDOW)).toMatchObject({ canCancel: false, canDispute: false });
-  });
-});
-
-describe('formatting', () => {
-  it('formatPeso', () => {
-    expect(formatPeso(1234.5)).toBe('₱1,234.50');
-    expect(formatPeso(null)).toBe('₱0.00');
-  });
-
-  it('formatDate', () => {
-    expect(formatDate('2026-10-23')).toBe('Oct 23, 2026');
-    expect(formatDate(null)).toBe('N/A');
   });
 });

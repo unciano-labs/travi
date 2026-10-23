@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { formatDate, formatDateOfInstant, formatPHP, formatTimeOfInstant } from '@/lib/format';
 
 interface Booking {
   id: string;
@@ -125,7 +126,7 @@ export default function OrganizerBookingsClient({ initialBookings }: OrganizerBo
                     },
                     {
                       label: 'Date',
-                      value: b.tour_schedules?.start_date ? new Date(b.tour_schedules.start_date).toLocaleDateString() : 'N/A'
+                      value: b.tour_schedules?.start_date ? formatDate(b.tour_schedules.start_date) : 'N/A'
                     },
                     {
                       label: 'Pax',
@@ -133,14 +134,14 @@ export default function OrganizerBookingsClient({ initialBookings }: OrganizerBo
                     },
                     {
                       label: 'Amount',
-                      value: <span className="text-successemphasis font-semibold">₱{(b.total_amount || 0).toLocaleString()}</span>
+                      value: <span className="text-successemphasis font-semibold">{formatPHP(b.total_amount || 0)}</span>
                     },
                     {
                       label: 'Booked On',
                       value: (
                         <div className="text-right">
-                          <div>{new Date(b.created_at).toLocaleDateString()}</div>
-                          <div className="text-xs text-muted-foreground">{new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                          <div>{formatDateOfInstant(b.created_at)}</div>
+                          <div className="text-xs text-muted-foreground">{formatTimeOfInstant(b.created_at)}</div>
                         </div>
                       )
                     }
@@ -185,16 +186,16 @@ export default function OrganizerBookingsClient({ initialBookings }: OrganizerBo
                         <div className="font-semibold text-foreground line-clamp-1">{b.tour_schedules?.tours?.title}</div>
                         <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
                           <Calendar className="w-3 h-3" aria-hidden="true" />
-                          {b.tour_schedules?.start_date ? new Date(b.tour_schedules.start_date).toLocaleDateString() : 'N/A'} 
+                          {b.tour_schedules?.start_date ? formatDate(b.tour_schedules.start_date) : 'N/A'} 
                           <span className="mx-1">•</span>
                           <Users className="w-3 h-3" aria-hidden="true" />
                           {b.seats} Pax
                         </div>
                       </TableCell>
-                      <TableCell className="px-6 text-foreground font-semibold tracking-tight">₱{(b.total_amount || 0).toLocaleString()}</TableCell>
+                      <TableCell className="px-6 text-foreground font-semibold tracking-tight">{formatPHP(b.total_amount || 0)}</TableCell>
                       <TableCell className="px-6">
-                        <div className="text-sm font-medium text-foreground">{new Date(b.created_at).toLocaleDateString()}</div>
-                        <div className="text-xs text-muted-foreground">{new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="text-sm font-medium text-foreground">{formatDateOfInstant(b.created_at)}</div>
+                        <div className="text-xs text-muted-foreground">{formatTimeOfInstant(b.created_at)}</div>
                       </TableCell>
                       <TableCell className="px-6">
                         <StatusBadge status={b.status} />
@@ -270,7 +271,7 @@ export default function OrganizerBookingsClient({ initialBookings }: OrganizerBo
                   <div>
                     <span className={fieldLabel}>Date</span>
                     <div className="font-medium text-foreground text-sm">
-                      {selectedBooking.tour_schedules?.start_date ? new Date(selectedBooking.tour_schedules.start_date).toLocaleDateString() : 'N/A'}
+                      {selectedBooking.tour_schedules?.start_date ? formatDate(selectedBooking.tour_schedules.start_date) : 'N/A'}
                     </div>
                   </div>
                   <div>
@@ -279,12 +280,12 @@ export default function OrganizerBookingsClient({ initialBookings }: OrganizerBo
                   </div>
                   <div>
                     <span className={fieldLabel}>Total Amount</span>
-                    <div className="font-semibold text-successemphasis text-sm">₱{(selectedBooking.total_amount || 0).toLocaleString()}</div>
+                    <div className="font-semibold text-successemphasis text-sm">{formatPHP(selectedBooking.total_amount || 0)}</div>
                   </div>
                   <div className="col-span-2">
                     <span className={fieldLabel}>Booked On</span>
                     <div className="font-medium text-foreground text-sm">
-                      {new Date(selectedBooking.created_at).toLocaleDateString()} at {new Date(selectedBooking.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {formatDateOfInstant(selectedBooking.created_at)} at {formatTimeOfInstant(selectedBooking.created_at)}
                     </div>
                   </div>
                 </div>
@@ -315,7 +316,7 @@ export default function OrganizerBookingsClient({ initialBookings }: OrganizerBo
                       <div className="col-span-2 sm:col-span-1">
                         <span className={fieldLabel}>Paid On</span>
                         <div className="font-medium text-foreground text-sm">
-                          {new Date(selectedBooking.updated_at).toLocaleDateString()} at {new Date(selectedBooking.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {formatDateOfInstant(selectedBooking.updated_at)} at {formatTimeOfInstant(selectedBooking.updated_at)}
                         </div>
                       </div>
                     )}

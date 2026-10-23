@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { env } from '@/lib/env';
 
@@ -8,7 +8,8 @@ export default async function DashboardDispatcherPage() {
   let session;
   try {
     session = await requireSession();
-  } catch (error) {
+  } catch (error: unknown) {
+    unstable_rethrow(error);
     redirect('/login');
   }
   const { user, profile, supabase } = session;

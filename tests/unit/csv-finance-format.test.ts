@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { csvCell, csvLine } from '@/lib/csv';
-import { manilaDateTime, maskAccountNumber, peso, shortDate } from '@/lib/finance-format';
+import { maskAccountNumber } from '@/lib/finance-format';
 
 describe('csvCell', () => {
   it.each(['=HYPERLINK("http://evil","x")', '+1+1', '-2+3', '@SUM(A1:A2)', '\t=1', '\r=1'])(
@@ -70,30 +70,4 @@ describe('maskAccountNumber', () => {
   });
 });
 
-describe('peso', () => {
-  it('formats pesos with two decimals and thousands separators', () => {
-    expect(peso(1234.5)).toBe('₱1,234.50');
-    expect(peso('1000000')).toBe('₱1,000,000.00');
-    expect(peso(0)).toBe('₱0.00');
-  });
-
-  it('treats missing or invalid amounts as zero', () => {
-    expect(peso(null)).toBe('₱0.00');
-    expect(peso(undefined)).toBe('₱0.00');
-    expect(peso('abc')).toBe('₱0.00');
-  });
-});
-
-describe('shortDate / manilaDateTime', () => {
-  it('formats a DATE without time-zone drift', () => {
-    expect(shortDate('2026-10-23')).toBe('Oct 23, 2026');
-    expect(shortDate('2026-10-23T23:00:00Z')).toBe('Oct 23, 2026');
-    expect(shortDate(null)).toBe('—');
-    expect(shortDate('garbage')).toBe('garbage');
-  });
-
-  it('formats an instant in Manila time', () => {
-    expect(manilaDateTime('2026-10-22T16:05:00Z')).toBe('Oct 23, 2026, 12:05 AM');
-    expect(manilaDateTime(null)).toBe('—');
-  });
-});
+// Money and date formatting: see format.test.ts.

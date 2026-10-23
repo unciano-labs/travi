@@ -12,6 +12,7 @@ import CardBox from '@/components/ui/CardBox';
 import EmptyState from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { formatPHP } from '@/lib/format';
 
 interface VehicleListClientProps {
   initialVehicles: any[];
@@ -187,7 +188,7 @@ export default function VehicleListClient({ initialVehicles }: VehicleListClient
                     <div className="flex items-center justify-end gap-1.5 font-medium">
                       <Tag className="size-4 text-muted-foreground" />
                       <span className="font-semibold text-foreground">
-                        {v.rate_per_day ? `₱${Number(v.rate_per_day).toLocaleString()}/day` : 'Contact for rate'}
+                        {v.rate_per_day ? `${formatPHP(v.rate_per_day, { cents: 'auto' })}/day` : 'Contact for rate'}
                       </span>
                     </div>
                   </div>

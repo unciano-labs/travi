@@ -1,3 +1,4 @@
+import { unstable_rethrow } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
@@ -43,6 +44,7 @@ export const getCachedTourReviews = unstable_cache(
 
       return data || [];
     } catch (err: unknown) {
+      unstable_rethrow(err);
       captureException(err, { action: 'getCachedTourReviews exception', tourId });
       return [];
     }

@@ -13,6 +13,7 @@ import BarChart from '@/components/ui/charts/BarChart';
 import DonutChart from '@/components/ui/charts/DonutChart';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { formatDateOfInstant, formatDateTime } from '@/lib/format';
 
 interface RecentRequest {
   id: string;
@@ -35,14 +36,6 @@ const STATUS_TONE: Record<string, TimelineItem['tone']> = {
   canceled: 'error',
 };
 
-function formatPickupDate(value: string) {
-  return new Date(value).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-}
 
 function organizerName(r: RecentRequest) {
   return r.organizer?.company_name || r.organizer?.display_name || 'Tour Organizer';
@@ -135,7 +128,7 @@ export default async function TransporterDashboard() {
   // Chart data, aggregated on the server from the rows fetched above.
   const chronological = [...recentRequests].reverse();
   const requestValueCategories = chronological.map((r) =>
-    new Date(r.pickup_datetime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+    formatDateTime(r.pickup_datetime, { month: 'short', day: 'numeric' })
   );
   const requestValueSeries = [
     { name: 'Estimated Price', data: chronological.map((r) => Number(r.estimated_price) || 0) },
@@ -144,7 +137,7 @@ export default async function TransporterDashboard() {
 
   const timelineItems: TimelineItem[] = recentRequests.map((r) => ({
     key: r.id,
-    time: new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    time: formatDateTime(r.created_at, { month: 'short', day: 'numeric' }),
     title: organizerName(r),
     subtitle: `${r.pickup_location} → ${r.dropoff_location}`,
     tone: STATUS_TONE[r.status] ?? 'secondary',
@@ -334,7 +327,7 @@ export default async function TransporterDashboard() {
                     headerBadge={<StatusBadge status={r.status} />}
                     rows={[
                       { label: 'Vehicle', value: r.vehicle?.name || 'Any Available', fullWidth: true },
-                      { label: 'Pickup Date', value: formatPickupDate(r.pickup_datetime) },
+                      { label: 'Pickup Date', value: formatDateOfInstant(r.pickup_datetime) },
                     ]}
                     actions={
                       <Link href="/dashboard/transporter/requests" className="text-xs font-semibold text-primary hover:underline">
@@ -363,7 +356,7 @@ export default async function TransporterDashboard() {
                       <TableRow key={r.id}>
                         <TableCell className="px-6 font-semibold text-foreground">{organizerName(r)}</TableCell>
                         <TableCell className="font-medium">{r.vehicle?.name || 'Any Available'}</TableCell>
-                        <TableCell>{formatPickupDate(r.pickup_datetime)}</TableCell>
+                        <TableCell>{formatDateOfInstant(r.pickup_datetime)}</TableCell>
                         <TableCell className="max-w-xs truncate text-xs">
                           {r.pickup_location} → {r.dropoff_location}
                         </TableCell>

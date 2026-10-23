@@ -110,7 +110,7 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
            if (match) setSelectedProvinceCode(match.code);
          }
       })
-      .catch(console.error);
+      .catch(() => setProvinces([]));
   }, [initialData?.province]);
 
   useEffect(() => {
@@ -126,7 +126,7 @@ export default function TourForm({ initialData }: { initialData?: TourFormData }
     fetch(url)
       .then(res => res.json())
       .then(data => setCities(data))
-      .catch(console.error);
+      .catch(() => setCities([]));
   }, [selectedProvinceCode]);
   
   const router = useRouter();

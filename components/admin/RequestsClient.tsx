@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { manilaDateTime } from '@/lib/finance-format';
+import { formatDateTime } from '@/lib/format';
 import {
   DATA_REQUEST_LABELS,
   DATA_REQUEST_STATUSES,
@@ -146,7 +146,7 @@ export default function RequestsClient({
                     <div>
                       <p className="font-semibold text-foreground">{DATA_REQUEST_LABELS[r.type]}</p>
                       <p className="text-sm text-muted-foreground">{r.userName || '—'} · {r.userEmail || 'unknown email'}</p>
-                      <p className="text-xs text-muted-foreground">Filed {manilaDateTime(r.createdAt)}{r.resolvedAt ? ` · closed ${manilaDateTime(r.resolvedAt)}` : ''}</p>
+                      <p className="text-xs text-muted-foreground">Filed {formatDateTime(r.createdAt)}{r.resolvedAt ? ` · closed ${formatDateTime(r.resolvedAt)}` : ''}</p>
                     </div>
                     <StatusBadge status={r.status} label={label(r.status)} />
                   </div>
@@ -181,7 +181,7 @@ export default function RequestsClient({
                         {m.name} · <a href={`mailto:${m.email}`} className="text-primary hover:underline">{m.email}</a>
                         {m.signedIn ? ' · signed in' : ' · guest'}
                       </p>
-                      <p className="text-xs text-muted-foreground">Received {manilaDateTime(m.createdAt)}</p>
+                      <p className="text-xs text-muted-foreground">Received {formatDateTime(m.createdAt)}</p>
                     </div>
                     <StatusBadge status={m.status === 'resolved' ? 'completed' : m.status === 'closed' ? 'archived' : m.status} label={label(m.status)} />
                   </div>

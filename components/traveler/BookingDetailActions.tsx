@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { AlertCircle, CreditCard, Loader2, Printer, XCircle } from 'lucide-react';
 import { cancelBookingAsTraveler } from '@/actions/bookings';
 import DisputeDialog from '@/components/traveler/DisputeDialog';
-import { formatPeso } from '@/components/traveler/bookingRules';
+import { formatPHP } from '@/lib/format';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -88,7 +88,7 @@ export default function BookingDetailActions({
         title="Cancel this booking?"
         message={
           booking.status === 'confirmed'
-            ? `Booking ${booking.label} will be canceled and ${formatPeso(booking.totalAmount)} refunded to your original payment method.`
+            ? `Booking ${booking.label} will be canceled and ${formatPHP(booking.totalAmount)} refunded to your original payment method.`
             : 'Your held seats will be released. You have not been charged.'
         }
         confirmText="Yes, cancel booking"

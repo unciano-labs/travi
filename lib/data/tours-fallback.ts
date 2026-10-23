@@ -1,3 +1,4 @@
+import { unstable_rethrow } from 'next/navigation';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { captureException } from '@/lib/logger';
 import { manilaToday } from '@/lib/datetime';
@@ -146,6 +147,7 @@ export async function searchToursFallback(
       total: tours.length,
     };
   } catch (err: unknown) {
+    unstable_rethrow(err);
     captureException(err, { action: 'searchToursFallback' });
     return { tours: [], total: 0 };
   }

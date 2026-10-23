@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath, updateTag } from 'next/cache';
+import { unstable_rethrow } from 'next/navigation';
 import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { assertRateLimit } from '@/lib/ratelimit';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -197,6 +198,7 @@ export async function getPartnerDocumentUrl(documentId: unknown) {
 
     return { success: true as const, url: signed.signedUrl };
   } catch (error: unknown) {
+    unstable_rethrow(error);
     captureException(error, { action: 'getPartnerDocumentUrl' });
     return { success: false as const, error: partnerErrorMessage(error, 'Failed to open document.') };
   }

@@ -7,7 +7,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { captureException } from '@/lib/logger';
 import { manilaToday } from '@/lib/datetime';
 import BookingDetailActions from '@/components/traveler/BookingDetailActions';
-import { bookingFlags, formatDate, formatPeso } from '@/components/traveler/bookingRules';
+import { bookingFlags } from '@/components/traveler/bookingRules';
+import { formatDateOfInstant, formatDateRange, formatDateTime, formatPHP } from '@/lib/format';
 import CardBox from '@/components/ui/CardBox';
 import PageHeader from '@/components/ui/PageHeader';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -169,7 +170,7 @@ export default async function TravelerBookingDetailPage({ params }: { params: Pr
               <Row label="Dates">
                 <span className="inline-flex items-center gap-1.5">
                   <CalendarDays className="size-4 text-muted-foreground" aria-hidden="true" />
-                  {formatDate(schedule?.start_date)} – {formatDate(schedule?.end_date)}
+                  {formatDateRange(schedule?.start_date, schedule?.end_date)}
                 </span>
               </Row>
               <Row label={isPrivate ? 'Group' : 'Guests'}>
@@ -219,7 +220,7 @@ export default async function TravelerBookingDetailPage({ params }: { params: Pr
             <CardBox>
               <h2 className="card-title">Your dispute</h2>
               <p className="text-sm text-muted-foreground">
-                Opened {row.dispute_opened_at ? new Date(row.dispute_opened_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) : ''}
+                Opened {row.dispute_opened_at ? formatDateTime(row.dispute_opened_at) : ''}
               </p>
               {row.dispute_reason && <p className="whitespace-pre-line text-sm text-bodytext">{row.dispute_reason}</p>}
             </CardBox>
@@ -233,10 +234,10 @@ export default async function TravelerBookingDetailPage({ params }: { params: Pr
             </h2>
             <dl className="divide-y divide-border">
               <Row label="Booking reference"><span className="font-mono">{label}</span></Row>
-              <Row label="Booked on">{new Date(row.created_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium' })}</Row>
-              <Row label={isPrivate ? 'Private group' : `${row.seats} × per person`}>{formatPeso(row.total_amount)}</Row>
-              <Row label="Service fee">{formatPeso(0)}</Row>
-              <Row label="Total">{formatPeso(row.total_amount)}</Row>
+              <Row label="Booked on">{formatDateOfInstant(row.created_at)}</Row>
+              <Row label={isPrivate ? 'Private group' : `${row.seats} × per person`}>{formatPHP(row.total_amount)}</Row>
+              <Row label="Service fee">{formatPHP(0)}</Row>
+              <Row label="Total">{formatPHP(row.total_amount)}</Row>
             </dl>
 
             <h3 className="mt-2 text-sm font-semibold text-foreground">Payments</h3>
@@ -247,9 +248,9 @@ export default async function TravelerBookingDetailPage({ params }: { params: Pr
                 {appliedPayments.map((p) => (
                   <li key={p.provider_payment_id} className="flex justify-between gap-2">
                     <span className="text-muted-foreground">
-                      Paid {new Date(p.created_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium' })}
+                      Paid {formatDateOfInstant(p.created_at)}
                     </span>
-                    <span className="font-medium text-foreground">{formatPeso(p.amount_centavos / 100)}</span>
+                    <span className="font-medium text-foreground">{formatPHP(p.amount_centavos / 100)}</span>
                   </li>
                 ))}
               </ul>
@@ -265,11 +266,11 @@ export default async function TravelerBookingDetailPage({ params }: { params: Pr
                     <span>
                       <span className="block text-foreground">{REFUND_REASONS[r.reason] ?? 'Refund'}</span>
                       <span className="text-xs text-muted-foreground">
-                        {new Date(r.created_at).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium' })} ·{' '}
+                        {formatDateOfInstant(r.created_at)} ·{' '}
                         {r.status === 'succeeded' ? 'refunded' : r.status === 'pending' ? 'processing' : 'failed, our team will retry'}
                       </span>
                     </span>
-                    <span className="font-medium text-foreground">{formatPeso(r.amount)}</span>
+                    <span className="font-medium text-foreground">{formatPHP(r.amount)}</span>
                   </li>
                 ))}
               </ul>

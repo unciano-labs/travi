@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { formatDateTime, formatPHP } from '@/lib/format';
 
 interface Organizer {
   id: string;
@@ -132,7 +133,7 @@ export default function OrganizersClient({ initialOrganizers }: OrganizersClient
                     },
                     {
                       label: 'Revenue',
-                      value: <span className="font-semibold text-successemphasis">₱{(org.revenue || 0).toLocaleString()}</span>
+                      value: <span className="font-semibold text-successemphasis">{formatPHP(org.revenue || 0)}</span>
                     }
                   ]}
                   actions={
@@ -183,7 +184,7 @@ export default function OrganizersClient({ initialOrganizers }: OrganizersClient
                         <Badge variant="gray">{org.activeTours || 0}</Badge>
                       </TableCell>
                       <TableCell className="px-6 text-right font-semibold text-successemphasis">
-                        ₱{(org.revenue || 0).toLocaleString()}
+                        {formatPHP(org.revenue || 0)}
                       </TableCell>
                       <TableCell className="px-6 text-right">
                         <Button type="button" variant="lightprimary" size="xs" onClick={() => setSelectedOrg(org)}>
@@ -251,8 +252,8 @@ export default function OrganizersClient({ initialOrganizers }: OrganizersClient
                 {/* Grid Details */}
                 <div className="grid grid-cols-2 gap-4 rounded-lg border border-border bg-muted/50 p-4">
                   {detailItem(<User className="size-3.5" />, 'Type', <span className="capitalize">{selectedOrg.organizer_type}</span>, 'sm:col-span-1')}
-                  {detailItem(<Calendar className="size-3.5" />, 'Applied On', new Date(selectedOrg.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }), 'sm:col-span-1')}
-                  {detailItem(null, 'Revenue Generated', <span className="font-semibold text-successemphasis">₱{(selectedOrg.revenue || 0).toLocaleString()}</span>)}
+                  {detailItem(<Calendar className="size-3.5" />, 'Applied On', formatDateTime(selectedOrg.created_at), 'sm:col-span-1')}
+                  {detailItem(null, 'Revenue Generated', <span className="font-semibold text-successemphasis">{formatPHP(selectedOrg.revenue || 0)}</span>)}
                   {detailItem(null, 'Active Tours', <span className="font-semibold">{selectedOrg.activeTours || 0}</span>)}
                   {detailItem(<Phone className="size-3.5" />, 'Phone', selectedOrg.phone || 'N/A')}
                   {detailItem(<MapPin className="size-3.5" />, 'Address', selectedOrg.address || 'N/A')}

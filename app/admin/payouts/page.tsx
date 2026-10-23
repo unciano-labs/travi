@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { PayoutsClient, type AdminPayout } from '@/components/admin/PayoutsClient';
 import PageHeader from '@/components/ui/PageHeader';
 import { maskAccountNumber } from '@/lib/finance-format';
+import { formatPHP } from '@/lib/format';
 
 type Embed<T> = T | T[] | null | undefined;
 const one = <T,>(value: Embed<T>): T | null => (Array.isArray(value) ? value[0] ?? null : value ?? null);
@@ -96,7 +97,7 @@ export default async function AdminPayoutsPage() {
         description={
           threshold == null
             ? 'Manage and process partner withdrawals.'
-            : `Payouts of ₱${Number(threshold).toLocaleString('en-PH', { minimumFractionDigits: 2 })} or more need approval by one admin and payment by another.`
+            : `Payouts of ${formatPHP(threshold)} or more need approval by one admin and payment by another.`
         }
         breadcrumbs={[{ title: 'Admin', href: '/admin' }, { title: 'Payouts' }]}
       />

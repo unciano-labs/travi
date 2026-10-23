@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { ArrowRight, CalendarDays, Clock, MapPin, Star, Users } from 'lucide-react';
 import type { CatalogTour } from '@/lib/data/tours';
 import { TOUR_FORMAT_LABELS, TOUR_THEMES } from '@/lib/schemas/catalog';
+import { formatDate, formatPHP } from '@/lib/format';
 
 const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80';
 
@@ -13,10 +14,7 @@ const FORMAT_BADGE: Record<CatalogTour['format'], string> = {
 };
 
 const themeLabel = (id: string) => TOUR_THEMES.find((t) => t.id === id)?.label ?? id.replace(/_/g, ' ');
-const peso = (n: number) => `₱${n.toLocaleString('en-PH', { maximumFractionDigits: 2 })}`;
-// next_start_date is a Manila business date (YYYY-MM-DD): format it as a calendar date, not an instant.
-const formatDate = (d: string) =>
-  new Date(`${d}T00:00:00Z`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+const peso = (n: number) => formatPHP(n, { cents: 'auto' });
 
 /** Catalog card shared by the landing page and /tours. Server-rendered; no client JS. */
 export default function TourCard({ tour, priority = false }: { tour: CatalogTour; priority?: boolean }) {

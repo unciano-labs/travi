@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { formatDate, formatDateRange, formatDateTime, formatPHP } from '@/lib/format';
 
 const BookingMobileCard = dynamic(() => import('./BookingMobileCard'), {
   ssr: false,
@@ -131,7 +132,7 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
       setNotice({
         kind: 'success',
         text: target.decision === 'refund'
-          ? `Dispute resolved: ₱${(res.refundAmount ?? 0).toLocaleString()} refunded to the traveler.`
+          ? `Dispute resolved: ${formatPHP(res.refundAmount ?? 0)} refunded to the traveler.`
           : 'Dispute denied. The organizer\'s payout will be released on schedule.',
       });
     } else {
@@ -147,7 +148,7 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
     setSelectedBooking(null);
     setNotice({
       kind: 'success',
-      text: refundAmount ? `Booking canceled and ₱${refundAmount.toLocaleString()} refunded.` : 'Booking canceled.',
+      text: refundAmount ? `Booking canceled and ${formatPHP(refundAmount)} refunded.` : 'Booking canceled.',
     });
   };
 
@@ -238,7 +239,7 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
                         <h6 className="text-sm font-semibold text-foreground line-clamp-1">{booking.tour_schedule?.tour?.title || 'Unknown Tour'}</h6>
                         <p className="text-muted-foreground text-xs font-medium mt-0.5 flex items-center gap-1">
                           <Calendar className="w-3 h-3" aria-hidden="true" />
-                          {new Date(booking.tour_schedule?.start_date || '').toLocaleDateString()}
+                          {formatDate(booking.tour_schedule?.start_date)}
                         </p>
                       </TableCell>
                       <TableCell className="px-6">
@@ -249,7 +250,7 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
                         {booking.seats}
                       </TableCell>
                       <TableCell className="px-6 font-semibold text-success">
-                        ₱{booking.total_amount.toLocaleString()}
+                        {formatPHP(booking.total_amount)}
                       </TableCell>
                       <TableCell className="px-6">
                         <div className="flex flex-col gap-1 items-start">
@@ -333,7 +334,7 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
                   <div className="min-w-0">
                     <AlertTitle>Dispute Open</AlertTitle>
                     <AlertDescription className="text-xs">
-                      Opened {selectedBooking.dispute_opened_at ? new Date(selectedBooking.dispute_opened_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) : 'by the traveler'}. Funds are held in escrow.
+                      Opened {selectedBooking.dispute_opened_at ? formatDateTime(selectedBooking.dispute_opened_at) : 'by the traveler'}. Funds are held in escrow.
                     </AlertDescription>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -373,7 +374,7 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
                     {selectedBooking.refunds.map((r, i) => (
                       <li key={`${r.created_at}-${i}`} className="flex justify-between gap-2">
                         <span className="text-bodytext">{r.reason.replaceAll('_', ' ')} · {r.status}</span>
-                        <span className="font-medium text-foreground">₱{Number(r.amount).toLocaleString()}</span>
+                        <span className="font-medium text-foreground">{formatPHP(r.amount)}</span>
                       </li>
                     ))}
                   </ul>
@@ -396,14 +397,14 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
                 <div className="col-span-2 sm:col-span-1">
                   <DetailLabel icon={Calendar}>Schedule</DetailLabel>
                   <div className="font-medium text-foreground text-sm">
-                    {new Date(selectedBooking.tour_schedule?.start_date || '').toLocaleDateString()} - {new Date(selectedBooking.tour_schedule?.end_date || '').toLocaleDateString()}
+                    {formatDateRange(selectedBooking.tour_schedule?.start_date, selectedBooking.tour_schedule?.end_date)}
                   </div>
                 </div>
 
                 <div className="col-span-2 sm:col-span-1">
                   <DetailLabel icon={Calendar}>Booked On</DetailLabel>
                   <div className="font-medium text-foreground text-sm">
-                    {new Date(selectedBooking.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    {formatDateTime(selectedBooking.created_at)}
                   </div>
                 </div>
 
@@ -414,7 +415,7 @@ export default function BookingsClient({ initialBookings }: BookingsClientProps)
 
                 <div className="col-span-2 sm:col-span-1 bg-white p-3 rounded-lg border border-border">
                   <DetailLabel icon={DollarSign}>Total Amount</DetailLabel>
-                  <div className="font-semibold text-success text-xl">₱{selectedBooking.total_amount.toLocaleString()}</div>
+                  <div className="font-semibold text-success text-xl">{formatPHP(selectedBooking.total_amount)}</div>
                 </div>
               </div>
             </div>

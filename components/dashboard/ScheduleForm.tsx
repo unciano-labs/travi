@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input, NativeSelect } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { formatPHP } from '@/lib/format';
 
 // Vehicles are requested from the schedule list (TransportManager → sendTransportRequest), which runs
 // the transport checks (one active request, seat capacity, vehicle conflicts, Manila times). This form
@@ -180,7 +181,7 @@ export default function ScheduleForm({ tourId, basePrice, initialData }: { tourI
         </div>
         <div className="space-y-2">
           <Label htmlFor="schedule-price">Selling Price (₱)</Label>
-          <Input id="schedule-price" type="number" step="0.01" name="price_per_person" min="0" defaultValue={initialData?.price_per_person || ''} placeholder={basePrice ? `Default: ₱${basePrice}` : 'Optional override'} />
+          <Input id="schedule-price" type="number" step="0.01" name="price_per_person" min="0" defaultValue={initialData?.price_per_person || ''} placeholder={basePrice ? `Default: ${formatPHP(basePrice, { cents: 'auto' })}` : 'Optional override'} />
         </div>
       </div>
 

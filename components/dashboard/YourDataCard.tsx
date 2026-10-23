@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { manilaDateTime } from '@/lib/finance-format';
+import { formatDateTime } from '@/lib/format';
 import { DATA_REQUEST_LABELS } from '@/lib/schemas/legal';
 import type { OwnDataRequest } from '@/lib/legal/privacy';
 
@@ -131,7 +131,7 @@ export default function YourDataCard({ initialRequests, retentionNote }: { initi
               <li key={r.id} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm font-medium text-foreground">{DATA_REQUEST_LABELS[r.requestType]}</p>
-                  <p className="text-xs text-muted-foreground">Filed {manilaDateTime(r.createdAt)}</p>
+                  <p className="text-xs text-muted-foreground">Filed {formatDateTime(r.createdAt)}</p>
                   {r.adminNote && <p className="mt-1 text-xs text-bodytext">Note: {r.adminNote}</p>}
                 </div>
                 <StatusBadge status={r.status} />

@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import InputDialog from '@/components/admin/InputDialog';
 import AdminPager from '@/components/admin/AdminPager';
-import { manilaDateTime } from '@/lib/finance-format';
+import { formatDateTime, formatNumber } from '@/lib/format';
 import { ROLE_VALUES, type RoleValue } from '@/lib/schemas/admin-tools';
 
 export interface AdminUser {
@@ -113,7 +113,7 @@ export default function UsersClient({ initialUsers, total, page, pageSize, query
         <div className="flex flex-col justify-between gap-4 border-b border-border px-6 py-4 sm:flex-row sm:items-center">
           <div>
             <h5 className="card-title">All users</h5>
-            <p className="text-sm text-muted-foreground">{total.toLocaleString()} user{total === 1 ? '' : 's'}{query ? ` matching “${query}”` : ''}</p>
+            <p className="text-sm text-muted-foreground">{formatNumber(total)} user{total === 1 ? '' : 's'}{query ? ` matching “${query}”` : ''}</p>
           </div>
           <form onSubmit={submitSearch} role="search" className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -141,8 +141,8 @@ export default function UsersClient({ initialUsers, total, page, pageSize, query
                   headerBadge={statusBadge(u)}
                   rows={[
                     { label: 'Roles', value: roleBadges(u), fullWidth: true },
-                    { label: 'Joined', value: manilaDateTime(u.createdAt) },
-                    { label: 'Last sign-in', value: manilaDateTime(u.lastSignInAt) },
+                    { label: 'Joined', value: formatDateTime(u.createdAt) },
+                    { label: 'Last sign-in', value: formatDateTime(u.lastSignInAt) },
                   ]}
                   actions={manageButton(u)}
                 />
@@ -169,8 +169,8 @@ export default function UsersClient({ initialUsers, total, page, pageSize, query
                       </TableCell>
                       <TableCell className="px-6">{roleBadges(u)}</TableCell>
                       <TableCell className="px-6">{statusBadge(u)}</TableCell>
-                      <TableCell className="whitespace-nowrap px-6 text-muted-foreground">{manilaDateTime(u.createdAt)}</TableCell>
-                      <TableCell className="whitespace-nowrap px-6 text-muted-foreground">{manilaDateTime(u.lastSignInAt)}</TableCell>
+                      <TableCell className="whitespace-nowrap px-6 text-muted-foreground">{formatDateTime(u.createdAt)}</TableCell>
+                      <TableCell className="whitespace-nowrap px-6 text-muted-foreground">{formatDateTime(u.lastSignInAt)}</TableCell>
                       <TableCell className="px-6 text-right">{manageButton(u)}</TableCell>
                     </TableRow>
                   ))}

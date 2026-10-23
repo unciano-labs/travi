@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { formatDate, formatPHP } from '@/lib/format';
 
 const STATUS_TONES: Record<string, NonNullable<TimelineItem['tone']>> = {
   confirmed: 'success',
@@ -86,7 +87,7 @@ export default async function TravelerDashboard() {
   // Presentation-only derivations from the bookings fetched above
   const upcomingTimeline: TimelineItem[] = upcomingTours.slice(0, 5).map((b) => ({
     key: b.id,
-    time: new Date(b.tour_schedules.start_date).toLocaleDateString(),
+    time: formatDate(b.tour_schedules.start_date),
     title: b.tour_schedules.tours.title,
     subtitle: `${b.tour_schedules.tours.location} · ${b.seats} Pax`,
     tone: STATUS_TONES[b.status] ?? 'primary',
@@ -158,11 +159,11 @@ export default async function TravelerDashboard() {
               <div className="mt-6 grid grid-cols-2 gap-4 border-t border-border pt-6 md:grid-cols-4">
                  <div className="text-sm">
                    <span className="mb-1 block text-xs text-muted-foreground">Start Date</span>
-                   <span className="font-semibold text-foreground">{new Date(nextAdventure.tour_schedules.start_date).toLocaleDateString()}</span>
+                   <span className="font-semibold text-foreground">{formatDate(nextAdventure.tour_schedules.start_date)}</span>
                  </div>
                  <div className="text-sm">
                    <span className="mb-1 block text-xs text-muted-foreground">End Date</span>
-                   <span className="font-semibold text-foreground">{new Date(nextAdventure.tour_schedules.end_date).toLocaleDateString()}</span>
+                   <span className="font-semibold text-foreground">{formatDate(nextAdventure.tour_schedules.end_date)}</span>
                  </div>
                  <div className="text-sm">
                    <span className="mb-1 block text-xs text-muted-foreground">Guests</span>
@@ -170,7 +171,7 @@ export default async function TravelerDashboard() {
                  </div>
                  <div className="text-sm">
                    <span className="mb-1 block text-xs text-muted-foreground">Total Paid</span>
-                   <span className="font-semibold text-primary">₱{nextAdventure.total_amount.toLocaleString()}</span>
+                   <span className="font-semibold text-primary">{formatPHP(nextAdventure.total_amount)}</span>
                  </div>
               </div>
             </div>
@@ -235,9 +236,9 @@ export default async function TravelerDashboard() {
                   {allBookings.map((booking) => (
                     <TableRow key={booking.id}>
                       <TableCell className="px-6 font-semibold text-foreground">{booking.tour_schedules.tours.title}</TableCell>
-                      <TableCell>{new Date(booking.tour_schedules.start_date).toLocaleDateString()}</TableCell>
+                      <TableCell>{formatDate(booking.tour_schedules.start_date)}</TableCell>
                       <TableCell>{booking.tour_schedules.tours.location}</TableCell>
-                      <TableCell className="text-right font-semibold text-foreground">₱{booking.total_amount.toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-semibold text-foreground">{formatPHP(booking.total_amount)}</TableCell>
                       <TableCell className="px-6"><StatusBadge status={booking.status} /></TableCell>
                     </TableRow>
                   ))}
@@ -252,8 +253,8 @@ export default async function TravelerDashboard() {
                   headerSubtitle={booking.tour_schedules.tours.location}
                   headerBadge={<StatusBadge status={booking.status} />}
                   rows={[
-                    { label: 'Date', value: new Date(booking.tour_schedules.start_date).toLocaleDateString() },
-                    { label: 'Amount', value: `₱${booking.total_amount.toLocaleString()}` },
+                    { label: 'Date', value: formatDate(booking.tour_schedules.start_date) },
+                    { label: 'Amount', value: formatPHP(booking.total_amount) },
                   ]}
                 />
               ))}

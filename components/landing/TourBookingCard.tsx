@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Users, Check, Minus, Plus, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { createBooking } from '@/actions/bookings';
+import { formatDateRange, formatPHP } from '@/lib/format';
 
 export default function TourBookingCard({ tour }: { tour: any }) {
   const router = useRouter();
@@ -74,9 +75,9 @@ export default function TourBookingCard({ tour }: { tour: any }) {
           {isPrivate ? 'Private group · price per person' : 'Price per person'}
         </span>
         <div className="flex items-end gap-2 mt-2">
-          <span className="text-4xl font-extrabold text-slate-900 font-display">₱{displayPrice.toLocaleString()}</span>
+          <span className="text-4xl font-extrabold text-slate-900 font-display">{formatPHP(displayPrice, { cents: 'auto' })}</span>
           {originalPrice && originalPrice > displayPrice && (
-             <span className="text-lg text-slate-400 line-through mb-1">₱{originalPrice.toLocaleString()}</span>
+             <span className="text-lg text-slate-400 line-through mb-1">{formatPHP(originalPrice, { cents: 'auto' })}</span>
           )}
         </div>
       </div>
@@ -101,7 +102,7 @@ export default function TourBookingCard({ tour }: { tour: any }) {
             {selectedSchedule ? (
               <div className="flex flex-col">
                 <span className="font-bold text-slate-900 text-base">
-                  {new Date(selectedSchedule.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(selectedSchedule.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {formatDateRange(selectedSchedule.start_date, selectedSchedule.end_date)}
                 </span>
                 <span className="text-sm text-emerald-600 font-medium flex items-center gap-1 mt-1">
                   <Users className="w-3.5 h-3.5" aria-hidden="true" />
@@ -140,7 +141,7 @@ export default function TourBookingCard({ tour }: { tour: any }) {
                       >
                         <div className="flex flex-col">
                           <span className={`font-bold ${isSelected ? 'text-coral' : 'text-slate-900'}`}>
-                            {new Date(schedule.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(schedule.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            {formatDateRange(schedule.start_date, schedule.end_date)}
                           </span>
                           <span className={`text-xs font-medium mt-1 flex items-center gap-1 ${isLowCapacity ? 'text-coral' : 'text-slate-500'}`}>
                             {isPrivate ? `Private group of up to ${schedule.capacity}` : <>{isLowCapacity && '🔥 Only '}{remaining} slots left</>}
@@ -165,7 +166,7 @@ export default function TourBookingCard({ tour }: { tour: any }) {
           <div className="flex items-start gap-3 bg-slate-50 p-4 rounded-xl border-2 border-slate-200">
             <Users className="w-5 h-5 text-coral mt-0.5 shrink-0" aria-hidden="true" />
             <p className="text-sm text-slate-700">
-              <span className="font-bold text-slate-900">Private group — up to {groupSize} guests, ₱{totalPrice.toLocaleString()} total.</span>{' '}
+              <span className="font-bold text-slate-900">Private group — up to {groupSize} guests, {formatPHP(totalPrice)} total.</span>{' '}
               The whole date is reserved for your group.
             </p>
           </div>
@@ -209,7 +210,7 @@ export default function TourBookingCard({ tour }: { tour: any }) {
       {selectedSchedule && remainingSlots > 0 && (
         <div className="flex items-center justify-between mb-6 pb-6 border-b border-slate-100">
           <span className="text-slate-900 font-bold text-lg">{isPrivate ? `Total for up to ${groupSize} guests` : 'Total'}</span>
-          <span className="text-2xl font-extrabold text-slate-900">₱{totalPrice.toLocaleString()}</span>
+          <span className="text-2xl font-extrabold text-slate-900">{formatPHP(totalPrice)}</span>
         </div>
       )}
 

@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import TourModerationActions, { type ModeratedTour } from '@/components/admin/TourModerationActions';
+import { formatDate, formatDateOfInstant, formatDateRange, formatDateTime, formatPHP } from '@/lib/format';
 
 interface Tour {
   id: string;
@@ -154,7 +155,7 @@ export default function ToursClient({ initialTours }: ToursClientProps) {
                     },
                     {
                       label: 'Price (per pax)',
-                      value: <span className="text-success font-semibold">₱{tour.price_per_person.toLocaleString()}</span>
+                      value: <span className="text-success font-semibold">{formatPHP(tour.price_per_person, { cents: 'auto' })}</span>
                     },
                     {
                       label: 'Schedules',
@@ -243,7 +244,7 @@ export default function ToursClient({ initialTours }: ToursClientProps) {
                         </Button>
                       </TableCell>
                       <TableCell className="px-6 font-semibold text-success">
-                        ₱{tour.price_per_person.toLocaleString()}
+                        {formatPHP(tour.price_per_person, { cents: 'auto' })}
                       </TableCell>
                       <TableCell className="px-6">
                         <StatusBadge status={tour.status} />
@@ -335,7 +336,7 @@ export default function ToursClient({ initialTours }: ToursClientProps) {
                   <span className={statLabel}>
                     <DollarSign className="w-3.5 h-3.5" aria-hidden="true" /> Price per Pax
                   </span>
-                  <div className="font-semibold text-success text-lg">₱{selectedTour.price_per_person.toLocaleString()}</div>
+                  <div className="font-semibold text-success text-lg">{formatPHP(selectedTour.price_per_person, { cents: 'auto' })}</div>
                 </div>
                 <div className="col-span-1 border-r border-border">
                   <span className={statLabel}>
@@ -349,14 +350,14 @@ export default function ToursClient({ initialTours }: ToursClientProps) {
                   <span className={statLabel}>
                     <Calendar className="w-3.5 h-3.5" aria-hidden="true" /> Created On
                   </span>
-                  <div className="font-medium text-foreground text-sm mt-1.5">{new Date(selectedTour.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+                  <div className="font-medium text-foreground text-sm mt-1.5">{formatDateTime(selectedTour.created_at)}</div>
                 </div>
               </div>
 
               {selectedTour.admin_hold_at && (
                 <Alert variant="lighterror">
                   <AlertDescription>
-                    Unpublished by an admin on {new Date(selectedTour.admin_hold_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.
+                    Unpublished by an admin on {formatDateOfInstant(selectedTour.admin_hold_at)}.
                     {selectedTour.admin_hold_reason ? ` Reason: ${selectedTour.admin_hold_reason}` : ''}
                   </AlertDescription>
                 </Alert>
@@ -409,7 +410,7 @@ export default function ToursClient({ initialTours }: ToursClientProps) {
                               value: (
                                 <div className="flex items-center gap-1.5">
                                   <Calendar className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
-                                  {new Date(schedule.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - {new Date(schedule.end_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                  {formatDateRange(schedule.start_date, schedule.end_date)}
                                 </div>
                               ),
                               fullWidth: true
@@ -428,7 +429,7 @@ export default function ToursClient({ initialTours }: ToursClientProps) {
                               value: (
                                 <div>
                                   <div className="font-semibold text-success mb-1">
-                                    {schedule.price_per_person ? `₱${schedule.price_per_person.toLocaleString()}` : `₱${selectedSchedulesTour.price_per_person.toLocaleString()}`}
+                                    {formatPHP(schedule.price_per_person || selectedSchedulesTour.price_per_person, { cents: 'auto' })}
                                   </div>
                                   <StatusBadge status={schedule.transport_type} label={schedule.transport_type.replace('_', ' ')} className="text-[10px]" />
                                 </div>
@@ -471,10 +472,10 @@ export default function ToursClient({ initialTours }: ToursClientProps) {
                               <TableCell className="py-4">
                                 <div className="font-semibold text-foreground flex items-center gap-2">
                                   <Calendar className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-                                  {new Date(schedule.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                  {formatDate(schedule.start_date)}
                                 </div>
                                 <div className="text-xs text-muted-foreground mt-1 pl-6">
-                                  to {new Date(schedule.end_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                  to {formatDate(schedule.end_date)}
                                 </div>
                               </TableCell>
                               <TableCell className="py-4 text-center">
@@ -483,8 +484,8 @@ export default function ToursClient({ initialTours }: ToursClientProps) {
                               </TableCell>
                               <TableCell className="py-4 font-semibold text-success">
                                 {schedule.price_per_person
-                                  ? `₱${schedule.price_per_person.toLocaleString()}`
-                                  : `₱${selectedSchedulesTour.price_per_person.toLocaleString()}`
+                                  ? formatPHP(schedule.price_per_person, { cents: 'auto' })
+                                  : formatPHP(selectedSchedulesTour.price_per_person, { cents: 'auto' })
                                 }
                               </TableCell>
                               <TableCell className="py-4">

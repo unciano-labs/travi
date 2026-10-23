@@ -13,9 +13,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { formatPHP } from '@/lib/format';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-const peso = (n: number) => `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 type Failed = { bookingId: string; bookingRef: string | null; error: string };
 
@@ -132,7 +132,7 @@ export default function CancelScheduleDialog({
               <>
                 <p className="text-sm text-bodytext">
                   <span className="font-semibold text-foreground">{paid.length}</span> paid booking{paid.length === 1 ? '' : 's'} will be
-                  refunded ({peso(refundTotal)} in total) and <span className="font-semibold text-foreground">{unpaid.length}</span> unpaid
+                  refunded ({formatPHP(refundTotal)} in total) and <span className="font-semibold text-foreground">{unpaid.length}</span> unpaid
                   booking{unpaid.length === 1 ? '' : 's'} will be canceled.
                 </p>
                 <ul className="max-h-56 divide-y divide-border overflow-y-auto rounded-md border border-border" aria-label="Affected bookings">
@@ -145,7 +145,7 @@ export default function CancelScheduleDialog({
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        <span className="text-xs font-medium text-foreground">{peso(b.totalAmount)}</span>
+                        <span className="text-xs font-medium text-foreground">{formatPHP(b.totalAmount)}</span>
                         <StatusBadge status={b.status} label={b.status === 'confirmed' ? 'paid → refund' : 'unpaid → cancel'} />
                       </div>
                     </li>

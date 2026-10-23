@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { NativeSelect } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import PartnerDocumentUpload from './PartnerDocumentUpload';
+import { formatDateOfInstant } from '@/lib/format';
 import {
   PARTNER_DOC_LABELS,
   type PartnerDocType,
@@ -102,7 +103,7 @@ export default function PartnerDocumentsManager({ partner, documents }: { partne
                   {d.vehicle_id ? ' (vehicle)' : ''}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {d.file_name || 'Document'} · {new Date(d.created_at).toLocaleDateString('en-PH', { dateStyle: 'medium' })}
+                  {d.file_name || 'Document'} · {formatDateOfInstant(d.created_at)}
                 </p>
               </div>
               <div className="flex items-center gap-2">

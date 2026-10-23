@@ -4,6 +4,35 @@ import { env } from '../env'
 import { safeNextPath } from '../safe-next'
 import { adminMfaPath, getAdminMfaState } from '../admin-mfa'
 
+type MiddlewareSupabase = ReturnType<typeof createServerClient>
+
+/** The user's role names on this website (user_roles ⋈ website_roles, scoped by WEBSITE_ID when set). */
+async function fetchRoles(supabase: MiddlewareSupabase, userId: string): Promise<string[]> {
+  const websiteId = env.WEBSITE_ID
+
+  // Use websiteId if available, fallback to not filtering by domain if missing (for safety, though it should exist)
+  let query = supabase
+    .from('user_roles')
+    .select(`
+      user_profiles!inner (
+        user_id
+      ),
+      website_roles!inner (
+        role,
+        website_id
+      )
+    `)
+    .eq('user_profiles.user_id', userId)
+
+  if (websiteId) {
+    query = query.eq('website_roles.website_id', websiteId)
+  }
+
+  const { data: roleData } = await query
+  if (!roleData || roleData.length === 0) return []
+  return roleData.map((r: any) => r.website_roles.role)
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -34,36 +63,14 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  let roles: string[] = [];
-  if (user) {
-    const websiteId = env.WEBSITE_ID;
-
-    // Use websiteId if available, fallback to not filtering by domain if missing (for safety, though it should exist)
-    let query = supabase
-      .from('user_roles')
-      .select(`
-        user_profiles!inner (
-          user_id
-        ),
-        website_roles!inner (
-          role,
-          website_id
-        )
-      `)
-      .eq('user_profiles.user_id', user.id);
-
-    if (websiteId) {
-      query = query.eq('website_roles.website_id', websiteId);
-    }
-
-    const { data: roleData, error: roleError } = await query;
-      
-    if (roleData && roleData.length > 0) {
-      roles = roleData.map((r: any) => r.website_roles.role);
-    }
-  }
-
   const { pathname } = request.nextUrl
+
+  // Roles are only read below for the admin console (including /admin/login), the dashboards and
+  // the signed-in /login bounce, so public pages skip the query (ENG-10). getUser() above still
+  // runs on every request: it refreshes the session cookie.
+  const needsRoles =
+    pathname.startsWith('/admin') || pathname.startsWith('/dashboard') || pathname === '/login'
+  const roles = user && needsRoles ? await fetchRoles(supabase, user.id) : []
 
   // Redirect while keeping any session cookies refreshed by getUser() above.
   const redirectTo = (path: string) => {

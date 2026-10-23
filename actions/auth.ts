@@ -1,6 +1,6 @@
 'use server';
 
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 import { ZodError } from 'zod';
 import type { AuthError } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
@@ -299,6 +299,7 @@ export async function getUserRoles(): Promise<string[]> {
     if (!user) return [];
     return await fetchUserRoles(supabase, user.id);
   } catch (error: unknown) {
+    unstable_rethrow(error);
     captureException(error, { action: 'getUserRoles' });
     return [];
   }

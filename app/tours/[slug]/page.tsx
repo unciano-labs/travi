@@ -12,6 +12,8 @@ import { getCachedTourBySlug } from '@/lib/data/tours';
 import { getCachedTourReviews } from '@/lib/data/reviews';
 import { getCachedOrganizerMerchant } from '@/lib/data/merchant';
 import { LazyMobileCard } from '@/components/ui/LazyMobileCard';
+import { manilaToday } from '@/lib/datetime';
+import { formatDate } from '@/lib/format';
 
 // getCachedTourBySlug is wrapped in React cache(): generateMetadata and the page share one fetch.
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -135,7 +137,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
                       {/* Mobile View */}
                       <div className="block md:hidden space-y-3 mt-4">
                         {tour.schedules
-                          .filter((s: any) => s.status === 'open' && new Date(s.start_date) > new Date())
+                          .filter((s: any) => s.status === 'open' && s.start_date > manilaToday())
                           .sort((a: any, b: any) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
                           .map((schedule: any) => (
                             <LazyMobileCard
@@ -147,7 +149,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
                                     <div className="flex items-center gap-2">
                                       <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></div>
                                       <span className="text-sm font-medium text-slate-700">
-                                        {new Date(schedule.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — {new Date(schedule.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                        {formatDate(schedule.start_date)} — {formatDate(schedule.end_date)}
                                       </span>
                                     </div>
                                   ),
@@ -168,7 +170,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
                         <table className="w-full text-left border-collapse">
                           <tbody className="divide-y divide-slate-100">
                             {tour.schedules
-                              .filter((s: any) => s.status === 'open' && new Date(s.start_date) > new Date())
+                              .filter((s: any) => s.status === 'open' && s.start_date > manilaToday())
                               .sort((a: any, b: any) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
                               .map((schedule: any) => (
                                 <tr key={schedule.id} className="hover:bg-slate-50 transition-colors group">
@@ -176,7 +178,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
                                     <div className="flex items-center gap-3">
                                       <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></div>
                                       <span className="text-sm font-medium text-slate-700">
-                                        {new Date(schedule.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — {new Date(schedule.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                        {formatDate(schedule.start_date)} — {formatDate(schedule.end_date)}
                                       </span>
                                     </div>
                                     <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 group-hover:text-coral transition-colors">

@@ -4,10 +4,10 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { assertRateLimit } from '@/lib/ratelimit';
-import { escapeHtml } from '@/lib/email';
 import { captureException } from '@/lib/logger';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
+import { payoutRequestedEmail } from '@/lib/email-templates';
 import { consumeVerifiedOtp } from '@/lib/otp';
 
 import { createClient } from '@/lib/supabase/server';
@@ -49,19 +49,8 @@ export async function requestPayout(payload: { amount: number; methodId: string;
     const methodName = String(payout?.payout_method?.method ?? 'your saved method').toUpperCase();
 
     if (user.email) {
-      await sendEmail({
-        to: user.email,
-        subject: 'Payout Request Received',
-        html: `
-          <div style="font-family: sans-serif; color: #1e293b;">
-            <h2>Payout Request Received</h2>
-            <p>Hi ${escapeHtml(profile.full_name ?? '')},</p>
-            <p>We have received your payout request for <strong>₱${Number(data.amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong> via ${escapeHtml(methodName)}.</p>
-            <p>Your request is currently pending and will be processed within 24-48 hours.</p>
-            <p>Thank you,<br/>Travi Support</p>
-          </div>
-        `
-      });
+      // Template escapes every value and formats the amount with formatPHP (lib/format.ts).
+      await sendEmail({ to: user.email, ...payoutRequestedEmail({ name: profile.full_name, amount: data.amount, methodName }) });
     }
 
     revalidatePath('/dashboard/organizer/wallet');

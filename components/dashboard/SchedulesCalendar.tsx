@@ -7,6 +7,7 @@ import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useRouter } from 'next/navigation';
 import { Users } from 'lucide-react';
+import { formatNumber, formatPHP } from '@/lib/format';
 
 const locales = {
   'en-US': enUS,
@@ -67,9 +68,9 @@ export default function SchedulesCalendar({
       <div className="flex flex-col gap-0.5 leading-tight">
         {s.price_per_person && (
           <div className="flex items-center gap-1 font-bold">
-            {s.original_price && <span className="text-[10px] opacity-70 line-through font-normal">₱{s.original_price}</span>}
+            {s.original_price && <span className="text-[10px] opacity-70 line-through font-normal">{formatPHP(s.original_price, { cents: 'auto' })}</span>}
             <span className="flex items-center gap-0.5">
-              <span className="text-[10px] opacity-80">₱</span>{s.price_per_person}
+              <span className="text-[10px] opacity-80">₱</span>{formatNumber(s.price_per_person)}
             </span>
           </div>
         )}
@@ -187,7 +188,7 @@ export default function SchedulesCalendar({
           const s = event.resource as Schedule;
           let priceStr = '';
           if (s.price_per_person) {
-            priceStr = ` (Price: ₱${s.price_per_person}${s.original_price ? `, was ₱${s.original_price}` : ''})`;
+            priceStr = ` (Price: ${formatPHP(s.price_per_person, { cents: 'auto' })}${s.original_price ? `, was ${formatPHP(s.original_price, { cents: 'auto' })}` : ''})`;
           }
           if (s.status === 'cancelled') return 'CANCELLED - travelers were refunded or canceled';
           return `${s.status.toUpperCase()} - ${s.booked_count} out of ${s.capacity} seats booked${priceStr}`;
