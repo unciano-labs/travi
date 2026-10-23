@@ -10,10 +10,9 @@ import EmptyState from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/button';
 import BarChart from '@/components/ui/charts/BarChart';
 import DonutChart from '@/components/ui/charts/DonutChart';
+import { captureException } from '@/lib/logger';
 
-const TZ = 'Asia/Manila';
 const CHART_MONTHS = 6;
-const REVENUE_STATUSES = new Set(['confirmed', 'completed']);
 const STATUS_BREAKDOWN: { status: string; label: string; color: string; dot: string }[] = [
   { status: 'pending', label: 'Pending', color: 'var(--color-warning)', dot: 'bg-warning' },
   { status: 'confirmed', label: 'Confirmed', color: 'var(--color-success)', dot: 'bg-success' },
@@ -29,21 +28,19 @@ const STATUS_TONE: Record<string, TimelineItem['tone']> = {
   refunded: 'info',
 };
 
-// "YYYY-MM" in Manila time, so month buckets match what admins see on the calendar.
-function monthKey(date: Date) {
-  return date.toLocaleDateString('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit' }).slice(0, 7);
+interface MonthStats {
+  month: string; // first day of the Manila month, YYYY-MM-DD
+  bookings: number | string;
+  revenue: number | string;
+  pending: number | string;
+  confirmed: number | string;
+  completed: number | string;
+  canceled: number | string;
+  refunded: number | string;
 }
 
-function lastMonths(count: number) {
-  const [year, month] = monthKey(new Date()).split('-').map(Number);
-  return Array.from({ length: count }, (_, i) => {
-    const d = new Date(Date.UTC(year, month - 1 - (count - 1 - i), 15));
-    return {
-      key: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`,
-      label: d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }),
-    };
-  });
-}
+const monthLabel = (month: string) =>
+  new Date(`${month.slice(0, 7)}-15T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
 
 export default async function AdminDashboard() {
   const { user } = await requireSession();
@@ -51,18 +48,13 @@ export default async function AdminDashboard() {
 
   const admin = createAdminClient({ admin: true });
 
-  const months = lastMonths(CHART_MONTHS);
-  // Start one day early to cover the UTC/Manila offset; rows are bucketed by Manila month below.
-  const [firstYear, firstMonth] = months[0].key.split('-').map(Number);
-  const chartSince = new Date(Date.UTC(firstYear, firstMonth - 1, 0)).toISOString();
-
   const [
     usersRes,
     toursRes,
     bookingsRes,
     transportersRes,
     recentActivityRes,
-    chartBookingsRes
+    statsRes
   ] = await Promise.all([
     admin.from('user_profiles').select('*', { count: 'exact', head: true }),
     admin.from('tours').select('*', { count: 'exact', head: true }).eq('status', 'published'),
@@ -72,10 +64,10 @@ export default async function AdminDashboard() {
       .select('id, total_amount, created_at, seats, status, user_profiles(full_name), tour_schedules(tours(title))')
       .order('created_at', { ascending: false })
       .limit(5),
-    admin.from('bookings')
-      .select('created_at, total_amount, status')
-      .gte('created_at', chartSince)
+    // Aggregated in SQL (per Manila month): no PostgREST row cap, no JS sums (AGENTS.md §6 23c).
+    admin.rpc('admin_booking_stats', { p_months: CHART_MONTHS }),
   ]);
+  if (statsRes.error) captureException(statsRes.error, { action: 'AdminDashboard admin_booking_stats' });
 
   const stats: { name: string; value: string; icon: typeof Users; tone: StatTone; href?: string }[] = [
     { name: 'Total Users', value: (usersRes.count || 0).toLocaleString(), icon: Users, tone: 'primary' },
@@ -84,18 +76,16 @@ export default async function AdminDashboard() {
     { name: 'Transporters', value: (transportersRes.count || 0).toLocaleString(), icon: Bus, tone: 'warning', href: '/admin/transporters' },
   ];
 
-  // Aggregate the last 6 months of bookings for the charts.
-  const monthIndex = new Map<string, number>(months.map((m, i) => [m.key, i]));
-  const bookingsPerMonth = months.map(() => 0);
-  const revenuePerMonth = months.map(() => 0);
-  const statusCounts = new Map<string, number>();
-  for (const b of chartBookingsRes.data || []) {
-    const idx = monthIndex.get(monthKey(new Date(b.created_at)));
-    if (idx === undefined) continue;
-    bookingsPerMonth[idx] += 1;
-    if (REVENUE_STATUSES.has(b.status)) revenuePerMonth[idx] += Number(b.total_amount) || 0;
-    statusCounts.set(b.status, (statusCounts.get(b.status) || 0) + 1);
-  }
+  const monthStats = ((statsRes.data ?? []) as MonthStats[]).map((m) => ({ ...m, label: monthLabel(String(m.month)) }));
+  const months = monthStats.map((m) => ({ key: String(m.month), label: m.label }));
+  const bookingsPerMonth = monthStats.map((m) => Number(m.bookings) || 0);
+  const revenuePerMonth = monthStats.map((m) => Number(m.revenue) || 0);
+  const statusCounts = new Map<string, number>(
+    STATUS_BREAKDOWN.map((s) => [
+      s.status,
+      monthStats.reduce((sum, m) => sum + (Number(m[s.status as keyof MonthStats]) || 0), 0),
+    ])
+  );
   const totalChartBookings = bookingsPerMonth.reduce((a, b) => a + b, 0);
   const totalChartRevenue = revenuePerMonth.reduce((a, b) => a + b, 0);
   const breakdown = STATUS_BREAKDOWN.map((s) => ({ ...s, count: statusCounts.get(s.status) || 0 }));

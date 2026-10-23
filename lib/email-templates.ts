@@ -455,6 +455,31 @@ export function partnerAccountStatusEmail(input: {
   });
 }
 
+// Admin tour moderation (actions/admin.ts adminUnpublishTour / adminRepublishTour).
+export function tourModerationEmail(input: {
+  name?: string | null;
+  tourTitle: string;
+  action: 'unpublished' | 'republished';
+  reason?: string | null;
+  toursUrl: string;
+}): EmailContent {
+  const unpublished = input.action === 'unpublished';
+  return render({
+    subject: unpublished ? `Your tour "${input.tourTitle}" was unpublished` : `Your tour "${input.tourTitle}" is live again`,
+    preheader: unpublished ? 'The Travi team unpublished one of your tours.' : 'The Travi team re-published your tour.',
+    heading: unpublished ? 'Your tour was unpublished' : 'Your tour is live again',
+    greeting: `Hi ${greetingName(input.name)},`,
+    paragraphs: unpublished
+      ? [
+          `The Travi team unpublished "${input.tourTitle}". Travelers can no longer find or book it. Existing bookings are not affected.`,
+          ...(input.reason?.trim() ? [`Reason: ${input.reason.trim()}`] : []),
+          'Please update the tour and contact support so we can review it again. It cannot be re-published until then.',
+        ]
+      : [`"${input.tourTitle}" has been reviewed and is published again. Travelers can find and book it.`],
+    cta: { label: 'Go to my tours', url: input.toursUrl },
+  });
+}
+
 // ─── Payouts (for actions/wallet.ts and actions/admin.ts) ───
 
 export function payoutRequestedEmail(input: { name?: string | null; amount: number; methodName: string }): EmailContent {

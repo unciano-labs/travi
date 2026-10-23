@@ -78,6 +78,35 @@ export default async function OrganizerDashboard() {
 
   const bookings = (recentBookings as any[]) || [];
 
+  // Net earnings (FIN-15): what actually reaches the organizer's wallet, from their own ledger (RLS:
+  // owners read their own wallet and ledger). escrow_deposit rows are already net of the platform fee;
+  // refund rows (negative) reverse them. Paged so large ledgers are not cut at the 1000-row cap.
+  const { data: wallet } = await supabase
+    .from('user_wallets')
+    .select('id')
+    .eq('user_profile_id', userProfile.id)
+    .maybeSingle();
+  const earnings: { amount: number; created_at: string }[] = [];
+  if (wallet?.id) {
+    const PAGE = 1000;
+    for (let from = 0; from < 50_000; from += PAGE) {
+      const { data: rows, error: ledgerError } = await supabase
+        .from('wallet_transactions')
+        .select('amount, created_at')
+        .eq('wallet_id', wallet.id)
+        .eq('reference_type', 'booking')
+        .eq('balance_affected', 'escrow')
+        .in('type', ['escrow_deposit', 'refund'])
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (ledgerError || !rows) break;
+      for (const r of rows) earnings.push({ amount: Number(r.amount) || 0, created_at: r.created_at });
+      if (rows.length < PAGE) break;
+    }
+  }
+  const netEarnings = earnings.reduce((sum, e) => sum + e.amount, 0);
+
   // Calculate stats
   const isConfirmedRevenue = (b: { status: string }) => b.status === 'confirmed' || b.status === 'completed';
 
@@ -89,21 +118,20 @@ export default async function OrganizerDashboard() {
     .filter(b => b.status === 'pending')
     .reduce((sum, b) => sum + (b.total_amount || 0), 0);
 
-  // Confirmed revenue per month (by booking date), last 6 months including the current one.
+  // Net earnings per month (by ledger date), last 6 months including the current one.
   const now = new Date();
   const months = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
     return { key: `${d.getFullYear()}-${d.getMonth()}`, label: d.toLocaleString('en-US', { month: 'short' }) };
   });
   const revenueByMonth = new Map<string, number>(months.map(m => [m.key, 0]));
-  for (const b of bookings) {
-    if (!isConfirmedRevenue(b)) continue;
-    const d = new Date(b.created_at);
+  for (const e of earnings) {
+    const d = new Date(e.created_at);
     const key = `${d.getFullYear()}-${d.getMonth()}`;
-    if (revenueByMonth.has(key)) revenueByMonth.set(key, (revenueByMonth.get(key) || 0) + (b.total_amount || 0));
+    if (revenueByMonth.has(key)) revenueByMonth.set(key, (revenueByMonth.get(key) || 0) + e.amount);
   }
   const revenueCategories = months.map(m => m.label);
-  const revenueSeries = [{ name: 'Confirmed Revenue', data: months.map(m => revenueByMonth.get(m.key) || 0) }];
+  const revenueSeries = [{ name: 'Net Earnings', data: months.map(m => Math.round((revenueByMonth.get(m.key) || 0) * 100) / 100) }];
   const sixMonthRevenue = revenueSeries[0].data.reduce((sum, v) => sum + v, 0);
 
   // Booking status breakdown (only statuses that occur).
@@ -123,25 +151,31 @@ export default async function OrganizerDashboard() {
         <StatCard title="Active Tours" value={activeToursCount || 0} icon={MapPin} tone="primary" href="/dashboard/organizer/tours" />
         <StatCard title="Total Bookings" value={bookings.length} icon={Users} tone="secondary" href="/dashboard/organizer/bookings" />
         <StatCard
-          title="Confirmed Revenue"
-          value={`₱${totalRevenue.toLocaleString()}`}
+          title="Net Earnings"
+          value={`₱${netEarnings.toLocaleString('en-PH', { maximumFractionDigits: 2 })}`}
           icon={Banknote}
           tone="success"
-          hint={pendingRevenue > 0 ? `+₱${pendingRevenue.toLocaleString()} pending` : undefined}
+          href="/dashboard/organizer/wallet"
+          hint={
+            <>
+              After platform fees and refunds · Gross ₱{totalRevenue.toLocaleString()}
+              {pendingRevenue > 0 ? ` (+₱${pendingRevenue.toLocaleString()} pending)` : ''}
+            </>
+          }
         />
       </div>
 
       <div className="col-span-12 lg:col-span-8 flex">
         <CardBox>
           <div>
-            <h5 className="card-title">Revenue Overview</h5>
-            <p className="text-sm text-muted-foreground">Confirmed revenue per month, last 6 months</p>
+            <h5 className="card-title">Earnings Overview</h5>
+            <p className="text-sm text-muted-foreground">Net earnings per month (after platform fees and refunds), last 6 months</p>
           </div>
           <div className="-mx-2">
             <BarChart categories={revenueCategories} series={revenueSeries} valuePrefix="₱" height={300} />
           </div>
           <p className="text-sm text-muted-foreground">
-            Total for the period: <span className="font-semibold text-foreground">₱{sixMonthRevenue.toLocaleString()}</span>
+            Net for the period: <span className="font-semibold text-foreground">₱{sixMonthRevenue.toLocaleString('en-PH', { maximumFractionDigits: 2 })}</span>
           </p>
         </CardBox>
       </div>

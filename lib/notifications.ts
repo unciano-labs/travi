@@ -22,6 +22,7 @@ import {
   partnerAccountStatusEmail,
   paymentNeedsReviewEmail,
   transportRequestCanceledEmail,
+  tourModerationEmail,
   transportRequestEmail,
   transportRequestStatusEmail,
   tripReminderEmail,
@@ -541,6 +542,34 @@ async function notifyPartnerAccountStatus(
     );
   } catch (error: unknown) {
     captureException(error, { action: 'notifyPartnerAccountStatus', partner, profileId });
+  }
+}
+
+/** Admin unpublished / re-published one of the organizer's tours (actions/admin.ts). */
+export async function notifyOrganizerTourModeration(
+  organizerId: string,
+  tourTitle: string,
+  action: 'unpublished' | 'republished',
+  reason?: string
+): Promise<void> {
+  try {
+    const organizer = await loadPartner('organizer_profiles', organizerId);
+    if (!organizer) return;
+    const path = '/dashboard/organizer/tours';
+    await deliver(
+      organizer,
+      {
+        title: action === 'unpublished' ? 'Tour unpublished by Travi' : 'Tour re-published',
+        message: action === 'unpublished'
+          ? `"${tourTitle}" was unpublished by the Travi team.${reason ? ` Reason: ${reason}` : ''}`
+          : `"${tourTitle}" is published again.`,
+        type: `tour_${action}`,
+        link: path,
+      },
+      tourModerationEmail({ name: organizer.name, tourTitle, action, reason, toursUrl: siteUrl(path) })
+    );
+  } catch (error: unknown) {
+    captureException(error, { action: 'notifyOrganizerTourModeration', organizerId });
   }
 }
 
