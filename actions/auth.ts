@@ -19,6 +19,7 @@ import { clearPasswordRecovery, hasPasswordRecovery } from '@/lib/password-recov
 import { safeNextPath } from '@/lib/safe-next';
 import { signupAcceptanceMetadata } from '@/lib/legal/consent';
 import { acceptedCheckboxSchema } from '@/lib/schemas/legal';
+import { ADMIN_MFA_ENROLL_PATH, ADMIN_MFA_VERIFY_PATH, hasVerifiedTotp } from '@/lib/admin-mfa';
 import {
   addAccountTypeSchema,
   forgotPasswordSchema,
@@ -46,7 +47,7 @@ async function authCallbackUrl(next: string) {
 
 // ─── Admin login ───
 export async function loginAsAdmin(formData: FormData): Promise<ActionFailure | void> {
-  let success = false;
+  let destination: string | null = null;
 
   try {
     await assertRateLimit(await getClientIp(), 'auth');
@@ -69,13 +70,19 @@ export async function loginAsAdmin(formData: FormData): Promise<ActionFailure | 
       return { success: false, error: 'Unauthorized: You do not have admin privileges.' };
     }
 
-    success = true;
+    // SEC-12: the password is only the first factor. The session stays aal1 (middleware blocks the
+    // console) until a TOTP code is verified; first-time admins enrol an authenticator.
+    if (env.ADMIN_MFA_REQUIRED) {
+      destination = hasVerifiedTotp(data.user) ? ADMIN_MFA_VERIFY_PATH : ADMIN_MFA_ENROLL_PATH;
+    } else {
+      destination = '/admin';
+    }
   } catch (error: unknown) {
     captureException(error, { action: 'loginAsAdmin' });
     return failure(error, 'Login failed');
   }
 
-  if (success) redirect('/admin');
+  if (destination) redirect(destination);
 }
 
 export async function logoutAdmin() {

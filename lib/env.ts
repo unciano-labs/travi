@@ -21,6 +21,9 @@ const envSchema = z.object({
   OTP_SECRET: z.string().min(32).optional(),
   RESEND_API_KEY: z.string().min(1).optional(),
   RESEND_FROM_EMAIL: z.string().min(1).optional(),
+  // 'true' | 'false'. Unset: on for a production deploy, off elsewhere (SEC-12). 'false' in
+  // production is a break-glass switch only (docs/RUNBOOK.md).
+  ADMIN_MFA_REQUIRED: z.enum(['true', 'false']).optional(),
 });
 
 // Without these, a production deploy would silently mock payments, expose the cron,
@@ -69,6 +72,7 @@ const parsed = productionSchema.parse({
   OTP_SECRET: process.env.OTP_SECRET,
   RESEND_API_KEY: process.env.RESEND_API_KEY,
   RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
+  ADMIN_MFA_REQUIRED: process.env.ADMIN_MFA_REQUIRED || undefined,
 });
 
 // Web Crypto, not node:crypto: this module is also bundled for the browser and the edge middleware.
@@ -84,4 +88,6 @@ export const env = {
   // Outside production, an unset OTP_SECRET gets a random per-process key: OTPs work within one
   // dev server run, and there is never a well-known fallback secret.
   OTP_SECRET: parsed.OTP_SECRET ?? ephemeralSecret(),
+  // Admin console requires a TOTP second factor (aal2). Default: on in production, off elsewhere.
+  ADMIN_MFA_REQUIRED: parsed.ADMIN_MFA_REQUIRED ? parsed.ADMIN_MFA_REQUIRED === 'true' : isProductionDeploy,
 };

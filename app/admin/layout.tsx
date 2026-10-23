@@ -49,8 +49,8 @@ const sections: NavSection[] = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  // Don't show layout on login page
-  if (pathname === '/admin/login') {
+  // Don't show layout on the sign-in pages (login and the MFA steps)
+  if (pathname === '/admin/login' || pathname.startsWith('/admin/mfa')) {
     return <>{children}</>;
   }
 
