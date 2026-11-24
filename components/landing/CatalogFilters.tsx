@@ -1,13 +1,74 @@
 import Link from 'next/link';
-import { ChevronDown, SlidersHorizontal } from 'lucide-react';
+import {
+  ChevronDown,
+  Compass,
+  Landmark,
+  LayoutGrid,
+  SlidersHorizontal,
+  Sparkles,
+  Trees,
+  UtensilsCrossed,
+  Waves,
+} from 'lucide-react';
 import {
   CATALOG_SORTS,
   DURATIONS,
   TOUR_FORMATS,
   TOUR_FORMAT_LABELS,
   TOUR_THEMES,
+  catalogHref,
   type CatalogSearch,
 } from '@/lib/schemas/catalog';
+
+const THEME_ICONS: Record<string, typeof LayoutGrid> = {
+  island_hopping: Waves,
+  adventure_sports: Compass,
+  city_historical: Landmark,
+  nature_wildlife: Trees,
+  wellness_retreat: Sparkles,
+  culinary_food: UtensilsCrossed,
+};
+
+export function CatalogCategoryBar({ search }: { search: CatalogSearch }) {
+  const pillBase =
+    'inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-colors border shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coral';
+
+  return (
+    <nav aria-label="Tour categories" className="mb-8 flex flex-wrap items-center gap-2">
+      <Link
+        href={catalogHref(search, { theme: undefined, page: 1 })}
+        aria-current={!search.theme ? 'page' : undefined}
+        className={`${pillBase} ${
+          !search.theme
+            ? 'bg-coral text-white border-coral shadow-sm'
+            : 'bg-white text-slate-700 border-slate-200 hover:border-coral hover:text-coral'
+        }`}
+      >
+        <LayoutGrid className="w-3.5 h-3.5" aria-hidden="true" />
+        All Categories
+      </Link>
+      {TOUR_THEMES.map((theme) => {
+        const Icon = THEME_ICONS[theme.id] ?? Compass;
+        const active = search.theme === theme.id;
+        return (
+          <Link
+            key={theme.id}
+            href={catalogHref(search, { theme: theme.id, page: 1 })}
+            aria-current={active ? 'page' : undefined}
+            className={`${pillBase} ${
+              active
+                ? 'bg-coral text-white border-coral shadow-sm'
+                : 'bg-white text-slate-700 border-slate-200 hover:border-coral hover:text-coral'
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+            {theme.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
 
 // Plain GET form: filtering works without JavaScript and every result page is a shareable URL.
 // The hero search bar and this panel submit together (the panel's fields use form="catalog-search").

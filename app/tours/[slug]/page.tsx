@@ -5,6 +5,7 @@ import Footer from '@/components/landing/Footer';
 import { MapPin, Clock, Users, Car, Check, Calendar, BadgeCheck, Mail } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import TourBookingCard from '@/components/landing/TourBookingCard';
+import TourGallery from '@/components/landing/TourGallery';
 import TourReviewsCarousel from '@/components/landing/TourReviewsCarousel';
 import Image from 'next/image';
 import { TourJsonLd } from '@/components/seo/TourJsonLd';
@@ -209,19 +210,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
               {tour.image_urls && tour.image_urls.length > 0 && (
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900 mb-6">Gallery</h2>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {tour.image_urls.map((url: string, i: number) => (
-                      <div key={i} className="aspect-[4/3] rounded-xl overflow-hidden shadow-sm relative group">
-                        <Image 
-                           src={url} 
-                           alt={`${tour.title} image ${i+1}`} 
-                           fill
-                           sizes="(max-width: 768px) 50vw, 33vw"
-                           className="object-cover group-hover:scale-105 transition-transform duration-500" 
-                        />
-                      </div>
-                    ))}
-                  </div>
+                  <TourGallery images={tour.image_urls} tourTitle={tour.title} />
                 </div>
               )}
 
@@ -256,10 +245,17 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
               {/* Merchant of record (RA 11967 / LEG-06) */}
               <section aria-labelledby="operator-heading" className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-sm">
                 <h2 id="operator-heading" className="text-base font-bold text-slate-900 mb-3">Operated by</h2>
-                <p className="font-semibold text-slate-900 flex items-center gap-1.5">
-                  {organizerName}
+                <p className="font-semibold text-slate-900 flex flex-wrap items-center gap-1.5">
+                  <span>{organizerName}</span>
+                  <span
+                    className="inline-flex items-center"
+                    title="Verified and trusted organizer"
+                  >
+                    <BadgeCheck className="w-4 h-4 fill-sky-500 text-white shrink-0" aria-hidden="true" />
+                    <span className="sr-only">Verified organizer</span>
+                  </span>
                   {merchant?.dotAccreditationNo && (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 ml-1">
                       <BadgeCheck className="w-4 h-4" aria-hidden="true" /> DOT accredited
                     </span>
                   )}

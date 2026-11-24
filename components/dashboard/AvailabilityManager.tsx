@@ -18,10 +18,17 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input, NativeSelect } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Calendar as BigCalendar, dateFnsLocalizer, type View } from 'react-big-calendar';
+import { Skeleton } from '@/components/ui/skeleton';
+import dynamic from 'next/dynamic';
+import { Calendar as BigCalendarComponent, dateFnsLocalizer, type View } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
+
+const BigCalendar = dynamic(
+  () => import('react-big-calendar').then((mod) => mod.Calendar),
+  { ssr: false, loading: () => <Skeleton className="h-[500px] w-full rounded-lg" /> }
+) as unknown as typeof BigCalendarComponent;
 
 const locales = {
   'en-US': enUS,

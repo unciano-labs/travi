@@ -40,6 +40,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'daily',
       priority: 0.9,
     },
+    {
+      url: `${baseUrl}/destinations`,
+      ...(newest ? { lastModified: newest } : {}),
+      changeFrequency: 'daily',
+      priority: 0.9,
+    },
     // Legal and trust pages (Phase 4: LEG-01…04, LEG-11).
     ...STATIC_PAGES.map(({ path, priority }) => ({
       url: `${baseUrl}${path}`,

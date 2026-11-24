@@ -1,6 +1,6 @@
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
@@ -55,6 +55,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 | [docs/TODO.md](docs/TODO.md), [docs/ARCHITECTURE_ROADMAP.md](docs/ARCHITECTURE_ROADMAP.md) | Backlog and roadmap | Planning |
 | [docs/ORGANIZER.md](docs/ORGANIZER.md), [docs/TRANSPORTER.md](docs/TRANSPORTER.md), [docs/TRAVELER.md](docs/TRAVELER.md) | Per-role feature specs | Spec |
 | [docs/PAYMENT_INTEGRATION.md](docs/PAYMENT_INTEGRATION.md), [docs/WALLET_IMPLEMENTATION.md](docs/WALLET_IMPLEMENTATION.md) | Payment and wallet design notes | Spec; see §4 for actual behavior |
+| [docs/FINANCIAL_ARCHITECTURE_ANALYSIS.md](docs/FINANCIAL_ARCHITECTURE_ANALYSIS.md) | In-depth financial, payment, security, negative balance & scalability analysis | Production Architecture Analysis |
 | [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md) | Earlier security audit | Historical; see §5 and §6 for the current state |
 | [`reference/`](reference/) | HTML mockups and `mvp-architecture.md`. The dashboard theme source `tailwind-admin-reactjs-free/` (see §3.5) is kept locally and is **not committed** | Design reference only. `reference/` is excluded from `tsconfig.json` and ESLint; never import from it |
 
@@ -153,12 +154,13 @@ Public cached reads ──► lib/data/*.ts (unstable_cache + anon client, tag-i
 travi/
 ├── middleware.ts            # Calls updateSession(). The ONLY global auth gate. Keep the name (see §3.7)
 ├── app/                     # App Router. No route groups
-│   ├── layout.tsx           # Root: fonts (Plus Jakarta Sans, Playfair Display), metadata, <Analytics/>
+│   ├── layout.tsx           # Root: unified font (Plus Jakarta Sans), metadata, <Analytics/>
 │   ├── globals.css          # Tailwind v4 entry: @import "tailwindcss", @plugin typography, @theme tokens
 │   ├── page.tsx             # Landing page
 │   ├── login/, signup/      # Auth pages (signup has a role picker, ?role= preselects; both honour ?next=)
 │   ├── auth/                # callback/ (PKCE code + token_hash exchange → safe next), forgot-password/, reset-password/
 │   ├── tours/page.tsx       # Public catalog: filters/sort/pagination via search_public_tours RPC (+ loading/error)
+│   ├── destinations/page.tsx # Public destinations discovery hub (region, season, live tour counts + loading/error)
 │   ├── tours/[slug]/                      # Public tour detail (generateMetadata + JSON-LD; cache() + tagged unstable_cache)
 │   │   └── booking/[bookingId]/{,pay,success}/   # Booking review → payment method → payment verification (noindex layout, loading/error)
 │   ├── dashboard/           # Authenticated multi-role area
@@ -187,7 +189,7 @@ travi/
 │   ├── ui/                  # shadcn primitives (lowercase: button, card, badge, table, input, textarea, label, select, dialog, sheet, tabs,
 │   │                        #   dropdown-menu, avatar, alert, progress, switch, checkbox, separator, skeleton, tooltip),
 │   │                        # template widgets (PascalCase: CardBox, PageHeader, WelcomeBanner, StatCard, StatusBadge, Timeline, EmptyState),
-│   │                        # charts/ (Chart, BarChart, DonutChart), and ConfirmModal, GenericMobileCard, LazyMobileCard, PageLoader
+│   │                        # charts/ (Chart, BarChart, DonutChart), skeletons.tsx (reusable route skeletons), and ConfirmModal, GenericMobileCard, LazyMobileCard, PageLoader
 │   └── wallet/              # PayoutMethodsManager
 ├── lib/
 │   ├── supabase/            # server.ts (cookie client), browser.ts, middleware.ts (updateSession + RBAC), admin.ts (service role)
@@ -336,7 +338,7 @@ export async function doThing(input: unknown) {
 - **Client components** (`'use client'` only when you need state, effects, browser APIs, or event handlers; say why in the PR):
   - Receive server data as `initialX` props and hold it in `useState`.
   - Mutate by calling Server Actions from `@/actions/*`, then update local state optimistically or call `router.refresh()`.
-  - Forms are `<form action={handler}>` with `FormData`.
+  - Forms use `<form onSubmit={handler}>` with `e.preventDefault()` and `new FormData(e.currentTarget)` so validation failures do not reset user inputs (React 19 uncontrolled form action resets).
   - Pending state is a local `useState` flag (`loading`, `actionLoading`). Prefer `useTransition` / `useActionState` for new code.
 - **The browser Supabase client** (`@/lib/supabase/browser`) is for **realtime notification subscriptions and Storage uploads only** (bucket `tour-images`). Never use it for domain writes.
 - **No global state library.** Do not add react-query, Redux, Zustand, or context stores without a recorded decision in this file.
@@ -345,14 +347,14 @@ export async function doThing(input: unknown) {
 ### 3.5 Component & UI design rules
 
 - **Styling.** Use Tailwind v4 utilities only. Tokens live in `app/globals.css` `@theme inline` and `:root`. There are two themes:
-  - **Dashboards and admin (`/dashboard/*`, `/admin/*`): the Tailwind Admin template theme**, ported from `reference/tailwind-admin-reactjs-free`.
+  - **Dashboards, admin, and auth pages (`/dashboard/*`, `/admin/*`, `/login`, `/signup`, `/auth/*`): the Tailwind Admin template theme**, ported from `reference/tailwind-admin-reactjs-free`.
     - Colors: `primary #5d87ff`, `secondary #49beff`, `success #13deb9`, `warning #f6b51e`, `error #ef4444`, `info #8754ec`, `dark #1c2536`; tints `bg-light{primary,secondary,success,warning,error,info}`; darker text `text-{primary,success,warning,error,info}emphasis`.
     - Neutrals: `text-foreground` (headings), `text-bodytext`, `text-muted-foreground`, `border-border`, `bg-muted`.
-    - Font: DM Sans (`font-dashboard`, `--font-dashboard` from `next/font` in `app/layout.tsx`). Utilities: `card-title`, `bg-hover`, `shadow-dashboard`.
-    - The shell root and every portal surface (Dialog, Sheet, DropdownMenu, Select) carry the `.tw-admin` class, which scopes the base styles (font, heading color, default border color). Pages outside the shell that use this theme (e.g. `/admin/login`) must add `tw-admin` to their root.
+    - Font: Plus Jakarta Sans (`font-dashboard` aliases `--font-sans` in `app/globals.css` so all routes share one font). Utilities: `card-title`, `bg-hover`, `shadow-dashboard`.
+    - The shell root and every portal surface (Dialog, Sheet, DropdownMenu, Select) carry the `.tw-admin` class, which scopes the base styles (font, heading color, default border color). Pages outside the shell that use this theme (e.g. `/admin/login`, and `/login` / `/signup` via `components/auth/AuthCard`) must add `tw-admin` to their root.
     - Primary CTA: `<Button>` (default variant). Active sidebar item: `bg-primary text-white`. Hover: `bg-lightprimary text-primary`.
-    - Do **not** use `slate-*`, `coral`, `brand*`, or raw Tailwind palette colors (`emerald-*`, `amber-*`, `red-*`, …) in dashboard code.
-  - **Landing, catalog, tour detail, booking/payment pages:** the Travi brand theme. `brand #0EA5E9`, `brand-dark #0284C7`, `brand-navy #0C1A2E`, `brand-deep #061020`, `coral #F97316`, `coral-dark #EA580C`; `font-sans` (Plus Jakarta Sans), `font-display` (Playfair Display); `shadow-card`, `shadow-lift`. Primary CTA `bg-coral hover:bg-coral/90`. `components/landing/hero.css` is landing-only.
+    - Do **not** use `slate-*`, `coral`, `brand*`, or raw Tailwind palette colors (`emerald-*`, `amber-*`, `red-*`, …) in dashboard or auth form code.
+  - **Landing, catalog, tour detail, booking/payment pages:** the Travi brand theme. `brand #0EA5E9`, `brand-dark #0284C7`, `brand-navy #0C1A2E`, `brand-deep #061020`, `coral #F97316`, `coral-dark #EA580C`; `font-sans` and `font-display` both resolve to Plus Jakarta Sans; `shadow-card`, `shadow-lift`. Primary CTA `bg-coral hover:bg-coral/90`. `components/landing/hero.css` is landing-only.
   - The template's radius and shadow scale is **not** imported globally (it would change the landing page). Tailwind's defaults apply everywhere.
   - **No dark mode.** The template ships one; we did not port it. Do not add `dark:` variants piecemeal.
   - Do not add new arbitrary hex values; add a token instead.
@@ -585,6 +587,7 @@ platform_settings: single row (uuid id). organizer_fee_percent, transporter_fee_
   - Organizer list: `/dashboard/organizer/transport`. Admin oversight: `/admin/transport`.
 - **Vehicles:**
   - Default `active`; toggle between `active` and `inactive`; delete is soft. Optional OR/CR upload per vehicle (private `partner-documents` bucket).
+  - Capacity convention: `seat_capacity` represents passenger seating capacity only, strictly excluding the driver seat (* Passenger seats only, do not include driver seat). Matches tour schedule guest capacity 1:1 without off-by-one mismatches.
   - Discovery: `available_vehicles(start, end, seats)` RPC (organizers/admins; approved transporters only; no live booked/blocked overlap; no phone or plate).
 - **Availability:**
   - No overlapping live booked/blocked rows, enforced in the DB (`vehicle_availability_no_overlap`, per-vehicle lock). `booked` rows are trigger-only (end users cannot write them).

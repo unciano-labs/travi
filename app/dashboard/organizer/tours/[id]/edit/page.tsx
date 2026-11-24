@@ -2,9 +2,9 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Calendar, Users, List, Info, CalendarDays } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import TourForm from '@/components/dashboard/TourForm';
 import ScheduleForm from '@/components/dashboard/ScheduleForm';
-import SchedulesCalendar from '@/components/dashboard/SchedulesCalendar';
 import TransportManager from '@/components/dashboard/TransportManager';
 import PageHeader from '@/components/ui/PageHeader';
 import CardBox from '@/components/ui/CardBox';
@@ -13,8 +13,13 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import { manilaToday } from '@/lib/datetime';
 import { formatDate, formatPHP } from '@/lib/format';
+
+const SchedulesCalendar = dynamic(() => import('@/components/dashboard/SchedulesCalendar'), {
+  loading: () => <Skeleton className="h-[520px] w-full rounded-lg" />,
+});
 
 export default async function EditTourPage(props: { 
   params: Promise<{ id: string }>,

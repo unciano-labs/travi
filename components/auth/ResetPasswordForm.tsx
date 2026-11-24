@@ -4,14 +4,19 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { KeyRound, Loader2 } from 'lucide-react';
 import { resetPassword } from '@/actions/auth';
-import { AUTH_BUTTON_CLASS, AUTH_INPUT_CLASS, AuthNotice } from '@/components/auth/AuthCard';
+import { AuthNotice } from '@/components/auth/AuthCard';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export default function ResetPasswordForm() {
   const [error, setError] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const handleSubmit = (formData: FormData) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
     setError(null);
     if (formData.get('password') !== formData.get('confirmPassword')) {
       setError('Passwords do not match');
@@ -33,16 +38,18 @@ export default function ResetPasswordForm() {
           {error}
           {expired && (
             <span className="block mt-2">
-              <Link href="/auth/forgot-password" className="font-semibold text-coral underline">Request a new link</Link>
+              <Link href="/auth/forgot-password" className="font-semibold text-primary underline hover:text-primaryemphasis">
+                Request a new link
+              </Link>
             </span>
           )}
         </AuthNotice>
       )}
 
-      <form action={handleSubmit} className="space-y-5">
-        <div>
-          <label htmlFor="reset-password" className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
-          <input
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="reset-password">New Password</Label>
+          <Input
             id="reset-password"
             type="password"
             name="password"
@@ -51,14 +58,13 @@ export default function ResetPasswordForm() {
             minLength={8}
             maxLength={72}
             aria-describedby="reset-password-hint"
-            className={AUTH_INPUT_CLASS}
           />
-          <p id="reset-password-hint" className="mt-1 text-xs text-slate-500">At least 8 characters.</p>
+          <p id="reset-password-hint" className="text-xs text-muted-foreground">At least 8 characters.</p>
         </div>
 
-        <div>
-          <label htmlFor="reset-confirm-password" className="block text-sm font-medium text-slate-700 mb-1">Confirm New Password</label>
-          <input
+        <div className="space-y-1.5">
+          <Label htmlFor="reset-confirm-password">Confirm New Password</Label>
+          <Input
             id="reset-confirm-password"
             type="password"
             name="confirmPassword"
@@ -66,17 +72,16 @@ export default function ResetPasswordForm() {
             required
             minLength={8}
             maxLength={72}
-            className={AUTH_INPUT_CLASS}
           />
         </div>
 
-        <button type="submit" disabled={pending} className={AUTH_BUTTON_CLASS}>
+        <Button type="submit" disabled={pending} className="mt-2 w-full">
           {pending ? (
-            <><Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" /> Saving…</>
+            <><Loader2 className="size-4 animate-spin" aria-hidden="true" /> Saving…</>
           ) : (
-            <><KeyRound className="w-5 h-5" aria-hidden="true" /> Set new password</>
+            <><KeyRound className="size-4" aria-hidden="true" /> Set new password</>
           )}
-        </button>
+        </Button>
       </form>
     </>
   );

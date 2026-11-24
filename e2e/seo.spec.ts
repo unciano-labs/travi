@@ -19,6 +19,7 @@ test.describe('Technical SEO & Crawlability Tests', () => {
     const body = await response.text();
     expect(body).toContain('<urlset');
     expect(body).toContain('<loc>');
+    expect(body).toContain('/destinations');
   });
 
   test('3. Landing page has correct meta tags and OpenGraph tags', async ({ page }) => {

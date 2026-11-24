@@ -23,7 +23,9 @@ export default function TravelerProfileForm({ profile }: { profile: Profile }) {
   const defaultFirstName = names[0] || '';
   const defaultLastName = names.slice(1).join(' ');
 
-  const handleSubmit = (formData: FormData) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
     setStatus(null);
     const fullName = [formData.get('firstName'), formData.get('lastName')]
       .map((v) => (typeof v === 'string' ? v.trim() : ''))
@@ -41,7 +43,7 @@ export default function TravelerProfileForm({ profile }: { profile: Profile }) {
   };
 
   return (
-    <form className="flex flex-col gap-6" action={handleSubmit}>
+    <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
       {status && (
         <Alert variant={status.tone === 'success' ? 'lightsuccess' : 'lighterror'} role={status.tone === 'error' ? 'alert' : 'status'}>
           {status.tone === 'success' ? <CheckCircle2 /> : <AlertCircle />}

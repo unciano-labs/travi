@@ -23,6 +23,7 @@ export default async function SignupPage({
     <AuthCard
       title="Create a new account"
       subtitle={initialRole === 'traveler' ? undefined : `Join Travi as a ${initialRole}.`}
+      className="md:w-[500px]"
     >
       <SignupForm initialRole={initialRole} next={next} />
     </AuthCard>

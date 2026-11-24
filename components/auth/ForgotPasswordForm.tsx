@@ -4,14 +4,19 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { Loader2, Mail } from 'lucide-react';
 import { requestPasswordReset } from '@/actions/auth';
-import { AUTH_BUTTON_CLASS, AUTH_INPUT_CLASS, AuthNotice } from '@/components/auth/AuthCard';
+import { AuthNotice } from '@/components/auth/AuthCard';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export default function ForgotPasswordForm({ notice }: { notice: string | null }) {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const handleSubmit = (formData: FormData) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
     setError(null);
     startTransition(async () => {
       const result = await requestPasswordReset(formData);
@@ -22,15 +27,17 @@ export default function ForgotPasswordForm({ notice }: { notice: string | null }
 
   if (sent) {
     return (
-      <>
+      <div className="space-y-4">
         <AuthNotice tone="success">
           If an account exists for that email, we've sent a link to reset your password. The link
           is valid for a limited time; open it in this browser.
         </AuthNotice>
-        <p className="text-center text-sm text-slate-600">
-          <Link href="/login" className="font-medium text-coral hover:text-coral/80">Back to sign in</Link>
+        <p className="text-center text-sm text-muted-foreground">
+          <Link href="/login" className="font-semibold text-primary hover:text-primaryemphasis hover:underline">
+            Back to sign in
+          </Link>
         </p>
-      </>
+      </div>
     );
   }
 
@@ -39,32 +46,33 @@ export default function ForgotPasswordForm({ notice }: { notice: string | null }
       {notice && !error && <AuthNotice tone="error">{notice}</AuthNotice>}
       {error && <AuthNotice tone="error">{error}</AuthNotice>}
 
-      <form action={handleSubmit} className="space-y-5">
-        <div>
-          <label htmlFor="forgot-email" className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-          <input
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="forgot-email">Email Address</Label>
+          <Input
             id="forgot-email"
             type="email"
             name="email"
             autoComplete="email"
             placeholder="you@example.com"
             required
-            className={AUTH_INPUT_CLASS}
           />
         </div>
 
-        <button type="submit" disabled={pending} className={AUTH_BUTTON_CLASS}>
+        <Button type="submit" disabled={pending} className="mt-2 w-full">
           {pending ? (
-            <><Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" /> Sending…</>
+            <><Loader2 className="size-4 animate-spin" aria-hidden="true" /> Sending…</>
           ) : (
-            <><Mail className="w-5 h-5" aria-hidden="true" /> Send reset link</>
+            <><Mail className="size-4" aria-hidden="true" /> Send reset link</>
           )}
-        </button>
+        </Button>
 
-        <p className="mt-6 text-center text-sm text-slate-600">
-          Remembered it?{' '}
-          <Link href="/login" className="font-medium text-coral hover:text-coral/80">Back to sign in</Link>
-        </p>
+        <div className="mt-6 flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
+          <span>Remembered it?</span>
+          <Link href="/login" className="font-semibold text-primary hover:text-primaryemphasis hover:underline">
+            Back to sign in
+          </Link>
+        </div>
       </form>
     </>
   );

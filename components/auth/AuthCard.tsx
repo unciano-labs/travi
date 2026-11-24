@@ -1,49 +1,73 @@
+import * as React from 'react';
 import Link from 'next/link';
+import { AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import CardBox from '@/components/ui/CardBox';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 
-// Shared brand-theme frame for /login, /signup and /auth/* pages.
+// Shared template-themed frame for /login, /signup and /auth/* pages.
 export default function AuthCard({
   title,
   subtitle,
   children,
+  className,
 }: {
   title: string;
   subtitle?: React.ReactNode;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center px-4">
-        <Link href="/" className="inline-block font-display font-bold text-3xl text-brand-navy">
-          TRAVI <span className="text-coral">Marketplace</span>
-        </Link>
-        <h1 className="mt-6 text-center text-3xl font-extrabold text-slate-900">{title}</h1>
-        {subtitle && <p className="mt-2 text-sm text-slate-600">{subtitle}</p>}
-      </div>
+    <div className="tw-admin relative min-h-screen overflow-hidden bg-lightprimary flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="flex min-h-full items-center justify-center">
+        <CardBox className={cn('w-full border-none shadow-dashboard md:w-[450px] p-6 sm:p-8', className)}>
+          <div className="text-center mb-6">
+            <Link
+              href="/"
+              className="inline-block font-display text-3xl font-bold tracking-tight text-dark hover:opacity-90 transition-opacity"
+            >
+              travi<span className="text-primary">.</span>
+            </Link>
+            <h1 className="mt-4 text-xl font-semibold text-foreground">{title}</h1>
+            {subtitle && <p className="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>}
+          </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-xl sm:rounded-2xl sm:px-10 border border-slate-100">
           {children}
-        </div>
+        </CardBox>
       </div>
     </div>
   );
 }
 
 export const AUTH_INPUT_CLASS =
-  'w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral transition-all';
+  'flex h-10 w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:border-primary transition-colors';
 
 export const AUTH_BUTTON_CLASS =
-  'w-full flex justify-center items-center gap-2 bg-coral hover:bg-coral/90 text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coral/40 focus-visible:ring-offset-2';
+  'inline-flex h-10 w-full items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-primaryemphasis focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer';
 
-export function AuthNotice({ tone, children }: { tone: 'error' | 'info' | 'success'; children: React.ReactNode }) {
-  const styles = {
-    error: 'bg-red-50 border-red-100 text-red-600',
-    info: 'bg-sky-50 border-sky-100 text-brand-dark',
-    success: 'bg-emerald-50 border-emerald-100 text-emerald-700',
-  }[tone];
+export function AuthNotice({
+  tone,
+  children,
+}: {
+  tone: 'error' | 'info' | 'success';
+  children: React.ReactNode;
+}) {
+  const variantMap = {
+    error: 'lighterror' as const,
+    info: 'lightinfo' as const,
+    success: 'lightsuccess' as const,
+  };
+  const iconMap = {
+    error: AlertCircle,
+    info: Info,
+    success: CheckCircle2,
+  };
+  const Icon = iconMap[tone];
+
   return (
-    <div role={tone === 'error' ? 'alert' : 'status'} className={`mb-6 p-3 border rounded-lg text-sm text-center ${styles}`}>
-      {children}
-    </div>
+    <Alert variant={variantMap[tone]} className="mb-6">
+      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      <AlertDescription className="text-left text-sm leading-relaxed">{children}</AlertDescription>
+    </Alert>
   );
 }

@@ -29,13 +29,26 @@ export default async function OrganizerLayout({
     redirect('/login');
   }
 
-  // Check organizer profile status
-  const { data: organizerProfile } = await supabase
+  // Check organizer profile status (with fallback if KYC columns are pending migration)
+  let organizerProfile = null;
+  const { data: initialProfile, error: opError } = await supabase
     .from('organizer_profiles')
     .select('status, review_note, info_requested_at')
     .eq('user_profile_id', profile.id)
     .is('deleted_at', null)
     .maybeSingle();
+
+  organizerProfile = initialProfile;
+
+  if (opError && (opError.code === '42703' || opError.message?.includes('review_note'))) {
+    const fallback = await supabase
+      .from('organizer_profiles')
+      .select('status')
+      .eq('user_profile_id', profile.id)
+      .is('deleted_at', null)
+      .maybeSingle();
+    organizerProfile = fallback.data ? { status: fallback.data.status, review_note: null, info_requested_at: null } as any : null;
+  }
 
   // No profile yet -> Show Onboarding Form
   if (!organizerProfile) {

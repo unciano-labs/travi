@@ -75,7 +75,7 @@ export default async function AdminTransportPage({ searchParams }: { searchParam
       organizer: name(one(r.organizer)),
       transporter: name(one(r.transporter)),
       vehicle: vehicle
-        ? [vehicle.name ?? 'Vehicle', vehicle.vehicle_type, vehicle.seat_capacity ? `${vehicle.seat_capacity} seats` : null].filter(Boolean).join(' · ')
+        ? [vehicle.name ?? 'Vehicle', vehicle.vehicle_type, vehicle.seat_capacity ? `${vehicle.seat_capacity} passenger seats` : null].filter(Boolean).join(' · ')
         : '—',
       tourTitle: one(schedule?.tours)?.title ?? 'Unknown tour',
       scheduleStart: schedule?.start_date ?? null,

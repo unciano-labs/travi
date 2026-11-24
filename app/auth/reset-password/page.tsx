@@ -24,8 +24,8 @@ export default async function ResetPasswordPage() {
           This password reset link is invalid or has expired. Reset links work once, for 15 minutes
           after you open them, in the browser where you requested them.
         </AuthNotice>
-        <p className="text-center text-sm text-slate-600">
-          <Link href="/auth/forgot-password" className="font-medium text-coral hover:text-coral/80">
+        <p className="text-center text-sm text-muted-foreground">
+          <Link href="/auth/forgot-password" className="font-semibold text-primary hover:text-primaryemphasis hover:underline">
             Request a new reset link
           </Link>
         </p>

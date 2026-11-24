@@ -4,7 +4,12 @@ import { SearchX, X } from 'lucide-react';
 import Header from '@/components/landing/Header';
 import Footer from '@/components/landing/Footer';
 import TourGrid from '@/components/landing/TourGrid';
-import { CATALOG_FORM_ID, CatalogFilterPanel, CatalogSearchBar } from '@/components/landing/CatalogFilters';
+import {
+  CATALOG_FORM_ID,
+  CatalogCategoryBar,
+  CatalogFilterPanel,
+  CatalogSearchBar,
+} from '@/components/landing/CatalogFilters';
 import CatalogFormEnhancer from '@/components/landing/CatalogFormEnhancer';
 import { getCatalogPage } from '@/lib/data/tours';
 import { manilaToday } from '@/lib/datetime';
@@ -66,6 +71,8 @@ export default async function ToursCatalogPage({ searchParams }: { searchParams:
   const firstShown = total === 0 ? 0 : (page - 1) * CATALOG_PAGE_SIZE + 1;
   const lastShown = Math.min(page * CATALOG_PAGE_SIZE, total);
 
+  const searchKey = catalogHref(search);
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <Header />
@@ -77,15 +84,17 @@ export default async function ToursCatalogPage({ searchParams }: { searchParams:
             <h1 className="text-3xl lg:text-5xl font-extrabold text-white font-display mb-6">
               Find your next Philippine adventure
             </h1>
-            <CatalogSearchBar search={search} today={manilaToday()} />
+            <CatalogSearchBar key={`bar-${searchKey}`} search={search} today={manilaToday()} />
             <CatalogFormEnhancer formId={CATALOG_FORM_ID} />
           </div>
         </section>
 
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 lg:py-12">
+          <CatalogCategoryBar search={search} />
+
           <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-8 items-start">
             <aside aria-label="Filters" className="lg:sticky lg:top-24">
-              <CatalogFilterPanel search={search} activeCount={refineCount} />
+              <CatalogFilterPanel key={`panel-${searchKey}`} search={search} activeCount={refineCount} />
             </aside>
 
             <div>

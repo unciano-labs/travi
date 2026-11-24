@@ -26,10 +26,11 @@ export default async function BookingSuccessPage({
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
+      <div className="bg-brand-navy h-16 lg:h-20 shrink-0" aria-hidden="true" />
       <Header />
-      
-      <main className="flex-1 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-slate-100 shadow-xl text-center">
+
+      <main className="flex-1 flex items-center justify-center px-4 py-12">
+        <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-slate-200/80 shadow-xl text-center">
           {result.success && result.status === 'confirmed' ? (
             <>
               <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">

@@ -15,7 +15,9 @@ export default function ContactForm({ defaultTopic }: { defaultTopic?: SupportTo
   const [sent, setSent] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const handleSubmit = (formData: FormData) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
     setError(null);
     startTransition(async () => {
       const res = await submitSupportMessage(formData);
@@ -34,7 +36,7 @@ export default function ContactForm({ defaultTopic }: { defaultTopic?: SupportTo
   }
 
   return (
-    <form action={handleSubmit} className="space-y-5" noValidate={false}>
+    <form onSubmit={handleSubmit} className="space-y-5" noValidate={false}>
       {error && (
         <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>
       )}

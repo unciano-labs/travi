@@ -161,7 +161,7 @@ export default function VehicleModal({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="vehicle-seats">Seat Capacity *</Label>
+              <Label htmlFor="vehicle-seats">Passenger Capacity *</Label>
               <Input
                 id="vehicle-seats"
                 type="number"
@@ -169,9 +169,12 @@ export default function VehicleModal({
                 required
                 min={1}
                 max={100}
-                placeholder="12"
-                defaultValue={vehicleToEdit?.seat_capacity || 12}
+                placeholder="11"
+                defaultValue={vehicleToEdit?.seat_capacity || 11}
               />
+              <p className="text-xs text-muted-foreground">
+                * Passenger seats only (do not include driver seat).
+              </p>
             </div>
           </div>
 

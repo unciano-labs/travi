@@ -6,9 +6,86 @@ import { requireSession, assertRole } from '@/lib/auth-helpers';
 import { assertRateLimit } from '@/lib/ratelimit';
 import { captureException } from '@/lib/logger';
 import { logMutation } from '@/lib/audit';
-import { documentIdSchema, partnerDocumentInputSchema, partnerTypeSchema } from '@/lib/schemas/partner';
+import {
+  documentIdSchema,
+  partnerDocumentInputSchema,
+  partnerTypeSchema,
+  partnerDocTypeSchema,
+  PARTNER_DOCUMENTS_BUCKET,
+  PARTNER_DOCUMENT_MAX_BYTES,
+  PARTNER_DOCUMENT_MIME_TYPES,
+  type PartnerDocumentInput,
+} from '@/lib/schemas/partner';
 import { insertPartnerDocuments } from '@/lib/services/partner-documents';
 import { partnerErrorMessage } from '@/lib/partners';
+import { createAdminClient } from '@/lib/supabase/admin';
+
+const EXTENSIONS: Record<string, string> = {
+  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+
+/**
+ * Server-side upload for partner KYC documents into the private `partner-documents` bucket.
+ * Uses service role to ensure upload succeeds regardless of client-side storage policies,
+ * while strictly checking user session, rate limit, mime type, and 10MB file limit.
+ */
+export async function uploadPartnerDocument(formData: FormData) {
+  try {
+    const { user, profile } = await requireSession();
+    await assertRateLimit(profile.id, 'mutation');
+
+    const file = formData.get('file');
+    const docTypeRaw = formData.get('docType');
+
+    if (!(file instanceof File) || file.size === 0) {
+      return { success: false as const, error: 'No file provided.' };
+    }
+
+    const docType = partnerDocTypeSchema.parse(docTypeRaw);
+
+    if (!(PARTNER_DOCUMENT_MIME_TYPES as readonly string[]).includes(file.type)) {
+      return { success: false as const, error: 'Upload a PDF, JPG, PNG or WebP file.' };
+    }
+
+    if (file.size > PARTNER_DOCUMENT_MAX_BYTES) {
+      return { success: false as const, error: 'Documents must be 10 MB or smaller.' };
+    }
+
+    const ext = EXTENSIONS[file.type] || 'pdf';
+    const storagePath = `${user.id}/${docType}-${crypto.randomUUID()}.${ext}`;
+
+    const admin = createAdminClient({ admin: true });
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    const { error: uploadError } = await admin.storage
+      .from(PARTNER_DOCUMENTS_BUCKET)
+      .upload(storagePath, buffer, {
+        contentType: file.type,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      captureException(uploadError, { action: 'uploadPartnerDocument' });
+      return { success: false as const, error: `Upload failed: ${uploadError.message}` };
+    }
+
+    const doc: PartnerDocumentInput = {
+      docType,
+      storagePath,
+      fileName: file.name.slice(0, 200),
+      mimeType: file.type as PartnerDocumentInput['mimeType'],
+      sizeBytes: file.size,
+    };
+
+    return { success: true as const, doc };
+  } catch (error: unknown) {
+    captureException(error, { action: 'uploadPartnerDocument' });
+    return { success: false as const, error: partnerErrorMessage(error, 'Document upload failed.') };
+  }
+}
 
 const submitSchema = z.object({
   partnerType: partnerTypeSchema,

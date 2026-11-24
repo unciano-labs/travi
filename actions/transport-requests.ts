@@ -469,7 +469,7 @@ export async function sendTransportRequest(input: unknown): Promise<ActionResult
     if (vehicleError) throw vehicleError;
     if (!vehicle) throw new TransportError('This vehicle is no longer available.');
     if (vehicle.seat_capacity < scheduleRow.capacity) {
-      throw new TransportError(`This vehicle seats ${vehicle.seat_capacity}, fewer than the schedule's ${scheduleRow.capacity} guests.`);
+      throw new TransportError(`This vehicle accommodates ${vehicle.seat_capacity} passenger seats, fewer than the schedule's ${scheduleRow.capacity} guests.`);
     }
 
     const pickupDatetime = manilaDateTimeToIso(scheduleRow.start_date, data.pickupTime);

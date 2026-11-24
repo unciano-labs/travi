@@ -12,13 +12,13 @@
   --color-coral-dark: #EA580C;
 
   --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-display), Georgia, serif;
+  --font-display: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 
   --shadow-card: 0 10px 30px -12px rgb(2 6 23 / 0.14);
   --shadow-lift: 0 20px 48px -16px rgb(2 6 23 / 0.28);
 
   /* Dashboard theme (ported from reference/tailwind-admin-reactjs-free) */
-  --font-dashboard: var(--font-dashboard), ui-sans-serif, system-ui, sans-serif;
+  --font-dashboard: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   --shadow-dashboard: 0 1px 4px rgb(133 146 173 / 0.2);
 
   --color-background: var(--background);

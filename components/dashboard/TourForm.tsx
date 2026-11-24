@@ -16,8 +16,12 @@ import { Button } from '@/components/ui/button';
 import { Input, NativeSelect } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import dynamic from 'next/dynamic';
-const LocationPicker = dynamic(() => import('./LocationPicker'), { ssr: false });
+const LocationPicker = dynamic(() => import('./LocationPicker'), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[320px] w-full rounded-lg" />,
+});
 
 export interface TourFormData {
   id?: string;

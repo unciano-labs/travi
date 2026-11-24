@@ -1,21 +1,11 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, Playfair_Display, DM_Sans } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 import { env } from "@/lib/env";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-sans",
-  subsets: ["latin"],
-});
-
-const playfairDisplay = Playfair_Display({
-  variable: "--font-display",
-  subsets: ["latin"],
-});
-
-const dmSans = DM_Sans({
-  variable: "--font-dashboard",
   subsets: ["latin"],
 });
 
@@ -56,7 +46,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${plusJakartaSans.variable} ${playfairDisplay.variable} ${dmSans.variable}`}>
+    <html lang="en" className={plusJakartaSans.variable}>
       <body>
         {children}
         <Analytics />

@@ -1,13 +1,23 @@
 'use client';
 
 import { useState } from 'react';
-import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
+import dynamic from 'next/dynamic';
+import { Calendar as CalendarComponent, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useRouter } from 'next/navigation';
 import { Users } from 'lucide-react';
 import { formatNumber, formatPHP } from '@/lib/format';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const Calendar = dynamic(
+  () => import('react-big-calendar').then((mod) => mod.Calendar),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-[520px] w-full rounded-lg" />,
+  }
+) as unknown as typeof CalendarComponent;
 
 const locales = {
   'en-US': enUS,

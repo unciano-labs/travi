@@ -59,7 +59,7 @@ export async function createTransporterProfile(formData: FormData) {
     // Record the Partner Terms acceptance first: no record, no application.
     await recordAcceptance(supabase, { userProfileId: profile.id, document: 'partner_terms' });
 
-    const { data: created, error } = await supabase
+    let insertRes = await supabase
       .from('transporter_profiles')
       .insert({
         user_profile_id: profile.id,
@@ -73,10 +73,28 @@ export async function createTransporterProfile(formData: FormData) {
         phone: data.phone,
         description: data.description,
         service_areas: data.serviceAreas,
-        // status is set by the database trigger: 'pending' until an admin approves (BIZ-06)
       })
       .select('id')
       .single();
+
+    if (insertRes.error && (insertRes.error.code === 'PGRST204' || insertRes.error.message?.includes('legal_name'))) {
+      insertRes = await supabase
+        .from('transporter_profiles')
+        .insert({
+          user_profile_id: profile.id,
+          transporter_type: data.transporterType,
+          company_name: data.transporterType === 'company' ? data.companyName : null,
+          display_name: data.displayName,
+          phone: data.phone,
+          description: data.description,
+          service_areas: data.serviceAreas,
+        })
+        .select('id')
+        .single();
+    }
+
+    const created = insertRes.data;
+    const error = insertRes.error;
 
     if (error || !created) {
       captureException(error, { action: 'createTransporterProfile insert' });

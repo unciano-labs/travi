@@ -183,7 +183,7 @@ export default function VehicleListClient({ initialVehicles }: VehicleListClient
                   <div className="grid grid-cols-2 gap-2 border-t border-border pt-3 text-xs text-bodytext">
                     <div className="flex items-center gap-1.5 font-medium">
                       <Users className="size-4 text-muted-foreground" />
-                      <span>{v.seat_capacity} Seats Capacity</span>
+                      <span>{v.seat_capacity} Passenger Seats</span>
                     </div>
                     <div className="flex items-center justify-end gap-1.5 font-medium">
                       <Tag className="size-4 text-muted-foreground" />

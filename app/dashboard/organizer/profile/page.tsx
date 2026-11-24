@@ -27,12 +27,25 @@ export default async function OrganizerProfilePage() {
     redirect('/login');
   }
 
-  const { data: profile } = await supabase
+  let profile = null;
+  const { data: initialProfile, error: profErr } = await supabase
     .from('organizer_profiles')
     .select('id, organizer_type, company_name, display_name, description, phone, address, provides_transport, status, legal_name, tin, business_registration_no, dot_accreditation_no, public_contact_email, user_profiles(email)')
     .eq('user_profile_id', userProfile.id)
     .is('deleted_at', null)
     .maybeSingle();
+
+  profile = initialProfile;
+
+  if (profErr && (profErr.code === '42703' || profErr.message?.includes('legal_name'))) {
+    const fallback = await supabase
+      .from('organizer_profiles')
+      .select('id, organizer_type, company_name, display_name, description, phone, address, provides_transport, status, user_profiles(email)')
+      .eq('user_profile_id', userProfile.id)
+      .is('deleted_at', null)
+      .maybeSingle();
+    profile = fallback.data as any;
+  }
 
   if (!profile) {
     // Should be handled by layout onboarding form, but just in case

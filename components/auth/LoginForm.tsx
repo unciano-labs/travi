@@ -4,7 +4,10 @@ import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { LogIn, Loader2 } from 'lucide-react';
 import { loginUser, resendConfirmation } from '@/actions/auth';
-import { AUTH_BUTTON_CLASS, AUTH_INPUT_CLASS, AuthNotice } from '@/components/auth/AuthCard';
+import { AuthNotice } from '@/components/auth/AuthCard';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export default function LoginForm({ next, notice }: { next: string | null; notice: string | null }) {
   const [error, setError] = useState<string | null>(null);
@@ -14,7 +17,9 @@ export default function LoginForm({ next, notice }: { next: string | null; notic
   const [resending, startResend] = useTransition();
   const emailRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = (formData: FormData) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
     setError(null);
     setNeedsConfirmation(false);
     setResent(false);
@@ -48,13 +53,13 @@ export default function LoginForm({ next, notice }: { next: string | null; notic
           {needsConfirmation && (
             <span className="block mt-2">
               {resent ? (
-                <span className="text-emerald-700">If that address needs confirming, a new link is on its way.</span>
+                <span className="text-successemphasis font-medium">If that address needs confirming, a new link is on its way.</span>
               ) : (
                 <button
                   type="button"
                   onClick={handleResend}
                   disabled={resending}
-                  className="font-semibold text-coral underline hover:text-coral/80 disabled:opacity-70"
+                  className="font-semibold text-primary underline hover:text-primaryemphasis disabled:opacity-70 cursor-pointer"
                 >
                   {resending ? 'Sending…' : 'Resend confirmation email'}
                 </button>
@@ -64,11 +69,11 @@ export default function LoginForm({ next, notice }: { next: string | null; notic
         </AuthNotice>
       )}
 
-      <form action={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {next && <input type="hidden" name="next" value={next} />}
-        <div>
-          <label htmlFor="login-email" className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-          <input
+        <div className="space-y-1.5">
+          <Label htmlFor="login-email">Email Address</Label>
+          <Input
             ref={emailRef}
             id="login-email"
             type="email"
@@ -76,41 +81,45 @@ export default function LoginForm({ next, notice }: { next: string | null; notic
             autoComplete="email"
             placeholder="you@example.com"
             required
-            className={AUTH_INPUT_CLASS}
           />
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label htmlFor="login-password" className="block text-sm font-medium text-slate-700">Password</label>
-            <Link href="/auth/forgot-password" className="text-sm font-medium text-coral hover:text-coral/80">
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="login-password">Password</Label>
+            <Link
+              href="/auth/forgot-password"
+              className="text-xs font-medium text-primary hover:text-primaryemphasis hover:underline"
+            >
               Forgot password?
             </Link>
           </div>
-          <input
+          <Input
             id="login-password"
             type="password"
             name="password"
             autoComplete="current-password"
             required
-            className={AUTH_INPUT_CLASS}
           />
         </div>
 
-        <button type="submit" disabled={pending} className={`${AUTH_BUTTON_CLASS} mt-2`}>
+        <Button type="submit" disabled={pending} className="mt-2 w-full">
           {pending ? (
-            <><Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" /> Signing in…</>
+            <><Loader2 className="size-4 animate-spin" aria-hidden="true" /> Signing in…</>
           ) : (
-            <><LogIn className="w-5 h-5" aria-hidden="true" /> Sign In</>
+            <><LogIn className="size-4" aria-hidden="true" /> Sign In</>
           )}
-        </button>
+        </Button>
 
-        <p className="mt-6 text-center text-sm text-slate-600">
-          Don't have an account?{' '}
-          <Link href={signupHref} className="font-medium text-coral hover:text-coral/80 transition-colors">
+        <div className="mt-6 flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
+          <span>Don't have an account?</span>
+          <Link
+            href={signupHref}
+            className="font-semibold text-primary hover:text-primaryemphasis transition-colors hover:underline"
+          >
             Sign up
           </Link>
-        </p>
+        </div>
       </form>
     </>
   );

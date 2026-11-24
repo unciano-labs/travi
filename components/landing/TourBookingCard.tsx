@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Users, Check, Minus, Plus, Loader2 } from 'lucide-react';
+import { BadgeCheck, ChevronDown, Users, Check, Minus, Plus, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { createBooking } from '@/actions/bookings';
 import { formatDateRange, formatPHP } from '@/lib/format';
@@ -85,9 +85,18 @@ export default function TourBookingCard({ tour }: { tour: any }) {
       <hr className="border-slate-100 mb-6" />
 
       <div className="space-y-6 mb-8">
-        <div className="flex justify-between items-center bg-slate-50 p-4 rounded-xl">
+        <div className="flex justify-between items-center gap-3 bg-slate-50 p-4 rounded-xl">
           <span className="text-sm font-medium text-slate-500">Organizer</span>
-          <span className="font-bold text-slate-900">{tour.organizer?.company_name || tour.organizer?.display_name || 'Local Guide'}</span>
+          <span className="font-bold text-slate-900 inline-flex items-center gap-1.5 text-right">
+            <span>{tour.organizer?.company_name || tour.organizer?.display_name || 'Local Guide'}</span>
+            <span
+              className="inline-flex items-center"
+              title="Verified and trusted organizer"
+            >
+              <BadgeCheck className="w-4 h-4 fill-sky-500 text-white shrink-0" aria-hidden="true" />
+              <span className="sr-only">Verified organizer</span>
+            </span>
+          </span>
         </div>
         
         {/* Custom Dropdown */}

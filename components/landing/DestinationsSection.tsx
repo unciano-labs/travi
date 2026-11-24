@@ -12,7 +12,7 @@ export default function DestinationsSection() {
             <p className="text-xs font-bold uppercase tracking-widest text-brand mb-2">Explore</p>
             <h2 className="text-2xl lg:text-3xl font-extrabold text-slate-900">Popular Destinations</h2>
           </div>
-          <Link href="/tours" className="shrink-0 text-xs font-bold border border-slate-200 rounded-lg px-4 py-2 hover:border-brand hover:text-brand-dark transition-colors">View All →</Link>
+          <Link href="/destinations" className="shrink-0 text-xs font-bold border border-slate-200 rounded-lg px-4 py-2 hover:border-brand hover:text-brand-dark transition-colors">View All →</Link>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">

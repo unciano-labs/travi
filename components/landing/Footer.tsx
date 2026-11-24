@@ -7,7 +7,7 @@ const COLUMNS = [
     title: 'Travelers',
     links: [
       { label: 'Browse Tours', href: '/tours' },
-      { label: 'Popular Destinations', href: '/#destinations' },
+      { label: 'Popular Destinations', href: '/destinations' },
       { label: 'About Travi', href: '/about' },
       { label: 'FAQ', href: '/faq' },
       { label: 'Contact & Support', href: '/contact' },

@@ -27,12 +27,25 @@ export default async function TransporterProfilePage() {
     redirect('/login');
   }
 
-  const { data: profile } = await supabase
+  let profile = null;
+  const { data: initialProfile, error: profErr } = await supabase
     .from('transporter_profiles')
     .select('id, transporter_type, company_name, display_name, description, phone, service_areas, status, average_rating, review_count, legal_name, tin, business_registration_no, ltfrb_franchise_no, user_profiles(email)')
     .eq('user_profile_id', userProfile.id)
     .is('deleted_at', null)
     .maybeSingle();
+
+  profile = initialProfile;
+
+  if (profErr && (profErr.code === '42703' || profErr.message?.includes('legal_name'))) {
+    const fallback = await supabase
+      .from('transporter_profiles')
+      .select('id, transporter_type, company_name, display_name, description, phone, service_areas, status, average_rating, review_count, user_profiles(email)')
+      .eq('user_profile_id', userProfile.id)
+      .is('deleted_at', null)
+      .maybeSingle();
+    profile = fallback.data as any;
+  }
 
   if (!profile) {
     // Should be handled by layout onboarding form, but just in case

@@ -166,7 +166,7 @@ export const documentIdSchema = z.string().uuid();
 export const vehicleSchema = z.object({
   name: z.string().trim().min(2, 'Vehicle name is required').max(120),
   vehicleType: z.enum(['car', 'van', 'bus', 'minibus', 'suv']),
-  seatCapacity: z.coerce.number().int('Seat capacity must be a whole number').min(1, 'Seat capacity must be at least 1').max(100),
+  seatCapacity: z.coerce.number().int('Passenger seat capacity must be a whole number').min(1, 'Passenger seat capacity must be at least 1').max(100),
   plateNumber: z
     .string()
     .trim()

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/server';
 import { Plus, MapPin, Calendar, Users, Eye, Edit2 } from 'lucide-react';
 import PageHeader from '@/components/ui/PageHeader';
@@ -112,7 +113,13 @@ export default async function OrganizerToursPage() {
             <CardBox key={tour.id} className="group p-0 gap-0 overflow-hidden transition-colors hover:border-primary/40">
               <div className="h-48 bg-muted relative overflow-hidden">
                 {tour.cover_image_url ? (
-                  <img src={tour.cover_image_url} alt={tour.title} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out" />
+                  <Image
+                    src={tour.cover_image_url}
+                    alt={tour.title}
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    className="object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out"
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-muted/50">
                     <MapPin className="w-8 h-8 opacity-50" />

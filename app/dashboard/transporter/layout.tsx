@@ -29,13 +29,26 @@ export default async function TransporterLayout({
     redirect('/login');
   }
 
-  // Check transporter profile status
-  const { data: transporterProfile } = await supabase
+  // Check transporter profile status (with fallback if KYC columns are pending migration)
+  let transporterProfile = null;
+  const { data: initialProfile, error: tpError } = await supabase
     .from('transporter_profiles')
     .select('status, review_note, info_requested_at')
     .eq('user_profile_id', profile.id)
     .is('deleted_at', null)
     .maybeSingle();
+
+  transporterProfile = initialProfile;
+
+  if (tpError && (tpError.code === '42703' || tpError.message?.includes('review_note'))) {
+    const fallback = await supabase
+      .from('transporter_profiles')
+      .select('status')
+      .eq('user_profile_id', profile.id)
+      .is('deleted_at', null)
+      .maybeSingle();
+    transporterProfile = fallback.data ? { status: fallback.data.status, review_note: null, info_requested_at: null } as any : null;
+  }
 
   // No profile yet -> Show Onboarding Form
   if (!transporterProfile) {

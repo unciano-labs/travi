@@ -22,13 +22,15 @@ export default function OrganizerOnboardingForm({ defaultContactEmail = '' }: { 
   const [type, setType] = useState<'individual' | 'company'>('individual');
   const router = useRouter();
 
-  async function handleSubmit(formData: FormData) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     setError(null);
     if (!governmentId) {
       setError('Please upload a government-issued ID.');
       return;
     }
     setLoading(true);
+    const formData = new FormData(e.currentTarget);
     formData.set('documents', JSON.stringify([governmentId, registrationDoc].filter(Boolean)));
 
     const res = await createOrganizerProfile(formData);
@@ -43,7 +45,7 @@ export default function OrganizerOnboardingForm({ defaultContactEmail = '' }: { 
   }
 
   return (
-    <form action={handleSubmit} className="space-y-8">
+    <form onSubmit={handleSubmit} className="space-y-8">
       {error && (
         <Alert variant="lighterror">
           <AlertCircle />

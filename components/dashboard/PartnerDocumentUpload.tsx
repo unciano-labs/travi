@@ -1,15 +1,14 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { CheckCircle2, FileText, Loader2, X } from 'lucide-react';
-import { createClient } from '@/lib/supabase/browser';
+import { AlertCircle, CheckCircle2, FileText, Loader2, X } from 'lucide-react';
+import { uploadPartnerDocument } from '@/actions/partner-documents';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import {
   PARTNER_DOCUMENT_MAX_BYTES,
   PARTNER_DOCUMENT_MIME_TYPES,
-  PARTNER_DOCUMENTS_BUCKET,
   type PartnerDocType,
   type PartnerDocumentInput,
 } from '@/lib/schemas/partner';
@@ -24,62 +23,64 @@ interface Props {
   onError?: (message: string) => void;
 }
 
-const EXTENSIONS: Record<string, string> = {
-  'application/pdf': 'pdf',
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-};
-
 /**
- * Uploads one KYC document to the PRIVATE `partner-documents` bucket, inside the user's own folder
- * (storage policy), and hands the metadata to the parent form. The server action records it in
- * partner_documents. Files are never publicly readable; admins open them with signed URLs.
+ * Uploads one KYC document to the PRIVATE `partner-documents` bucket via server action,
+ * inside the user's own folder, and hands the metadata to the parent form. Files are
+ * never publicly readable; admins open them with signed URLs.
  */
 export default function PartnerDocumentUpload({ docType, label, hint, required, value, onChange, onError }: Props) {
   const inputId = useId();
   const [uploading, setUploading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
 
+    setLocalError(null);
+
     if (!(PARTNER_DOCUMENT_MIME_TYPES as readonly string[]).includes(file.type)) {
-      onError?.('Upload a PDF, JPG, PNG or WebP file.');
+      const msg = 'Upload a PDF, JPG, PNG or WebP file.';
+      setLocalError(msg);
+      onError?.(msg);
       return;
     }
     if (file.size > PARTNER_DOCUMENT_MAX_BYTES) {
-      onError?.('Documents must be 10 MB or smaller.');
+      const msg = 'Documents must be 10 MB or smaller.';
+      setLocalError(msg);
+      onError?.(msg);
       return;
     }
 
     setUploading(true);
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Please sign in again.');
+      const formData = new FormData();
+      formData.set('file', file);
+      formData.set('docType', docType);
 
-      const path = `${user.id}/${docType}-${crypto.randomUUID()}.${EXTENSIONS[file.type]}`;
-      const { error } = await supabase.storage.from(PARTNER_DOCUMENTS_BUCKET).upload(path, file, {
-        contentType: file.type,
-        upsert: false,
-      });
-      if (error) throw new Error('Upload failed. Please try again.');
+      const res = await uploadPartnerDocument(formData);
+      if (!res.success) {
+        setLocalError(res.error);
+        onError?.(res.error);
+        return;
+      }
 
-      onChange({
-        docType,
-        storagePath: path,
-        fileName: file.name.slice(0, 200),
-        mimeType: file.type as PartnerDocumentInput['mimeType'],
-        sizeBytes: file.size,
-      });
+      setLocalError(null);
+      onChange(res.doc);
     } catch (err: unknown) {
-      onError?.(err instanceof Error ? err.message : 'Upload failed.');
+      const msg = err instanceof Error ? err.message : 'Upload failed. Please try again.';
+      setLocalError(msg);
+      onError?.(msg);
     } finally {
       setUploading(false);
     }
   }
+
+  const handleRemove = () => {
+    onChange(null);
+    setLocalError(null);
+  };
 
   return (
     <div className="space-y-2">
@@ -93,7 +94,7 @@ export default function PartnerDocumentUpload({ docType, label, hint, required, 
             <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{value.fileName || 'Document uploaded'}</span>
           </span>
-          <Button type="button" variant="ghost" size="iconsm" onClick={() => onChange(null)} aria-label={`Remove ${label}`}>
+          <Button type="button" variant="ghost" size="iconsm" onClick={handleRemove} aria-label={`Remove ${label}`}>
             <X />
           </Button>
         </div>
@@ -112,6 +113,12 @@ export default function PartnerDocumentUpload({ docType, label, hint, required, 
             <span className="mt-1 flex items-center gap-2 text-xs font-medium text-primary">
               <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> Uploading securely…
             </span>
+          )}
+          {localError && (
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-error" role="alert">
+              <AlertCircle className="size-3.5 shrink-0" aria-hidden="true" />
+              {localError}
+            </p>
           )}
         </div>
       )}

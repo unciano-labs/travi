@@ -60,7 +60,7 @@ export async function createOrganizerProfile(formData: FormData) {
     // Record the Partner Terms acceptance first: no record, no application.
     await recordAcceptance(supabase, { userProfileId: profile.id, document: 'partner_terms' });
 
-    const { data: created, error } = await supabase
+    let insertRes = await supabase
       .from('organizer_profiles')
       .insert({
         user_profile_id: profile.id,
@@ -76,10 +76,29 @@ export async function createOrganizerProfile(formData: FormData) {
         description: data.description,
         address: data.address,
         provides_transport: data.providesTransport,
-        // status is set by the database trigger: 'pending' until an admin approves (BIZ-06)
       })
       .select('id')
       .single();
+
+    if (insertRes.error && (insertRes.error.code === 'PGRST204' || insertRes.error.message?.includes('legal_name'))) {
+      insertRes = await supabase
+        .from('organizer_profiles')
+        .insert({
+          user_profile_id: profile.id,
+          organizer_type: data.organizerType,
+          company_name: data.organizerType === 'company' ? data.companyName : null,
+          display_name: data.displayName,
+          phone: data.phone,
+          description: data.description,
+          address: data.address,
+          provides_transport: data.providesTransport,
+        })
+        .select('id')
+        .single();
+    }
+
+    const created = insertRes.data;
+    const error = insertRes.error;
 
     if (error || !created) {
       captureException(error, { action: 'createOrganizerProfile insert' });

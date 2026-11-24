@@ -41,7 +41,8 @@ export default function ScheduleForm({ tourId, basePrice, initialData }: { tourI
   const transportStatus = initialData?.transport_booking?.status as string | undefined;
   const transportActive = transportStatus === 'pending' || transportStatus === 'accepted' || transportStatus === 'completed';
 
-  async function handleSubmit(formData: FormData) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     if (!range?.from || !range?.to) {
       setError('Please select a complete date range.');
       return;
@@ -51,6 +52,7 @@ export default function ScheduleForm({ tourId, basePrice, initialData }: { tourI
     setNotice(null);
     setLoading(true);
 
+    const formData = new FormData(e.currentTarget);
     // Override dates with the range picker
     formData.set('startDate', format(range.from, 'yyyy-MM-dd'));
     formData.set('endDate', format(range.to, 'yyyy-MM-dd'));
@@ -82,7 +84,7 @@ export default function ScheduleForm({ tourId, basePrice, initialData }: { tourI
 
   return (
     <>
-    <form ref={formRef} action={handleSubmit}>
+    <form ref={formRef} onSubmit={handleSubmit}>
     <CardBox>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h5 className="card-title flex items-center gap-2">

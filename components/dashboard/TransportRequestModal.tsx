@@ -323,7 +323,7 @@ export default function TransportRequestModal({
                           </div>
                         </div>
                         <div className="text-sm text-bodytext space-y-1 mb-3">
-                          <p>💺 {v.seat_capacity} Seats</p>
+                          <p>💺 {v.seat_capacity} Passenger Seats</p>
                           <p>🏢 {v.transporter.company_name || v.transporter.display_name}</p>
                           {v.rate_per_day && <p>💰 {formatPHP(v.rate_per_day, { cents: 'auto' })}/day (Est.)</p>}
                         </div>

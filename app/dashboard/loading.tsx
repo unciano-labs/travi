@@ -1,5 +1,5 @@
-import PageLoader from '@/components/ui/PageLoader';
+import { DashboardOverviewSkeleton } from '@/components/ui/skeletons';
 
-export default function Loading() {
-  return <PageLoader />;
+export default function DashboardLoading() {
+  return <DashboardOverviewSkeleton />;
 }
